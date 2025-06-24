@@ -20,14 +20,28 @@
     },
     "riverGeneration": {
       "enabled": true,
-      "minControlPoints": 3,
+      "minControlPoints": 7,
       "maxControlPoints": 10,
       "randomOffset": 50,
-      "minWidth": 8,
-      "maxWidth": 24,
+      "minWidth": 4,
+      "maxWidth": 8,
       "curveResolution": 300,
       "candidateCount": 10,
-      "topPercentage": 30
+      "topPercentage": 30,
+      "minBranches": 1,
+      "maxBranches": 1
+    },
+    "erosion": {
+      "enabled": true,
+      "cycles": 3,
+      "probability": {
+        "minNeighbors": 1,
+        "maxNeighbors": 8,
+        "minProbability": 0.0,
+        "maxProbability": 0.5,
+        "sigmoidSteepness": 3.0,
+        "sigmoidMidpoint": 3.5
+      }
     }
   },
   "city": {
@@ -50,7 +64,7 @@
   },
   "rendering": {
     "backgroundColor": "0x000000",
-    "buildingColor": "0xffffff",
+    "buildingColor": "0x808080",
     "avatarColor": "0xffffff",
     "gridColor": "0xffffff",
     "shimmerSpeed": 0.001,

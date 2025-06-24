@@ -35,6 +35,11 @@ export class TerrainGenerator {
       this.generateRiver();
     }
     
+    // Apply erosion if enabled
+    if (this.settings.erosion && this.settings.erosion.enabled) {
+      this.applyErosion();
+    }
+    
     // Apply additional buildable logic
     this.determineBuildableTiles();
   }
@@ -162,13 +167,21 @@ export class TerrainGenerator {
 
   generateRiver() {
     const { gridSize } = this.settings;
-    const { minControlPoints, maxControlPoints, randomOffset, minWidth, maxWidth, curveResolution, candidateCount, topPercentage } = this.settings.riverGeneration;
+    const { minControlPoints, maxControlPoints, randomOffset, minWidth, maxWidth, curveResolution, candidateCount, topPercentage, minBranches, maxBranches } = this.settings.riverGeneration;
     
     // Step 1: Generate multiple river candidates and select the best by length
     const bestRiver = this.selectBestRiverCandidate(gridSize, candidateCount, topPercentage, minControlPoints, maxControlPoints, randomOffset, curveResolution);
     
-    // Step 2: Apply river width to create river tiles
+    // Step 2: Generate river branches
+    const branches = this.generateRiverBranches(bestRiver, gridSize, minBranches, maxBranches, minControlPoints, maxControlPoints, randomOffset, curveResolution);
+    
+    // Step 3: Apply main river width to create river tiles
     this.applyRiverToTiles(bestRiver.path, minWidth, maxWidth);
+    
+    // Step 4: Apply branch widths to create river tiles
+    for (const branch of branches) {
+      this.applyRiverToTiles(branch.path, minWidth * 0.7, maxWidth * 0.7); // Branches are slightly narrower
+    }
   }
 
   selectBestRiverCandidate(gridSize, candidateCount, topPercentage, minControlPoints, maxControlPoints, randomOffset, curveResolution) {
@@ -307,6 +320,63 @@ export class TerrainGenerator {
     return result;
   }
 
+  generateRiverBranches(mainRiver, gridSize, minBranches, maxBranches, minControlPoints, maxControlPoints, randomOffset, curveResolution) {
+    const numBranches = Math.floor(Math.random() * (maxBranches - minBranches + 1)) + minBranches;
+    const branches = [];
+    const allRivers = [mainRiver]; // Track all rivers for potential branching sources
+    
+    for (let b = 0; b < numBranches; b++) {
+      // Select a source river (main river or existing branch)
+      const sourceRiver = allRivers[Math.floor(Math.random() * allRivers.length)];
+      
+      // Select branch source point 1/3 down the source river
+      const branchIndex = Math.floor(sourceRiver.path.length / 3);
+      const branchSourcePoint = sourceRiver.path[branchIndex];
+      
+      // Generate random edge point for branch destination
+      const branchEndPoint = this.generateRandomEdgePoint(gridSize);
+      
+      // Generate control points for the branch
+      const numControlPoints = Math.floor(Math.random() * (maxControlPoints - minControlPoints + 1)) + minControlPoints;
+      const controlPoints = this.generateRiverControlPoints(branchSourcePoint, branchEndPoint, numControlPoints, randomOffset, gridSize);
+      
+      // Generate branch path
+      const branchPath = this.generateBezierCurve([branchSourcePoint, ...controlPoints, branchEndPoint], curveResolution);
+      
+      const branch = {
+        startPoint: branchSourcePoint,
+        endPoint: branchEndPoint,
+        controlPoints,
+        path: branchPath,
+        length: this.calculateRiverLength(branchPath),
+        sourceRiver: sourceRiver
+      };
+      
+      branches.push(branch);
+      allRivers.push(branch); // Add to potential branching sources for future branches
+    }
+    
+    return branches;
+  }
+
+  generateRandomEdgePoint(gridSize) {
+    const edges = ['north', 'south', 'east', 'west'];
+    const edge = edges[Math.floor(Math.random() * edges.length)];
+    
+    switch (edge) {
+      case 'north':
+        return { x: Math.random() * gridSize, z: 0 };
+      case 'south':
+        return { x: Math.random() * gridSize, z: gridSize - 1 };
+      case 'east':
+        return { x: gridSize - 1, z: Math.random() * gridSize };
+      case 'west':
+        return { x: 0, z: Math.random() * gridSize };
+      default:
+        return { x: 0, z: 0 };
+    }
+  }
+
   applyRiverToTiles(riverPath, minWidth, maxWidth) {
     for (let i = 0; i < riverPath.length; i++) {
       const point = riverPath[i];
@@ -339,6 +409,56 @@ export class TerrainGenerator {
         }
       }
     }
+  }
+
+  applyErosion() {
+    const { cycles, probability } = this.settings.erosion;
+    const { minNeighbors, maxNeighbors, minProbability, maxProbability, sigmoidSteepness, sigmoidMidpoint } = probability;
+    
+    for (let cycle = 0; cycle < cycles; cycle++) {
+      const tilesToErode = [];
+      
+      // Find all land tiles adjacent to water
+      for (const tile of this.tileGrid.tiles.values()) {
+        if (tile.tileType === 'ground') {
+          const neighbors = tile.getAllNeighbors();
+          const waterNeighborCount = neighbors.filter(neighbor => neighbor.tileType === 'water').length;
+          
+          if (waterNeighborCount > 0) {
+            // Calculate erosion probability using sigmoid function
+            const erosionProbability = this.calculateErosionProbability(
+              waterNeighborCount, 
+              minProbability, 
+              maxProbability, 
+              sigmoidSteepness, 
+              sigmoidMidpoint
+            );
+            
+            // Random chance to erode based on calculated probability
+            if (Math.random() < erosionProbability) {
+              tilesToErode.push(tile);
+            }
+          }
+        }
+      }
+      
+      // Apply erosion to selected tiles
+      for (const tile of tilesToErode) {
+        tile.setTileType('water');
+        tile.setBuildable(false); 
+        
+        // Lower the height slightly below water level
+        const { waterLevel } = this.settings;
+        tile.setHeight(Math.min(tile.height, waterLevel));
+      }
+    }
+  }
+
+  calculateErosionProbability(waterNeighborCount, minProb, maxProb, steepness, midpoint) {
+    // Sigmoid function: P(x) = minProb + (maxProb - minProb) / (1 + e^(-steepness * (x - midpoint)))
+    const exponent = -steepness * (waterNeighborCount - midpoint);
+    const sigmoidValue = 1 / (1 + Math.exp(exponent));
+    return minProb + (maxProb - minProb) * sigmoidValue;
   }
 
   determineBuildableTiles() {
@@ -443,7 +563,7 @@ export class TerrainGenerator {
     // Create tile-based grid geometry with tile type and buildability color coding
     const points = [];
     const colors = [];
-    const green = new THREE.Color(0x00ff00);  // Buildable ground tiles
+    const green = new THREE.Color(0x00aa00);  // Ground tiles (green)
     const white = new THREE.Color(0xffffff);  // Non-buildable ground tiles
     const blue = new THREE.Color(0x0088ff);   // Water tiles
     const gray = new THREE.Color(0x888888);   // Rock tiles
@@ -459,8 +579,8 @@ export class TerrainGenerator {
       } else if (tile.tileType === 'rock') {
         return gray;
       } else {
-        // For ground tiles, use buildability coloring
-        return tile.buildable ? green : white;
+        // For ground tiles, always show green
+        return green;
       }
     };
     
