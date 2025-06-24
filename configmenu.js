@@ -1,7 +1,8 @@
 export class ConfigMenu {
-  constructor(settings, onSettingsChange) {
+  constructor(settings, onSettingsChange, getOriginalSettings) {
     this.settings = settings;
     this.onSettingsChange = onSettingsChange;
+    this.getOriginalSettings = getOriginalSettings;
     this.isVisible = false;
     this.menuElement = null;
     this.originalSettings = JSON.parse(JSON.stringify(settings));
@@ -117,11 +118,15 @@ export class ConfigMenu {
       'gridSize': 10,
       'minHeight': -50,
       'maxHeight': -10,
+      'waterLevel': -20,
       'smoothness': 0,
       'minHills': 1,
       'maxHills': 1,
       'hillRadius': 1,
       'hillIntensity': 0,
+      'minControlPoints': 0,
+      'candidateCount': 1,
+      'topPercentage': 10,
       'speed': 0.01,
       'avatarRadius': 0.1,
       'shimmerSpeed': 0.0001,
@@ -136,11 +141,15 @@ export class ConfigMenu {
       'gridSize': 200,
       'minHeight': 10,
       'maxHeight': 50,
+      'waterLevel': 20,
       'smoothness': 2,
       'minHills': 10,
       'maxHills': 10,
       'hillRadius': 50,
       'hillIntensity': 20,
+      'minControlPoints': 10,
+      'candidateCount': 50,
+      'topPercentage': 100,
       'speed': 2,
       'avatarRadius': 2,
       'shimmerSpeed': 0.01,
@@ -419,17 +428,42 @@ export class ConfigMenu {
     this.hide();
   }
 
-  resetSettings() {
-    this.settings = JSON.parse(JSON.stringify(this.originalSettings));
-    
-    if (this.onSettingsChange) {
-      this.onSettingsChange(this.settings, false);
+  async resetSettings() {
+    try {
+      // Clear localStorage
+      localStorage.removeItem('cityGameSettings');
+      
+      // Get fresh settings from JSON file
+      if (this.getOriginalSettings) {
+        this.settings = await this.getOriginalSettings();
+        this.originalSettings = JSON.parse(JSON.stringify(this.settings));
+      } else {
+        // Fallback to stored original settings
+        this.settings = JSON.parse(JSON.stringify(this.originalSettings));
+      }
+      
+      if (this.onSettingsChange) {
+        this.onSettingsChange(this.settings, false);
+      }
+      
+      // Update UI
+      this.menuElement.remove();
+      this.createMenuHTML();
+      this.show();
+    } catch (error) {
+      console.error('Failed to reset settings:', error);
+      // Fallback to original settings
+      this.settings = JSON.parse(JSON.stringify(this.originalSettings));
+      
+      if (this.onSettingsChange) {
+        this.onSettingsChange(this.settings, false);
+      }
+      
+      // Update UI
+      this.menuElement.remove();
+      this.createMenuHTML();
+      this.show();
     }
-    
-    // Update UI
-    this.menuElement.remove();
-    this.createMenuHTML();
-    this.show();
   }
 
   toggle() {

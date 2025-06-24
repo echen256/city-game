@@ -1,8 +1,9 @@
 {
   "terrain": {
     "gridSize": 300,
-    "minHeight": -3,
+    "minHeight": 0,
     "maxHeight": 3,
+    "waterLevel": 0,
     "tileSize": 1,
     "smoothness": 0.8,
     "hillGeneration": {
@@ -16,6 +17,17 @@
       "octaves": 4,
       "persistence": 0.5,
       "lacunarity": 2.0
+    },
+    "riverGeneration": {
+      "enabled": true,
+      "minControlPoints": 3,
+      "maxControlPoints": 10,
+      "randomOffset": 50,
+      "minWidth": 8,
+      "maxWidth": 24,
+      "curveResolution": 300,
+      "candidateCount": 10,
+      "topPercentage": 30
     }
   },
   "city": {

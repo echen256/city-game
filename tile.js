@@ -9,6 +9,18 @@ export class Tile {
     this.slope = 0;
     this.isStreet = false;
     this.metadata = {};
+    
+    // 8 neighbors: N, NE, E, SE, S, SW, W, NW
+    this.neighbors = {
+      north: null,
+      northeast: null,
+      east: null,
+      southeast: null,
+      south: null,
+      southwest: null,
+      west: null,
+      northwest: null
+    };
   }
 
   setBuildable(buildable) {
@@ -111,15 +123,45 @@ export class Tile {
 
   getNeighborCoordinates() {
     return [
-      { x: this.x - 1, z: this.z },     // Left
-      { x: this.x + 1, z: this.z },     // Right
-      { x: this.x, z: this.z - 1 },     // Up
-      { x: this.x, z: this.z + 1 },     // Down
-      { x: this.x - 1, z: this.z - 1 }, // Top-left
-      { x: this.x + 1, z: this.z - 1 }, // Top-right
-      { x: this.x - 1, z: this.z + 1 }, // Bottom-left
-      { x: this.x + 1, z: this.z + 1 }  // Bottom-right
+      { x: this.x, z: this.z - 1 },     // North
+      { x: this.x + 1, z: this.z - 1 }, // Northeast
+      { x: this.x + 1, z: this.z },     // East
+      { x: this.x + 1, z: this.z + 1 }, // Southeast
+      { x: this.x, z: this.z + 1 },     // South
+      { x: this.x - 1, z: this.z + 1 }, // Southwest
+      { x: this.x - 1, z: this.z },     // West
+      { x: this.x - 1, z: this.z - 1 }  // Northwest
     ];
+  }
+
+  setNeighbor(direction, tile) {
+    this.neighbors[direction] = tile;
+  }
+
+  getNeighbor(direction) {
+    return this.neighbors[direction];
+  }
+
+  getAllNeighbors() {
+    return Object.values(this.neighbors).filter(neighbor => neighbor !== null);
+  }
+
+  getCardinalNeighbors() {
+    return [
+      this.neighbors.north,
+      this.neighbors.east,
+      this.neighbors.south,
+      this.neighbors.west
+    ].filter(neighbor => neighbor !== null);
+  }
+
+  getDiagonalNeighbors() {
+    return [
+      this.neighbors.northeast,
+      this.neighbors.southeast,
+      this.neighbors.southwest,
+      this.neighbors.northwest
+    ].filter(neighbor => neighbor !== null);
   }
 
   toString() {
@@ -158,10 +200,41 @@ export class TileGrid {
   }
 
   initializeGrid() {
+    // Create all tiles first
     for (let x = 0; x < this.gridSize; x++) {
       for (let z = 0; z < this.gridSize; z++) {
         const tile = new Tile(x, z);
         this.tiles.set(this.getKey(x, z), tile);
+      }
+    }
+    
+    // Then populate neighbor references
+    this.populateNeighbors();
+  }
+
+  populateNeighbors() {
+    const directions = [
+      { name: 'north', dx: 0, dz: -1 },
+      { name: 'northeast', dx: 1, dz: -1 },
+      { name: 'east', dx: 1, dz: 0 },
+      { name: 'southeast', dx: 1, dz: 1 },
+      { name: 'south', dx: 0, dz: 1 },
+      { name: 'southwest', dx: -1, dz: 1 },
+      { name: 'west', dx: -1, dz: 0 },
+      { name: 'northwest', dx: -1, dz: -1 }
+    ];
+
+    for (let x = 0; x < this.gridSize; x++) {
+      for (let z = 0; z < this.gridSize; z++) {
+        const tile = this.getTile(x, z);
+        if (tile) {
+          for (const direction of directions) {
+            const neighborX = x + direction.dx;
+            const neighborZ = z + direction.dz;
+            const neighbor = this.getTile(neighborX, neighborZ);
+            tile.setNeighbor(direction.name, neighbor);
+          }
+        }
       }
     }
   }
@@ -190,37 +263,13 @@ export class TileGrid {
   }
 
   getNeighbors(x, z) {
-    const neighbors = [];
-    const neighborCoords = [
-      { x: x - 1, z: z },     // Left
-      { x: x + 1, z: z },     // Right
-      { x: x, z: z - 1 },     // Up
-      { x: x, z: z + 1 }      // Down
-    ];
-
-    for (const coord of neighborCoords) {
-      const tile = this.getTile(coord.x, coord.z);
-      if (tile) {
-        neighbors.push(tile);
-      }
-    }
-
-    return neighbors;
+    const tile = this.getTile(x, z);
+    return tile ? tile.getCardinalNeighbors() : [];
   }
 
   getAllNeighbors(x, z) {
-    const neighbors = [];
     const tile = this.getTile(x, z);
-    if (!tile) return neighbors;
-
-    for (const coord of tile.getNeighborCoordinates()) {
-      const neighborTile = this.getTile(coord.x, coord.z);
-      if (neighborTile) {
-        neighbors.push(neighborTile);
-      }
-    }
-
-    return neighbors;
+    return tile ? tile.getAllNeighbors() : [];
   }
 
   getBuildableTiles() {
@@ -245,7 +294,7 @@ export class TileGrid {
 
   calculateSlopes() {
     for (const tile of this.tiles.values()) {
-      const neighbors = this.getNeighbors(tile.x, tile.z);
+      const neighbors = tile.getCardinalNeighbors();
       let maxHeightDiff = 0;
 
       for (const neighbor of neighbors) {
@@ -277,6 +326,10 @@ export class TileGrid {
   clear() {
     this.tiles.clear();
     this.initializeGrid();
+  }
+
+  repopulateNeighbors() {
+    this.populateNeighbors();
   }
 
   toJSON() {

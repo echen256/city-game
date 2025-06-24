@@ -23,19 +23,60 @@ class CityGame {
   async loadSettingsAndInit() {
     try {
       const response = await fetch('./gamesettings.json');
-      this.settings = await response.json();
+      const defaultSettings = await response.json();
+      
+      // Load settings from localStorage or use defaults
+      this.settings = this.loadSettingsFromStorage(defaultSettings);
       this.init();
     } catch (error) {
       console.error('Failed to load game settings:', error);
-      // Use default settings if loading fails
+      // Use minimal default settings if loading fails
       this.settings = {
-        terrain: { gridSize: 100, minHeight: -10, maxHeight: 10, noiseScale: 0.05, octaves: 4, persistence: 0.5, lacunarity: 2.0 },
+        terrain: { gridSize: 100, minHeight: -10, maxHeight: 10, waterLevel: 0, noiseScale: 0.05, octaves: 4, persistence: 0.5, lacunarity: 2.0 },
         city: { streetWidth: 4, blockSize: 8, buildingSpacing: 2, buildingDensity: 0.7, minBuildingHeight: 2, maxBuildingHeight: 12 },
         player: { speed: 0.2, avatarRadius: 0.5, avatarHeight: 0.5 },
         camera: { offsetX: 20, offsetY: 20, offsetZ: 20 },
         rendering: { backgroundColor: 0x000000, buildingColor: 0xffffff, avatarColor: 0xffffff, gridColor: 0xffffff, shimmerSpeed: 0.001, shimmerIntensity: 0.1 }
       };
       this.init();
+    }
+  }
+
+  loadSettingsFromStorage(defaultSettings) {
+    try {
+      const savedSettings = localStorage.getItem('cityGameSettings');
+      if (savedSettings) {
+        const parsed = JSON.parse(savedSettings);
+        // Merge with defaults to ensure all properties exist
+        return this.mergeSettings(defaultSettings, parsed);
+      }
+    } catch (error) {
+      console.error('Failed to load settings from localStorage:', error);
+    }
+    return defaultSettings;
+  }
+
+  mergeSettings(defaultSettings, savedSettings) {
+    const merged = JSON.parse(JSON.stringify(defaultSettings));
+    
+    for (const category in savedSettings) {
+      if (merged[category] && typeof merged[category] === 'object') {
+        for (const key in savedSettings[category]) {
+          if (merged[category].hasOwnProperty(key)) {
+            merged[category][key] = savedSettings[category][key];
+          }
+        }
+      }
+    }
+    
+    return merged;
+  }
+
+  saveSettingsToStorage() {
+    try {
+      localStorage.setItem('cityGameSettings', JSON.stringify(this.settings));
+    } catch (error) {
+      console.error('Failed to save settings to localStorage:', error);
     }
   }
 
@@ -180,13 +221,24 @@ class CityGame {
   setupConfigMenu() {
     this.configMenu = new ConfigMenu(this.settings, (newSettings, isPreview) => {
       this.onSettingsChanged(newSettings, isPreview);
-    });
+    }, this.getOriginalSettingsFromFile.bind(this));
+  }
+
+  async getOriginalSettingsFromFile() {
+    try {
+      const response = await fetch('./gamesettings.json');
+      return await response.json();
+    } catch (error) {
+      console.error('Failed to fetch original settings:', error);
+      throw error;
+    }
   }
 
   onSettingsChanged(newSettings, isPreview) {
     if (!isPreview) {
       // Full regeneration for final apply
       this.settings = newSettings;
+      this.saveSettingsToStorage();
       this.regenerateWorld();
     } else {
       // Live preview updates (limited to visual changes)
