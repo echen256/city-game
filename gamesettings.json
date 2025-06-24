@@ -1,0 +1,47 @@
+{
+  "terrain": {
+    "gridSize": 300,
+    "minHeight": -3,
+    "maxHeight": 3,
+    "tileSize": 1,
+    "smoothness": 0.8,
+    "hillGeneration": {
+      "minHills": 1,
+      "maxHills": 3,
+      "hillRadius": 100,
+      "hillIntensity": 2
+    },
+    "noise": {
+      "scale": 0.05,
+      "octaves": 4,
+      "persistence": 0.5,
+      "lacunarity": 2.0
+    }
+  },
+  "city": {
+    "streetWidth": 4,
+    "blockSize": 8,
+    "buildingSpacing": 2,
+    "buildingDensity": 0.7,
+    "minBuildingHeight": 2,
+    "maxBuildingHeight": 12
+  },
+  "player": {
+    "speed": 0.2,
+    "avatarRadius": 0.5,
+    "avatarHeight": 0.5
+  },
+  "camera": {
+    "offsetX": 20,
+    "offsetY": 20,
+    "offsetZ": 20
+  },
+  "rendering": {
+    "backgroundColor": "0x000000",
+    "buildingColor": "0xffffff",
+    "avatarColor": "0xffffff",
+    "gridColor": "0xffffff",
+    "shimmerSpeed": 0.001,
+    "shimmerIntensity": 0.1
+  }
+}

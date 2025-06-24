@@ -1,115 +1,169 @@
 import * as THREE from 'three';
+import { TerrainGenerator } from './terrain.js';
+import { BuildingGenerator } from './buildings.js';
+import { ConfigMenu } from './configmenu.js';
 
 class CityGame {
   constructor() {
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
-    this.gridSize = 100;
-    this.cellSize = 1;
     this.avatar = null;
-    this.buildings = [];
     this.keys = {};
+    this.settings = null;
+    this.terrainGenerator = null;
+    this.buildingGenerator = null;
+    this.configMenu = null;
+    this.cameraMode = 'isometric'; // 'isometric' or 'topdown'
+    this.buildingsVisible = true;
     
-    this.init();
+    this.loadSettingsAndInit();
+  }
+
+  async loadSettingsAndInit() {
+    try {
+      const response = await fetch('./gamesettings.json');
+      this.settings = await response.json();
+      this.init();
+    } catch (error) {
+      console.error('Failed to load game settings:', error);
+      // Use default settings if loading fails
+      this.settings = {
+        terrain: { gridSize: 100, minHeight: -10, maxHeight: 10, noiseScale: 0.05, octaves: 4, persistence: 0.5, lacunarity: 2.0 },
+        city: { streetWidth: 4, blockSize: 8, buildingSpacing: 2, buildingDensity: 0.7, minBuildingHeight: 2, maxBuildingHeight: 12 },
+        player: { speed: 0.2, avatarRadius: 0.5, avatarHeight: 0.5 },
+        camera: { offsetX: 20, offsetY: 20, offsetZ: 20 },
+        rendering: { backgroundColor: 0x000000, buildingColor: 0xffffff, avatarColor: 0xffffff, gridColor: 0xffffff, shimmerSpeed: 0.001, shimmerIntensity: 0.1 }
+      };
+      this.init();
+    }
   }
 
   init() {
     // Setup renderer
     this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.renderer.setClearColor(0x000000);
+    this.renderer.setClearColor(this.settings.rendering.backgroundColor);
     document.body.appendChild(this.renderer.domElement);
+
+    // Initialize terrain and building generators
+    this.terrainGenerator = new TerrainGenerator(this.settings);
+    this.terrainGenerator.generateTerrain();
+    this.buildingGenerator = new BuildingGenerator(this.settings, this.terrainGenerator);
 
     // Setup isometric camera
     this.setupCamera();
     
-    // Create grid and city
+    // Create terrain, grid and city
+    this.createTerrain();
     this.createGrid();
     this.generateCity();
     this.createAvatar();
     
-    // Setup controls
+    // Setup controls and config menu
     this.setupControls();
+    this.setupConfigMenu();
     
     // Start render loop
     this.animate();
   }
 
   setupCamera() {
-    // Isometric camera position
-    this.camera.position.set(50, 50, 50);
+    this.updateCameraMode();
+  }
+
+  updateCameraMode() {
+    if (this.cameraMode === 'topdown') {
+      this.setupTopDownCamera();
+    } else {
+      this.setupIsometricCamera();
+    }
+  }
+
+  setupIsometricCamera() {
+    const { offsetX, offsetY, offsetZ } = this.settings.camera;
+    this.camera.position.set(offsetX, offsetY, offsetZ);
     this.camera.lookAt(0, 0, 0);
   }
 
+  setupTopDownCamera() {
+    const { gridSize } = this.settings.terrain;
+    this.camera.position.set(0, gridSize * 0.8, 0);
+    this.camera.lookAt(0, 0, 0);
+  }
+
+  toggleCameraMode() {
+    this.cameraMode = this.cameraMode === 'isometric' ? 'topdown' : 'isometric';
+    this.updateCameraMode();
+  }
+
+  createTerrain() {
+    const terrain = this.terrainGenerator.createTerrainMesh();
+    this.scene.add(terrain);
+  }
+
   createGrid() {
-    const gridHelper = new THREE.GridHelper(this.gridSize, this.gridSize, 0xffffff, 0xffffff);
-    gridHelper.material.transparent = true;
-    gridHelper.material.opacity = 0.3;
+    const gridHelper = this.terrainGenerator.createGridHelper();
     this.scene.add(gridHelper);
   }
 
   generateCity() {
-    // Simple city generation algorithm
-    const streetWidth = 4;
-    const blockSize = 8;
-    
-    for (let x = 0; x < this.gridSize; x += blockSize) {
-      for (let z = 0; z < this.gridSize; z += blockSize) {
-        // Skip streets
-        if (x % (blockSize + streetWidth) < streetWidth || z % (blockSize + streetWidth) < streetWidth) {
-          continue;
-        }
-        
-        // Generate buildings in blocks
-        this.generateBlock(x, z, blockSize);
-      }
-    }
+    this.buildingGenerator.generateCity(this.scene);
+    this.updateBuildingVisibility();
   }
 
-  generateBlock(startX, startZ, blockSize) {
-    const buildingSpacing = 2;
-    
-    for (let x = startX; x < startX + blockSize; x += buildingSpacing) {
-      for (let z = startZ; z < startZ + blockSize; z += buildingSpacing) {
-        if (Math.random() > 0.3) { // 70% chance to place building
-          const height = Math.random() * 10 + 2; // Random height 2-12
-          this.createBuilding(x - this.gridSize/2, height/2, z - this.gridSize/2, 1, height, 1);
-        }
-      }
-    }
+  toggleBuildingVisibility() {
+    this.buildingsVisible = !this.buildingsVisible;
+    this.updateBuildingVisibility();
   }
 
-  createBuilding(x, y, z, width, height, depth) {
-    const geometry = new THREE.BoxGeometry(width, height, depth);
-    const material = new THREE.MeshBasicMaterial({ 
-      color: 0xffffff,
-      wireframe: false,
-      transparent: true,
-      opacity: 0.8
-    });
-    
-    const building = new THREE.Mesh(geometry, material);
-    building.position.set(x, y, z);
-    this.buildings.push(building);
-    this.scene.add(building);
+  updateBuildingVisibility() {
+    if (this.buildingGenerator) {
+      this.buildingGenerator.buildings.forEach(building => {
+        building.visible = this.buildingsVisible;
+      });
+    }
   }
 
   createAvatar() {
-    const geometry = new THREE.SphereGeometry(0.5, 16, 16);
+    const { avatarRadius } = this.settings.player;
+    const { avatarColor } = this.settings.rendering;
+    
+    const geometry = new THREE.SphereGeometry(avatarRadius, 16, 16);
     const material = new THREE.MeshBasicMaterial({ 
-      color: 0xffffff,
+      color: avatarColor,
       transparent: true,
       opacity: 0.9
     });
     
     this.avatar = new THREE.Mesh(geometry, material);
-    this.avatar.position.set(0, 0.5, 0);
+    
+    // Position avatar on terrain surface
+    const startX = 0;
+    const startZ = 0;
+    const terrainHeight = this.terrainGenerator.getHeightAt(startX, startZ);
+    this.avatar.position.set(startX, terrainHeight + avatarRadius, startZ);
+    
     this.scene.add(this.avatar);
   }
 
   setupControls() {
     document.addEventListener('keydown', (event) => {
       this.keys[event.code] = true;
+      
+      // Toggle config menu with 'C' key
+      if (event.code === 'KeyC' && this.configMenu) {
+        this.configMenu.toggle();
+      }
+      
+      // Toggle camera mode with 'V' key
+      if (event.code === 'KeyV') {
+        this.toggleCameraMode();
+      }
+      
+      // Toggle building visibility with 'B' key
+      if (event.code === 'KeyB') {
+        this.toggleBuildingVisibility();
+      }
     });
 
     document.addEventListener('keyup', (event) => {
@@ -123,8 +177,77 @@ class CityGame {
     });
   }
 
+  setupConfigMenu() {
+    this.configMenu = new ConfigMenu(this.settings, (newSettings, isPreview) => {
+      this.onSettingsChanged(newSettings, isPreview);
+    });
+  }
+
+  onSettingsChanged(newSettings, isPreview) {
+    if (!isPreview) {
+      // Full regeneration for final apply
+      this.settings = newSettings;
+      this.regenerateWorld();
+    } else {
+      // Live preview updates (limited to visual changes)
+      this.applyVisualSettings(newSettings);
+    }
+  }
+
+  applyVisualSettings(newSettings) {
+    // Update renderer background
+    if (newSettings.rendering.backgroundColor !== this.settings.rendering.backgroundColor) {
+      const bgColor = typeof newSettings.rendering.backgroundColor === 'string' ? 
+        parseInt(newSettings.rendering.backgroundColor) : newSettings.rendering.backgroundColor;
+      this.renderer.setClearColor(bgColor);
+    }
+
+    // Update avatar color and size
+    if (this.avatar) {
+      const avatarColor = typeof newSettings.rendering.avatarColor === 'string' ? 
+        parseInt(newSettings.rendering.avatarColor) : newSettings.rendering.avatarColor;
+      this.avatar.material.color.setHex(avatarColor);
+      
+      // Update avatar scale if radius changed
+      const radiusRatio = newSettings.player.avatarRadius / this.settings.player.avatarRadius;
+      this.avatar.scale.multiplyScalar(radiusRatio);
+    }
+
+    // Update building colors
+    if (this.buildingGenerator) {
+      const buildingColor = typeof newSettings.rendering.buildingColor === 'string' ? 
+        parseInt(newSettings.rendering.buildingColor) : newSettings.rendering.buildingColor;
+      this.buildingGenerator.buildings.forEach(building => {
+        building.material.color.setHex(buildingColor);
+      });
+    }
+  }
+
+  regenerateWorld() {
+    // Clear existing world
+    this.scene.clear();
+    
+    // Regenerate terrain and buildings
+    this.terrainGenerator = new TerrainGenerator(this.settings);
+    this.terrainGenerator.generateTerrain();
+    this.buildingGenerator = new BuildingGenerator(this.settings, this.terrainGenerator);
+
+    // Recreate world elements
+    this.createTerrain();
+    this.createGrid();
+    this.generateCity();
+    this.createAvatar();
+    
+    // Update renderer settings
+    this.renderer.setClearColor(this.settings.rendering.backgroundColor);
+  }
+
   updateAvatar() {
-    const speed = 0.2;
+    const { speed, avatarRadius } = this.settings.player;
+    const { gridSize } = this.settings.terrain;
+    
+    const oldX = this.avatar.position.x;
+    const oldZ = this.avatar.position.z;
     
     if (this.keys['KeyW'] || this.keys['ArrowUp']) {
       this.avatar.position.z -= speed;
@@ -140,26 +263,47 @@ class CityGame {
     }
 
     // Keep avatar within bounds
-    const bound = this.gridSize / 2 - 1;
+    const bound = gridSize / 2 - 1;
     this.avatar.position.x = Math.max(-bound, Math.min(bound, this.avatar.position.x));
     this.avatar.position.z = Math.max(-bound, Math.min(bound, this.avatar.position.z));
 
-    // Update camera to follow avatar
-    this.camera.position.x = this.avatar.position.x + 20;
-    this.camera.position.z = this.avatar.position.z + 20;
-    this.camera.lookAt(this.avatar.position.x, 0, this.avatar.position.z);
+    // Update avatar height to follow terrain
+    const terrainHeight = this.terrainGenerator.getHeightAt(this.avatar.position.x, this.avatar.position.z);
+    this.avatar.position.y = terrainHeight + avatarRadius;
+
+    // Update camera to follow avatar based on camera mode
+    this.updateCameraFollowAvatar();
+  }
+
+  updateCameraFollowAvatar() {
+    if (this.cameraMode === 'topdown') {
+      // Top-down camera follows avatar horizontally but stays above
+      const { gridSize } = this.settings.terrain;
+      this.camera.position.x = this.avatar.position.x;
+      this.camera.position.y = gridSize * 0.8;
+      this.camera.position.z = this.avatar.position.z;
+      this.camera.lookAt(this.avatar.position.x, this.avatar.position.y, this.avatar.position.z);
+    } else {
+      // Isometric camera follows with offset
+      const { offsetX, offsetY, offsetZ } = this.settings.camera;
+      this.camera.position.x = this.avatar.position.x + offsetX;
+      this.camera.position.y = this.avatar.position.y + offsetY;
+      this.camera.position.z = this.avatar.position.z + offsetZ;
+      this.camera.lookAt(this.avatar.position.x, this.avatar.position.y, this.avatar.position.z);
+    }
   }
 
   addShimmer() {
-    // Add subtle animation to buildings and avatar
-    const time = Date.now() * 0.001;
+    const time = Date.now() * this.settings.rendering.shimmerSpeed;
+    const { shimmerIntensity } = this.settings.rendering;
     
-    this.buildings.forEach((building, index) => {
-      building.material.opacity = 0.7 + Math.sin(time + index * 0.1) * 0.1;
-    });
+    // Shimmer buildings
+    this.buildingGenerator.addShimmerEffect();
     
+    // Shimmer avatar
     if (this.avatar) {
-      this.avatar.material.opacity = 0.8 + Math.sin(time * 2) * 0.1;
+      const baseOpacity = 0.8;
+      this.avatar.material.opacity = baseOpacity + Math.sin(time * 2) * shimmerIntensity;
     }
   }
 
