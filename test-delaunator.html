@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Delaunator Integration Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #1a1a1a;
+            color: #ffffff;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        
+        canvas {
+            border: 1px solid #666;
+            background-color: #0a0a0a;
+            margin: 20px 0;
+        }
+        
+        .controls {
+            background-color: #2a2a2a;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        
+        button {
+            background-color: #00ff88;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        
+        .info {
+            background-color: #2a2a2a;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Delaunator Integration Test</h1>
+        
+        <div class="controls">
+            <button onclick="generatePoints()">Generate New Points</button>
+            <button onclick="toggleTriangulation()">Toggle Triangulation</button>
+            <button onclick="toggleVoronoi()">Toggle Voronoi</button>
+            <button onclick="toggleSites()">Toggle Sites</button>
+        </div>
+        
+        <canvas id="canvas" width="800" height="600"></canvas>
+        
+        <div class="info" id="info">
+            <p>Status: Loading modules...</p>
+        </div>
+    </div>
+
+    <script type="module">
+        import { VoronoiGenerator } from './terrain-gen/voronoi/VoronoiGenerator.js';
+        import { VoronoiImageExporter } from './terrain-gen/voronoi/VoronoiImageExporter.js';
+
+        let voronoiGenerator = null;
+        let imageExporter = null;
+        let showTriangulation = true;
+        let showVoronoi = true;
+        let showSites = true;
+
+        // Mock terrain data
+        const mockTerrainData = {
+            features: new Map(),
+            featureCounter: 0,
+            createFeature: function(type) {
+                const id = `${type}_${++this.featureCounter}`;
+                const feature = {
+                    id, type,
+                    centroid: { x: 0, z: 0 },
+                    bezierCurves: [],
+                    pointDistributions: [],
+                    affectedTiles: [],
+                    metadata: {},
+                    setCentroid: function(x, z) { this.centroid = { x, z }; return this; },
+                    addBezierCurve: function(curve) { this.bezierCurves.push(curve); return this; },
+                    addPointDistribution: function(points) { this.pointDistributions.push(points); return this; },
+                    addAffectedTile: function(x, z) { this.affectedTiles.push({ x, z }); return this; },
+                    setMetadata: function(key, value) { this.metadata[key] = value; return this; },
+                    getMetadata: function(key) { return this.metadata[key]; }
+                };
+                this.features.set(id, feature);
+                return feature;
+            },
+            getFeaturesByType: function(type) {
+                return Array.from(this.features.values()).filter(f => f.type === type);
+            }
+        };
+
+        // Settings
+        const settings = {
+            gridSize: 600,
+            voronoi: {
+                enabled: true,
+                numSites: 30,
+                distribution: 'poisson',
+                poissonRadius: 25,
+                seed: 12345
+            }
+        };
+
+        function init() {
+            try {
+                voronoiGenerator = new VoronoiGenerator(mockTerrainData, settings);
+                imageExporter = new VoronoiImageExporter(voronoiGenerator, settings);
+                
+                updateInfo('Modules loaded successfully! Generating initial diagram...');
+                generatePoints();
+            } catch (error) {
+                updateInfo(`Error loading modules: ${error.message}`);
+                console.error(error);
+            }
+        }
+
+        function updateInfo(message) {
+            document.getElementById('info').innerHTML = `<p>${message}</p>`;
+        }
+
+        window.generatePoints = function() {
+            if (!voronoiGenerator) {
+                updateInfo('Voronoi generator not initialized');
+                return;
+            }
+
+            try {
+                // Generate new seed for randomness
+                settings.voronoi.seed = Math.floor(Math.random() * 100000);
+                
+                voronoiGenerator.generateVoronoi();
+                
+                // Store reference for image exporter
+                imageExporter.voronoiGenerator = voronoiGenerator;
+                
+                drawDiagram();
+                
+                const stats = {
+                    sites: voronoiGenerator.sites.length,
+                    cells: voronoiGenerator.getCells().size,
+                    triangles: voronoiGenerator.getTriangulation()?.triangles?.length || 0
+                };
+                
+                updateInfo(`Generated: ${stats.sites} sites, ${stats.cells} cells, ${stats.triangles} triangles`);
+                
+            } catch (error) {
+                updateInfo(`Error generating diagram: ${error.message}`);
+                console.error(error);
+            }
+        };
+
+        window.toggleTriangulation = function() {
+            showTriangulation = !showTriangulation;
+            drawDiagram();
+        };
+
+        window.toggleVoronoi = function() {
+            showVoronoi = !showVoronoi;
+            drawDiagram();
+        };
+
+        window.toggleSites = function() {
+            showSites = !showSites;
+            drawDiagram();
+        };
+
+        function drawDiagram() {
+            if (!voronoiGenerator || !imageExporter) return;
+
+            try {
+                const canvas = imageExporter.generateDiagramImage(
+                    voronoiGenerator.getCells(),
+                    voronoiGenerator.sites,
+                    {
+                        width: 800,
+                        height: 600,
+                        backgroundColor: '#0a0a0a',
+                        cellFillColors: ['#1a3a1a', '#2a4a2a', '#3a5a3a', '#4a6a4a'],
+                        cellStrokeColor: '#cccccc',
+                        siteColor: '#ffff00',
+                        triangulationColor: '#ffffff',
+                        voronoiColor: '#00ff88',
+                        showSites: showSites,
+                        showCellBorders: true,
+                        showTriangulation: showTriangulation,
+                        showVoronoiEdges: showVoronoi,
+                        lineWidth: 1,
+                        siteRadius: 3
+                    }
+                );
+
+                // Copy to display canvas
+                const displayCanvas = document.getElementById('canvas');
+                const ctx = displayCanvas.getContext('2d');
+                ctx.clearRect(0, 0, displayCanvas.width, displayCanvas.height);
+                ctx.drawImage(canvas, 0, 0);
+
+            } catch (error) {
+                updateInfo(`Error drawing diagram: ${error.message}`);
+                console.error(error);
+            }
+        }
+
+        // Initialize when page loads
+        init();
+    </script>
+</body>
+</html>

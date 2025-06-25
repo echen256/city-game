@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { TerrainGenerator } from './terrain.js';
+import { TerrainGenerator } from './terrain-gen/TerrainGenerator.js';
 import { BuildingGenerator } from './buildings.js';
 import { ConfigMenu } from './configmenu.js';
 

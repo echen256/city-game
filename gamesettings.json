@@ -42,6 +42,15 @@
         "sigmoidSteepness": 3.0,
         "sigmoidMidpoint": 3.5
       }
+    },
+    "voronoi": {
+      "enabled": false,
+      "numSites": 10,
+      "distribution": "poisson",
+      "minDistance": 10,
+      "poissonRadius": 20,
+      "gridSpacing": 30,
+      "seed": 12345
     }
   },
   "city": {

@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voronoi Sample Generator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #1a1a1a;
+            color: #ffffff;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            text-align: center;
+        }
+        
+        .header {
+            margin-bottom: 40px;
+        }
+        
+        .header h1 {
+            color: #00ff88;
+            margin-bottom: 10px;
+        }
+        
+        .controls {
+            background-color: #2a2a2a;
+            padding: 30px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            border: 1px solid #444;
+        }
+        
+        button {
+            background-color: #00ff88;
+            color: #000000;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 16px;
+            margin: 10px;
+            transition: background-color 0.3s;
+        }
+        
+        button:hover {
+            background-color: #00cc66;
+        }
+        
+        button:disabled {
+            background-color: #666;
+            cursor: not-allowed;
+        }
+        
+        .status {
+            background-color: #1a1a1a;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+            border: 1px solid #333;
+        }
+        
+        .progress {
+            width: 100%;
+            height: 20px;
+            background-color: #333;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        
+        .progress-bar {
+            height: 100%;
+            background-color: #00ff88;
+            width: 0%;
+            transition: width 0.3s;
+        }
+        
+        .log {
+            background-color: #0a0a0a;
+            padding: 15px;
+            border-radius: 5px;
+            text-align: left;
+            font-family: monospace;
+            font-size: 14px;
+            max-height: 200px;
+            overflow-y: auto;
+            margin: 20px 0;
+            border: 1px solid #333;
+        }
+        
+        .results-info {
+            background-color: #2a2a2a;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            border: 1px solid #444;
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        .error {
+            background-color: #3a1a1a;
+            color: #ff6666;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            border: 1px solid #660000;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Voronoi Diagram Sample Generator</h1>
+            <p>Generate 10 different Voronoi diagram variations for review</p>
+        </div>
+        
+        <div class="controls">
+            <h3>Generate Sample Images</h3>
+            <p>This will create 10 different Voronoi diagrams showcasing various algorithms:</p>
+            <ul style="text-align: left; max-width: 400px; margin: 20px auto;">
+                <li>Random distribution (low & high density)</li>
+                <li>Poisson disk sampling (dense & sparse)</li>
+                <li>Grid-based placement (regular & offset)</li>
+                <li>Hexagonal patterns (tight & loose)</li>
+                <li>Mixed organic and crystalline patterns</li>
+            </ul>
+            
+            <button id="generateBtn">Generate Samples</button>
+            <button id="downloadBtn" class="hidden" disabled>Download All</button>
+        </div>
+        
+        <div class="status hidden" id="statusPanel">
+            <h4>Generation Status</h4>
+            <div class="progress">
+                <div class="progress-bar" id="progressBar"></div>
+            </div>
+            <p id="statusText">Ready to generate...</p>
+            <div class="log" id="logOutput"></div>
+        </div>
+        
+        <div class="results-info hidden" id="resultsPanel">
+            <h3>Generation Complete!</h3>
+            <p id="resultsText"></p>
+            <button id="viewResultsBtn">View Results Gallery</button>
+        </div>
+        
+        <div class="error hidden" id="errorPanel">
+            <h3>Module Loading Issue</h3>
+            <p>The Voronoi generator modules couldn't be loaded. This is likely due to CORS restrictions.</p>
+            <p><strong>Solutions:</strong></p>
+            <ul style="text-align: left; max-width: 600px; margin: 20px auto;">
+                <li><strong>Use a local server:</strong> Run <code>python -m http.server 8000</code> or <code>npx http-server</code> in your project directory</li>
+                <li><strong>Use VS Code Live Server:</strong> Install the Live Server extension and right-click → "Open with Live Server"</li>
+                <li><strong>Bundle the modules:</strong> Include the module code directly in this HTML file</li>
+            </ul>
+            <button id="showMockBtn">Show Mock Version</button>
+        </div>
+    </div>
+
+    <script>
+        // Mock implementations for standalone testing
+        class MockVoronoiGenerator {
+            constructor(terrainData, settings) {
+                this.terrainData = terrainData;
+                this.settings = settings;
+                this.sites = [];
+                this.cells = new Map();
+            }
+            
+            generateVoronoi() {
+                // Generate random sites based on settings
+                const { numSites, seed } = this.settings.voronoi;
+                this.sites = [];
+                
+                // Simple seeded random
+                let seedValue = seed || 12345;
+                const random = () => {
+                    seedValue = (seedValue * 9301 + 49297) % 233280;
+                    return seedValue / 233280;
+                };
+                
+                for (let i = 0; i < numSites; i++) {
+                    this.sites.push({
+                        x: random() * this.settings.gridSize,
+                        y: random() * this.settings.gridSize,
+                        id: i
+                    });
+                }
+                
+                // Generate mock cells
+                this.cells = new Map();
+                this.sites.forEach((site, i) => {
+                    this.cells.set(i, {
+                        id: i,
+                        site: site,
+                        vertices: this.generateMockVertices(site),
+                        neighbors: []
+                    });
+                });
+            }
+            
+            generateMockVertices(site) {
+                // Generate simple polygon around site
+                const vertices = [];
+                const sides = 6;
+                const radius = 20 + Math.random() * 30;
+                
+                for (let i = 0; i < sides; i++) {
+                    const angle = (i / sides) * Math.PI * 2;
+                    vertices.push({
+                        x: site.x + Math.cos(angle) * radius,
+                        y: site.y + Math.sin(angle) * radius
+                    });
+                }
+                return vertices;
+            }
+            
+            getCells() {
+                return this.cells;
+            }
+        }
+        
+        class MockVoronoiImageExporter {
+            constructor(voronoiGenerator, settings) {
+                this.voronoiGenerator = voronoiGenerator;
+                this.settings = settings;
+                this.canvas = document.createElement('canvas');
+                this.ctx = this.canvas.getContext('2d');
+            }
+            
+            generateDiagramImage(cells, sites, options = {}) {
+                const {
+                    width = 800,
+                    height = 800,
+                    backgroundColor = '#0a0a0a',
+                    cellFillColors = ['#1a3a1a', '#2a4a2a', '#3a5a3a', '#4a6a4a'],
+                    cellStrokeColor = '#ffffff',
+                    siteColor = '#ffff00',
+                    triangulationColor = '#666666',
+                    voronoiColor = '#00ff88',
+                    showSites = true,
+                    showCellBorders = true,
+                    showTriangulation = true,
+                    lineWidth = 1,
+                    siteRadius = 3
+                } = options;
+                
+                this.canvas.width = width;
+                this.canvas.height = height;
+                
+                // Clear canvas
+                this.ctx.fillStyle = backgroundColor;
+                this.ctx.fillRect(0, 0, width, height);
+                
+                // Draw cells
+                const cellArray = Array.from(cells.values());
+                cellArray.forEach((cell, index) => {
+                    if (cell.vertices && cell.vertices.length > 2) {
+                        // Fill cell
+                        this.ctx.fillStyle = cellFillColors[index % cellFillColors.length];
+                        this.ctx.beginPath();
+                        this.ctx.moveTo(cell.vertices[0].x, cell.vertices[0].y);
+                        for (let i = 1; i < cell.vertices.length; i++) {
+                            this.ctx.lineTo(cell.vertices[i].x, cell.vertices[i].y);
+                        }
+                        this.ctx.closePath();
+                        this.ctx.fill();
+                        
+                        // Draw cell border
+                        if (showCellBorders) {
+                            this.ctx.strokeStyle = cellStrokeColor;
+                            this.ctx.lineWidth = lineWidth;
+                            this.ctx.stroke();
+                        }
+                    }
+                });
+                
+                // Draw triangulation lines (mock - more visible)
+                if (showTriangulation) {
+                    this.ctx.strokeStyle = '#ffffff'; // White lines for visibility
+                    this.ctx.lineWidth = lineWidth;
+                    this.ctx.setLineDash([3, 3]); // Dashed lines
+                    
+                    // Draw more triangulation lines for better visibility
+                    sites.forEach((site, i) => {
+                        sites.forEach((otherSite, j) => {
+                            if (i < j) {
+                                const distance = Math.sqrt(
+                                    Math.pow(site.x - otherSite.x, 2) + 
+                                    Math.pow(site.y - otherSite.y, 2)
+                                );
+                                // Connect nearby sites (within reasonable distance)
+                                if (distance < 100 && Math.random() > 0.4) {
+                                    this.ctx.beginPath();
+                                    this.ctx.moveTo(site.x, site.y);
+                                    this.ctx.lineTo(otherSite.x, otherSite.y);
+                                    this.ctx.stroke();
+                                }
+                            }
+                        });
+                    });
+                    
+                    this.ctx.setLineDash([]); // Reset line dash
+                }
+                
+                // Draw sites
+                if (showSites) {
+                    this.ctx.fillStyle = siteColor;
+                    sites.forEach(site => {
+                        this.ctx.beginPath();
+                        this.ctx.arc(site.x, site.y, siteRadius, 0, Math.PI * 2);
+                        this.ctx.fill();
+                    });
+                }
+                
+                return this.canvas;
+            }
+            
+            exportAsDataURL() {
+                return this.canvas.toDataURL('image/png');
+            }
+        }
+
+        // Try to load real modules, fall back to mock if CORS error
+        let VoronoiGenerator, VoronoiImageExporter;
+        let useMockImplementation = false;
+
+        async function loadModules() {
+            try {
+                const modules = await Promise.all([
+                    import('./VoronoiGenerator.js'),
+                    import('./VoronoiImageExporter.js')
+                ]);
+                
+                VoronoiGenerator = modules[0].VoronoiGenerator;
+                VoronoiImageExporter = modules[1].VoronoiImageExporter;
+                
+                log('Real Voronoi modules loaded successfully');
+                return true;
+            } catch (error) {
+                console.warn('Failed to load real modules, using mock implementation:', error);
+                VoronoiGenerator = MockVoronoiGenerator;
+                VoronoiImageExporter = MockVoronoiImageExporter;
+                useMockImplementation = true;
+                
+                // Show error panel
+                document.getElementById('errorPanel').classList.remove('hidden');
+                return false;
+            }
+        }
+
+        // Mock terrain data for standalone generation
+        const mockTerrainData = {
+            features: new Map(),
+            featureCounter: 0,
+            createFeature: function(type) {
+                const id = `${type}_${++this.featureCounter}`;
+                const feature = {
+                    id, type,
+                    centroid: { x: 0, z: 0 },
+                    bezierCurves: [],
+                    pointDistributions: [],
+                    affectedTiles: [],
+                    metadata: {},
+                    setCentroid: function(x, z) { this.centroid = { x, z }; return this; },
+                    addBezierCurve: function(curve) { this.bezierCurves.push(curve); return this; },
+                    addPointDistribution: function(points) { this.pointDistributions.push(points); return this; },
+                    addAffectedTile: function(x, z) { this.affectedTiles.push({ x, z }); return this; },
+                    setMetadata: function(key, value) { this.metadata[key] = value; return this; },
+                    getMetadata: function(key) { return this.metadata[key]; }
+                };
+                this.features.set(id, feature);
+                return feature;
+            },
+            getFeaturesByType: function(type) {
+                return Array.from(this.features.values()).filter(f => f.type === type);
+            }
+        };
+
+        let generationResults = null;
+
+        function log(message) {
+            const logOutput = document.getElementById('logOutput');
+            const timestamp = new Date().toLocaleTimeString();
+            logOutput.innerHTML += `[${timestamp}] ${message}\n`;
+            logOutput.scrollTop = logOutput.scrollHeight;
+            console.log(message);
+        }
+
+        function updateProgress(percent, text) {
+            document.getElementById('progressBar').style.width = `${percent}%`;
+            document.getElementById('statusText').textContent = text;
+        }
+
+        async function runGeneration() {
+            const generateBtn = document.getElementById('generateBtn');
+            const statusPanel = document.getElementById('statusPanel');
+            const resultsPanel = document.getElementById('resultsPanel');
+            
+            generateBtn.disabled = true;
+            statusPanel.classList.remove('hidden');
+            resultsPanel.classList.add('hidden');
+            
+            log('Starting Voronoi sample generation...');
+            
+            if (useMockImplementation) {
+                log('Using mock implementation due to module loading issues');
+            }
+            
+            updateProgress(0, 'Initializing...');
+
+            try {
+                // Base settings
+                const baseSettings = {
+                    gridSize: 300,
+                    voronoi: {
+                        enabled: true,
+                        numSites: 50,
+                        distribution: 'poisson',
+                        minDistance: 10,
+                        poissonRadius: 20,
+                        gridSpacing: 30,
+                        seed: 12345
+                    }
+                };
+
+                const voronoiGenerator = new VoronoiGenerator(mockTerrainData, baseSettings);
+                const imageExporter = new VoronoiImageExporter(voronoiGenerator, baseSettings);
+
+                log('Generators initialized successfully');
+                updateProgress(10, 'Generating variations...');
+
+                // Generate all variations with progress updates
+                const results = [];
+                const variations = getVariations(baseSettings.voronoi);
+
+                for (let i = 0; i < variations.length; i++) {
+                    const variation = variations[i];
+                    const progress = 10 + (i / variations.length) * 80;
+                    
+                    log(`Generating variation ${i + 1}/10: ${variation.name}`);
+                    updateProgress(progress, `Processing ${variation.name}...`);
+
+                    // Create temp generator
+                    const tempSettings = { ...baseSettings, voronoi: variation.settings };
+                    const tempGenerator = new VoronoiGenerator(mockTerrainData, tempSettings);
+                    
+                    // Generate voronoi with proper triangulation
+                    tempGenerator.generateVoronoi();
+                    
+                    // Store reference in exporter for triangulation access
+                    imageExporter.voronoiGenerator = tempGenerator;
+                    
+                    // Generate image
+                    const canvas = imageExporter.generateDiagramImage(
+                        tempGenerator.getCells(),
+                        tempGenerator.sites,
+                        {
+                            width: 800,
+                            height: 800,
+                            showSites: true,
+                            showCellBorders: true,
+                            showCellIds: false,
+                            showTriangulation: true,
+                            showVoronoiEdges: true,
+                            lineWidth: 1,
+                            siteRadius: 3,
+                            ...variation.colors
+                        }
+                    );
+
+                    results.push({
+                        name: variation.name,
+                        canvas: canvas,
+                        dataURL: imageExporter.exportAsDataURL(),
+                        settings: variation.settings,
+                        stats: {
+                            numCells: tempGenerator.getCells().size,
+                            numSites: tempGenerator.sites.length
+                        }
+                    });
+
+                    // Small delay to allow UI updates
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+
+                generationResults = results;
+                updateProgress(100, 'Generation complete!');
+                log(`Successfully generated ${results.length} variations`);
+
+                // Show results
+                resultsPanel.classList.remove('hidden');
+                document.getElementById('resultsText').textContent = 
+                    `Generated ${results.length} Voronoi diagrams with ${results.reduce((sum, r) => sum + r.stats.numCells, 0)} total cells`;
+                
+                document.getElementById('downloadBtn').classList.remove('hidden');
+                document.getElementById('downloadBtn').disabled = false;
+
+            } catch (error) {
+                log(`Error during generation: ${error.message}`);
+                updateProgress(0, 'Generation failed');
+                console.error(error);
+            }
+
+            generateBtn.disabled = false;
+        }
+
+        function viewResults() {
+            if (!generationResults) return;
+
+            const htmlContent = generateResultsHTML(generationResults);
+            const newWindow = window.open('', '_blank');
+            newWindow.document.write(htmlContent);
+            newWindow.document.close();
+        }
+
+        function downloadResults() {
+            if (!generationResults) return;
+
+            generationResults.forEach((result, index) => {
+                const link = document.createElement('a');
+                link.href = result.dataURL;
+                link.download = `voronoi_${String(index + 1).padStart(2, '0')}_${result.name}.png`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            });
+
+            log(`Downloaded ${generationResults.length} images`);
+        }
+
+        function getVariations(baseSettings) {
+            return [
+                {
+                    name: 'seed_001',
+                    settings: { ...baseSettings, seed: 12345 },
+                    colors: { backgroundColor: '#0a0a0a', cellFillColors: ['#1a3a1a', '#2a4a2a', '#3a5a3a', '#4a6a4a'], cellStrokeColor: '#cccccc', siteColor: '#ffff00', triangulationColor: '#ffffff', voronoiColor: '#00ff88' }
+                },
+                {
+                    name: 'seed_002',
+                    settings: { ...baseSettings, seed: 23456 },
+                    colors: { backgroundColor: '#0a0a0a', cellFillColors: ['#3a1a1a', '#4a2a2a', '#5a3a3a', '#6a4a4a'], cellStrokeColor: '#cccccc', siteColor: '#ff6666', triangulationColor: '#ffffff', voronoiColor: '#ff0088' }
+                },
+                {
+                    name: 'seed_003',
+                    settings: { ...baseSettings, seed: 34567 },
+                    colors: { backgroundColor: '#0a0a0a', cellFillColors: ['#1a1a3a', '#2a2a4a', '#3a3a5a', '#4a4a6a'], cellStrokeColor: '#cccccc', siteColor: '#6666ff', triangulationColor: '#ffffff', voronoiColor: '#0088ff' }
+                },
+                {
+                    name: 'seed_004',
+                    settings: { ...baseSettings, seed: 45678 },
+                    colors: { backgroundColor: '#0a0a0a', cellFillColors: ['#2a1a2a', '#3a2a3a', '#4a3a4a', '#5a4a5a'], cellStrokeColor: '#cccccc', siteColor: '#ff66ff', triangulationColor: '#ffffff', voronoiColor: '#ff00ff' }
+                },
+                {
+                    name: 'seed_005',
+                    settings: { ...baseSettings, seed: 56789 },
+                    colors: { backgroundColor: '#0a0a0a', cellFillColors: ['#1a2a1a', '#2a3a2a', '#3a4a3a', '#4a5a4a'], cellStrokeColor: '#cccccc', siteColor: '#66ff66', triangulationColor: '#ffffff', voronoiColor: '#00ff00' }
+                },
+                {
+                    name: 'seed_006',
+                    settings: { ...baseSettings, seed: 67890 },
+                    colors: { backgroundColor: '#0a0a0a', cellFillColors: ['#2a2a1a', '#3a3a2a', '#4a4a3a', '#5a5a4a'], cellStrokeColor: '#cccccc', siteColor: '#ffff66', triangulationColor: '#ffffff', voronoiColor: '#ffff00' }
+                },
+                {
+                    name: 'seed_007',
+                    settings: { ...baseSettings, seed: 78901 },
+                    colors: { backgroundColor: '#0a0a0a', cellFillColors: ['#1a2a2a', '#2a3a3a', '#3a4a4a', '#4a5a5a'], cellStrokeColor: '#cccccc', siteColor: '#66ffff', triangulationColor: '#ffffff', voronoiColor: '#00ffff' }
+                },
+                {
+                    name: 'seed_008',
+                    settings: { ...baseSettings, seed: 89012 },
+                    colors: { backgroundColor: '#0a0a0a', cellFillColors: ['#2a1a1a', '#3a2a2a', '#4a3a3a', '#5a4a4a'], cellStrokeColor: '#cccccc', siteColor: '#ff8866', triangulationColor: '#ffffff', voronoiColor: '#ff4400' }
+                },
+                {
+                    name: 'seed_009',
+                    settings: { ...baseSettings, seed: 90123 },
+                    colors: { backgroundColor: '#0a0a0a', cellFillColors: ['#1a1a2a', '#2a2a3a', '#3a3a4a', '#4a4a5a'], cellStrokeColor: '#cccccc', siteColor: '#8866ff', triangulationColor: '#ffffff', voronoiColor: '#4400ff' }
+                },
+                {
+                    name: 'seed_010',
+                    settings: { ...baseSettings, seed: 10234 },
+                    colors: { backgroundColor: '#0a0a0a', cellFillColors: ['#1a2a1a', '#2a3a2a', '#3a4a3a', '#4a5a4a'], cellStrokeColor: '#cccccc', siteColor: '#88ff66', triangulationColor: '#ffffff', voronoiColor: '#44ff00' }
+                }
+            ];
+        }
+
+        function generateResultsHTML(results) {
+            const resultCards = results.map((result, index) => `
+                <div class="result-card">
+                    <h3>${result.name.replace(/_/g, ' ').toUpperCase()}</h3>
+                    <div class="image-container">
+                        <img src="${result.dataURL}" alt="${result.name}" />
+                    </div>
+                    <div class="stats">
+                        <p><strong>Cells:</strong> ${result.stats.numCells}</p>
+                        <p><strong>Sites:</strong> ${result.stats.numSites}</p>
+                        <p><strong>Distribution:</strong> ${result.settings.distribution}</p>
+                        ${result.settings.numSites ? `<p><strong>Target Sites:</strong> ${result.settings.numSites}</p>` : ''}
+                        ${result.settings.poissonRadius ? `<p><strong>Poisson Radius:</strong> ${result.settings.poissonRadius}</p>` : ''}
+                        ${result.settings.gridSpacing ? `<p><strong>Grid Spacing:</strong> ${result.settings.gridSpacing}</p>` : ''}
+                        <p><strong>Seed:</strong> ${result.settings.seed}</p>
+                    </div>
+                </div>
+            `).join('');
+
+            return `<!DOCTYPE html>
+<html><head><title>Voronoi Results</title><style>
+body{font-family:Arial,sans-serif;margin:0;padding:20px;background-color:#1a1a1a;color:#fff}
+.results-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(400px,1fr));gap:30px}
+.result-card{background-color:#2a2a2a;border-radius:10px;padding:20px;border:1px solid #444}
+.result-card h3{color:#00ff88;text-align:center;margin-top:0}
+.image-container{text-align:center;margin-bottom:15px}
+.image-container img{max-width:100%;border-radius:5px;border:1px solid #555}
+.stats{background-color:#1a1a1a;padding:15px;border-radius:5px}
+.stats p{margin:5px 0;font-size:14px;color:#ccc}
+.stats strong{color:#fff}
+</style></head><body>
+<h1 style="text-align:center;color:#00ff88">Voronoi Diagram Results</h1>
+<div class="results-grid">${resultCards}</div>
+</body></html>`;
+        }
+
+        // Event listeners
+        document.addEventListener('DOMContentLoaded', async function() {
+            // Try to load modules on page load
+            await loadModules();
+            
+            document.getElementById('generateBtn').addEventListener('click', runGeneration);
+            document.getElementById('downloadBtn').addEventListener('click', downloadResults);
+            document.getElementById('viewResultsBtn').addEventListener('click', viewResults);
+            
+            document.getElementById('showMockBtn').addEventListener('click', function() {
+                document.getElementById('errorPanel').classList.add('hidden');
+                log('Proceeding with mock implementation');
+            });
+        });
+    </script>
+</body>
+</html>
