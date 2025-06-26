@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Terrain Generation Dashboard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #1a1a1a;
+            color: #ffffff;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            color: #00ff88;
+            margin-bottom: 10px;
+        }
+        
+        .controls {
+            background-color: #2a2a2a;
+            padding: 30px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            border: 1px solid #444;
+        }
+        
+        .control-section {
+            margin-bottom: 25px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #444;
+        }
+        
+        .control-section:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+        }
+        
+        .control-section h3 {
+            color: #00ff88;
+            margin-top: 0;
+            margin-bottom: 15px;
+        }
+        
+        .button-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        button {
+            background-color: #00ff88;
+            color: #000000;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        button:hover {
+            background-color: #00cc66;
+        }
+        
+        button:disabled {
+            background-color: #666666;
+            color: #999999;
+            cursor: not-allowed;
+        }
+        
+        .settings {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .setting-item {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        .setting-item label {
+            color: #cccccc;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .setting-item input, .setting-item select {
+            background-color: #1a1a1a;
+            border: 1px solid #666;
+            color: white;
+            padding: 8px;
+            border-radius: 3px;
+        }
+        
+        .status {
+            background-color: #1a1a1a;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border: 1px solid #333;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .stat-item {
+            background-color: #2a2a2a;
+            padding: 15px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #00ff88;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            color: #cccccc;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .canvas-container {
+            background-color: #2a2a2a;
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid #444;
+            text-align: center;
+        }
+        
+        canvas {
+            border: 1px solid #666;
+            background-color: #0a0a0a;
+            max-width: 100%;
+            height: auto;
+        }
+        
+        .log {
+            background-color: #0a0a0a;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 15px;
+            border: 1px solid #333;
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        .coast-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .coast-controls select {
+            background-color: #1a1a1a;
+            border: 1px solid #666;
+            color: white;
+            padding: 8px;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Terrain Generation Dashboard</h1>
+            <p>Generate and visualize Voronoi-based terrain features</p>
+        </div>
+        
+        <div class="controls">
+            <!-- Voronoi Generation -->
+            <div class="control-section">
+                <h3>1. Voronoi Diagram</h3>
+                <div class="button-group">
+                    <button id="generateVoronoiBtn">Generate Voronoi Diagram</button>
+                    <button id="clearAllBtn">Clear All</button>
+                </div>
+                <div class="settings">
+                    <div class="setting-item">
+                        <label>Number of Sites</label>
+                        <input type="number" id="numSites" value="50" min="10" max="200">
+                    </div>
+                    <div class="setting-item">
+                        <label>Distribution</label>
+                        <select id="distribution">
+                            <option value="poisson">Poisson Disk</option>
+                            <option value="random">Random</option>
+                            <option value="grid">Grid</option>
+                            <option value="hexagonal">Hexagonal</option>
+                        </select>
+                    </div>
+                    <div class="setting-item">
+                        <label>Poisson Radius</label>
+                        <input type="number" id="poissonRadius" value="25" min="10" max="50">
+                    </div>
+                    <div class="setting-item">
+                        <label>Seed</label>
+                        <input type="number" id="seed" value="12345">
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Coastline Generation -->
+            <div class="control-section">
+                <h3>2. Coastlines</h3>
+                <div class="coast-controls">
+                    <select id="coastDirection">
+                        <option value="N">North</option>
+                        <option value="S">South</option>
+                        <option value="E">East</option>
+                        <option value="W">West</option>
+                    </select>
+                    <button id="generateCoastBtn" disabled>Generate Coastline</button>
+                    <button id="clearCoastBtn" disabled>Clear Coastlines</button>
+                </div>
+                <div class="settings">
+                    <div class="setting-item">
+                        <label>Coast Budget</label>
+                        <input type="number" id="coastBudget" value="50" min="10" max="500" step="10">
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Future Features -->
+            <div class="control-section">
+                <h3>3. Water Features</h3>
+                <div class="button-group">
+                    <button id="generateLakesBtn" disabled>Generate Lakes</button>
+                    <button id="generateRiversBtn" disabled>Generate Rivers</button>
+                </div>
+            </div>
+            
+            <!-- Visualization Controls -->
+            <div class="control-section">
+                <h3>4. Visualization</h3>
+                <div class="button-group">
+                    <button id="toggleTriangulationBtn">Toggle Triangulation</button>
+                    <button id="toggleVoronoiBtn">Toggle Voronoi Edges</button>
+                    <button id="toggleSitesBtn">Toggle Sites</button>
+                    <button id="exportImageBtn" disabled>Export Image</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="status">
+            <h3>Status</h3>
+            <p id="statusText">Ready to generate terrain features...</p>
+            
+            <div class="stats">
+                <div class="stat-item">
+                    <div class="stat-value" id="sitesCount">0</div>
+                    <div class="stat-label">Sites</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="cellsCount">0</div>
+                    <div class="stat-label">Cells</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="trianglesCount">0</div>
+                    <div class="stat-label">Triangles</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="coastalCellsCount">0</div>
+                    <div class="stat-label">Coastal Cells</div>
+                </div>
+            </div>
+            
+            <div class="log" id="logOutput"></div>
+        </div>
+        
+        <div class="canvas-container">
+            <h3>Current Diagram</h3>
+            <canvas id="canvas" width="800" height="600"></canvas>
+        </div>
+    </div>
+
+    <script type="module">
+        import { VoronoiGenerator } from './voronoi/VoronoiGenerator.js';
+        import { VoronoiImageExporter } from './voronoi/VoronoiImageExporter.js';
+        import { CoastlineGenerator } from './coastlines/CoastlineGenerator.js';
+
+        // State
+        let voronoiGenerator = null;
+        let imageExporter = null;
+        let coastlineGenerator = null;
+        let showTriangulation = true;
+        let showVoronoi = true;
+        let showSites = true;
+
+        // Mock terrain data
+        const mockTerrainData = {
+            features: new Map(),
+            featureCounter: 0,
+            createFeature: function(type) {
+                const id = `${type}_${++this.featureCounter}`;
+                const feature = {
+                    id, type,
+                    centroid: { x: 0, z: 0 },
+                    bezierCurves: [],
+                    pointDistributions: [],
+                    affectedTiles: [],
+                    metadata: {},
+                    setCentroid: function(x, z) { this.centroid = { x, z }; return this; },
+                    addBezierCurve: function(curve) { this.bezierCurves.push(curve); return this; },
+                    addPointDistribution: function(points) { this.pointDistributions.push(points); return this; },
+                    addAffectedTile: function(x, z) { this.affectedTiles.push({ x, z }); return this; },
+                    setMetadata: function(key, value) { this.metadata[key] = value; return this; },
+                    getMetadata: function(key) { return this.metadata[key]; }
+                };
+                this.features.set(id, feature);
+                return feature;
+            },
+            getFeaturesByType: function(type) {
+                return Array.from(this.features.values()).filter(f => f.type === type);
+            }
+        };
+
+        // Utility functions
+        function log(message) {
+            const logOutput = document.getElementById('logOutput');
+            const timestamp = new Date().toLocaleTimeString();
+            logOutput.innerHTML += `[${timestamp}] ${message}\n`;
+            logOutput.scrollTop = logOutput.scrollHeight;
+            console.log(message);
+        }
+
+        function updateStatus(message) {
+            document.getElementById('statusText').textContent = message;
+        }
+
+        function updateStats() {
+            if (!voronoiGenerator) {
+                document.getElementById('sitesCount').textContent = '0';
+                document.getElementById('cellsCount').textContent = '0';
+                document.getElementById('trianglesCount').textContent = '0';
+                document.getElementById('coastalCellsCount').textContent = '0';
+                return;
+            }
+
+            const sites = voronoiGenerator.sites ? voronoiGenerator.sites.length : 0;
+            const cells = voronoiGenerator.cells ? voronoiGenerator.cells.size : 0;
+            const triangles = voronoiGenerator.getTriangulation()?.triangles?.length || 0;
+            const coastalCells = coastlineGenerator ? coastlineGenerator.getCoastalCells().length : 0;
+
+            document.getElementById('sitesCount').textContent = sites;
+            document.getElementById('cellsCount').textContent = cells;
+            document.getElementById('trianglesCount').textContent = triangles;
+            document.getElementById('coastalCellsCount').textContent = coastalCells;
+        }
+
+        function getSettings() {
+            return {
+                gridSize: 600,
+                voronoi: {
+                    enabled: true,
+                    numSites: parseInt(document.getElementById('numSites').value),
+                    distribution: document.getElementById('distribution').value,
+                    poissonRadius: parseInt(document.getElementById('poissonRadius').value),
+                    seed: parseInt(document.getElementById('seed').value)
+                }
+            };
+        }
+
+        function enableDependentButtons(enable) {
+            const buttons = ['generateCoastBtn', 'clearCoastBtn', 'generateLakesBtn', 'generateRiversBtn', 'exportImageBtn'];
+            buttons.forEach(id => {
+                document.getElementById(id).disabled = !enable;
+            });
+        }
+
+        function drawDiagram() {
+            if (!voronoiGenerator || !imageExporter) return;
+
+            try {
+                // Store reference for image exporter
+                imageExporter.voronoiGenerator = voronoiGenerator;
+                
+                // Set coastline generator reference if available
+                if (coastlineGenerator) {
+                    imageExporter.setCoastlineGenerator(coastlineGenerator);
+                }
+                
+                const canvas = imageExporter.generateDiagramImage(
+                    voronoiGenerator.getCells(),
+                    voronoiGenerator.sites,
+                    {
+                        width: 800,
+                        height: 600,
+                        backgroundColor: '#0a0a0a',
+                        cellFillColors: ['#1a3a1a', '#2a4a2a', '#3a5a3a', '#4a6a4a'],
+                        cellStrokeColor: '#cccccc',
+                        siteColor: '#ffff00',
+                        triangulationColor: '#ffffff',
+                        voronoiColor: '#00ff88',
+                        coastalColor: '#0088ff',
+                        showSites: showSites,
+                        showCellBorders: true,
+                        showTriangulation: showTriangulation,
+                        showVoronoiEdges: showVoronoi,
+                        showCoastalCells: true,
+                        lineWidth: 1,
+                        siteRadius: 3
+                    }
+                );
+
+                // Copy to display canvas
+                const displayCanvas = document.getElementById('canvas');
+                const ctx = displayCanvas.getContext('2d');
+                ctx.clearRect(0, 0, displayCanvas.width, displayCanvas.height);
+                ctx.drawImage(canvas, 0, 0);
+
+            } catch (error) {
+                log(`Error drawing diagram: ${error.message}`);
+                console.error(error);
+            }
+        }
+
+        // Event handlers
+        document.getElementById('generateVoronoiBtn').addEventListener('click', function() {
+            try {
+                updateStatus('Generating Voronoi diagram...');
+                log('Starting Voronoi generation');
+
+                const settings = getSettings();
+                voronoiGenerator = new VoronoiGenerator(mockTerrainData, settings);
+                imageExporter = new VoronoiImageExporter(voronoiGenerator, settings);
+                coastlineGenerator = new CoastlineGenerator(voronoiGenerator, settings);
+
+                voronoiGenerator.generateVoronoi();
+                
+                updateStats();
+                drawDiagram();
+                enableDependentButtons(true);
+                
+                updateStatus('Voronoi diagram generated successfully');
+                log(`Generated ${voronoiGenerator.sites.length} sites and ${voronoiGenerator.cells.size} cells`);
+
+            } catch (error) {
+                updateStatus(`Error: ${error.message}`);
+                log(`Error generating Voronoi: ${error.message}`);
+                console.error(error);
+            }
+        });
+
+        document.getElementById('generateCoastBtn').addEventListener('click', function() {
+            if (!coastlineGenerator) return;
+
+            try {
+                const direction = document.getElementById('coastDirection').value;
+                const budget = parseInt(document.getElementById('coastBudget').value);
+                updateStatus(`Generating ${direction} coastline with budget ${budget}...`);
+                
+                const coastalCells = coastlineGenerator.generateCoastline(direction, budget);
+                
+                updateStats();
+                drawDiagram();
+                
+                updateStatus(`Generated coastline with ${coastalCells.length} coastal cells (budget: ${budget})`);
+                log(`Generated ${direction} coastline: ${coastalCells.length} cells with budget ${budget}`);
+
+            } catch (error) {
+                updateStatus(`Error: ${error.message}`);
+                log(`Error generating coastline: ${error.message}`);
+                console.error(error);
+            }
+        });
+
+        document.getElementById('clearCoastBtn').addEventListener('click', function() {
+            if (!coastlineGenerator) return;
+
+            coastlineGenerator.clearCoastline();
+            updateStats();
+            drawDiagram();
+            updateStatus('Coastlines cleared');
+            log('Cleared all coastlines');
+        });
+
+        document.getElementById('clearAllBtn').addEventListener('click', function() {
+            voronoiGenerator = null;
+            imageExporter = null;
+            coastlineGenerator = null;
+            
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            updateStats();
+            enableDependentButtons(false);
+            updateStatus('All data cleared');
+            log('Cleared all data');
+        });
+
+        document.getElementById('toggleTriangulationBtn').addEventListener('click', function() {
+            showTriangulation = !showTriangulation;
+            drawDiagram();
+            log(`Triangulation ${showTriangulation ? 'enabled' : 'disabled'}`);
+        });
+
+        document.getElementById('toggleVoronoiBtn').addEventListener('click', function() {
+            showVoronoi = !showVoronoi;
+            drawDiagram();
+            log(`Voronoi edges ${showVoronoi ? 'enabled' : 'disabled'}`);
+        });
+
+        document.getElementById('toggleSitesBtn').addEventListener('click', function() {
+            showSites = !showSites;
+            drawDiagram();
+            log(`Sites ${showSites ? 'enabled' : 'disabled'}`);
+        });
+
+        document.getElementById('exportImageBtn').addEventListener('click', function() {
+            if (!imageExporter) return;
+            
+            try {
+                const dataURL = imageExporter.exportAsDataURL();
+                const link = document.createElement('a');
+                link.href = dataURL;
+                link.download = `terrain_${Date.now()}.png`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                log('Image exported successfully');
+            } catch (error) {
+                log(`Error exporting image: ${error.message}`);
+            }
+        });
+
+        // Future feature buttons (placeholder)
+        document.getElementById('generateLakesBtn').addEventListener('click', function() {
+            log('Lakes generation - Coming soon!');
+        });
+
+        document.getElementById('generateRiversBtn').addEventListener('click', function() {
+            log('Rivers generation - Coming soon!');
+        });
+
+        // Initialize
+        log('Dashboard initialized');
+        updateStatus('Ready to generate terrain features');
+    </script>
+</body>
+</html>

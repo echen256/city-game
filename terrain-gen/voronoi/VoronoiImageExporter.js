@@ -4,6 +4,43 @@ export class VoronoiImageExporter {
     this.settings = settings;
     this.canvas = null;
     this.ctx = null;
+    this.coastlineGenerator = null;
+  }
+
+  setCoastlineGenerator(coastlineGenerator) {
+    this.coastlineGenerator = coastlineGenerator;
+  }
+
+  getCoastalColorByDepth(baseColor, depth) {
+    // Parse hex color (e.g., "#0088ff")
+    const hex = baseColor.replace('#', '');
+    const r = parseInt(hex.substr(0, 2), 16);
+    const g = parseInt(hex.substr(2, 2), 16);
+    const b = parseInt(hex.substr(4, 2), 16);
+    
+    // Calculate lightness factor based on depth
+    // Depth 0 (edge): full saturation (opacity 80)
+    // Depth 1+: progressively lighter (higher opacity, lighter color)
+    const maxDepth = 5; // Max depth for color scaling
+    const normalizedDepth = Math.min(depth, maxDepth) / maxDepth;
+    
+    // Lighten the color for higher depths
+    const lightnessFactor = 1 + (normalizedDepth * 0.4); // Up to 40% lighter
+    const newR = Math.min(255, Math.floor(r * lightnessFactor));
+    const newG = Math.min(255, Math.floor(g * lightnessFactor));
+    const newB = Math.min(255, Math.floor(b * lightnessFactor));
+    
+    // Vary opacity: depth 0 = 80 (0x50), higher depths = 60 (0x3C)
+    const opacity = depth === 0 ? '80' : '60';
+    
+    // Convert back to hex
+    const newHex = '#' + 
+      newR.toString(16).padStart(2, '0') +
+      newG.toString(16).padStart(2, '0') +
+      newB.toString(16).padStart(2, '0') +
+      opacity;
+    
+    return newHex;
   }
 
   createCanvas(width, height) {
@@ -25,11 +62,13 @@ export class VoronoiImageExporter {
       siteColor = '#ff0000',
       triangulationColor = '#888888',
       voronoiColor = '#00ff88',
+      coastalColor = '#0088ff',
       showSites = true,
       showCellBorders = true,
       showCellIds = false,
       showTriangulation = true,
       showVoronoiEdges = true,
+      showCoastalCells = true,
       lineWidth = 1,
       siteRadius = 3
     } = options;
@@ -92,9 +131,19 @@ export class VoronoiImageExporter {
         }
         this.ctx.closePath();
 
-        // Choose fill color based on cell ID with transparency
-        const colorIndex = cellId % cellFillColors.length;
-        this.ctx.fillStyle = cellFillColors[colorIndex] + '40'; // Add alpha
+        // Check if cell is coastal and use appropriate color
+        const isCoastal = this.coastlineGenerator && this.coastlineGenerator.isCoastal(cellId);
+        
+        if (isCoastal && showCoastalCells) {
+          // Get coastal depth for color variation
+          const depth = this.coastlineGenerator.getCoastalDepth(cellId);
+          const coastalColorWithDepth = this.getCoastalColorByDepth(coastalColor, depth);
+          this.ctx.fillStyle = coastalColorWithDepth;
+        } else {
+          // Choose fill color based on cell ID with transparency
+          const colorIndex = cellId % cellFillColors.length;
+          this.ctx.fillStyle = cellFillColors[colorIndex] + '40'; // Add alpha
+        }
         this.ctx.fill();
 
         // Draw cell border
