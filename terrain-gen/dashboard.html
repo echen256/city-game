@@ -253,22 +253,80 @@
                 </div>
             </div>
             
-            <!-- Future Features -->
+            <!-- Hills Generation -->
             <div class="control-section">
-                <h3>3. Water Features</h3>
+                <h3>3. Hills & Elevation</h3>
+                <div class="button-group">
+                    <button id="generateHillsBtn" disabled>Generate Hills</button>
+                    <button id="clearHillsBtn" disabled>Clear Hills</button>
+                </div>
+                <div class="settings">
+                    <div class="setting-item">
+                        <label>Hills Budget</label>
+                        <input type="number" id="hillsBudget" value="100" min="20" max="500" step="10">
+                    </div>
+                    <div class="setting-item">
+                        <label>Number of Origins</label>
+                        <input type="number" id="hillsOrigins" value="3" min="1" max="10">
+                    </div>
+                    <div class="setting-item">
+                        <label>Gradient Enabled</label>
+                        <select id="hillsGradient">
+                            <option value="true">Yes</option>
+                            <option value="false">No</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Water Features -->
+            <div class="control-section">
+                <h3>4. Water Features</h3>
                 <div class="button-group">
                     <button id="generateLakesBtn" disabled>Generate Lakes</button>
+                    <button id="clearLakesBtn" disabled>Clear Lakes</button>
                     <button id="generateRiversBtn" disabled>Generate Rivers</button>
+                    <button id="clearRiversBtn" disabled>Clear Rivers</button>
                 </div>
+                <div class="settings">
+                    <div class="setting-item">
+                        <label>Lakes Budget</label>
+                        <input type="number" id="lakesBudget" value="30" min="10" max="200" step="5">
+                    </div>
+                    <div class="setting-item">
+                        <label>Number of Lakes</label>
+                        <input type="number" id="lakesOrigins" value="2" min="1" max="5">
+                    </div>
+                    <div class="setting-item">
+                        <label>Number of Rivers</label>
+                        <input type="number" id="riversCount" value="2" min="1" max="4">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Marshes -->
+            <div class="control-section">
+                <h3>5. Marshes</h3>
+                <div class="button-group">
+                    <button id="generateMarshesBtn" disabled>Generate Marshes</button>
+                    <button id="clearMarshesBtn" disabled>Clear Marshes</button>
+                </div>
+                <p style="font-size: 12px; color: #999; margin-top: 10px;">
+                    Marshes appear automatically in areas within 2 cells of both lakes and coastlines.
+                </p>
             </div>
             
             <!-- Visualization Controls -->
             <div class="control-section">
-                <h3>4. Visualization</h3>
+                <h3>6. Visualization</h3>
                 <div class="button-group">
                     <button id="toggleTriangulationBtn">Toggle Triangulation</button>
                     <button id="toggleVoronoiBtn">Toggle Voronoi Edges</button>
                     <button id="toggleSitesBtn">Toggle Sites</button>
+                    <button id="toggleHeightBtn">Toggle Height Gradient</button>
+                    <button id="toggleLakesBtn">Toggle Lakes</button>
+                    <button id="toggleMarshesBtn">Toggle Marshes</button>
+                    <button id="toggleRiversBtn">Toggle Rivers</button>
                     <button id="exportImageBtn" disabled>Export Image</button>
                 </div>
             </div>
@@ -295,6 +353,30 @@
                     <div class="stat-value" id="coastalCellsCount">0</div>
                     <div class="stat-label">Coastal Cells</div>
                 </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="hillCellsCount">0</div>
+                    <div class="stat-label">Hill Cells</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="maxHeight">0</div>
+                    <div class="stat-label">Max Height</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="lakeCellsCount">0</div>
+                    <div class="stat-label">Lake Cells</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="maxDepth">0</div>
+                    <div class="stat-label">Max Depth</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="marshCellsCount">0</div>
+                    <div class="stat-label">Marsh Cells</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="riversCount">0</div>
+                    <div class="stat-label">Rivers</div>
+                </div>
             </div>
             
             <div class="log" id="logOutput"></div>
@@ -310,14 +392,26 @@
         import { VoronoiGenerator } from './voronoi/VoronoiGenerator.js';
         import { VoronoiImageExporter } from './voronoi/VoronoiImageExporter.js';
         import { CoastlineGenerator } from './coastlines/CoastlineGenerator.js';
+        import { HillsGenerator } from './hills/HillsGenerator.js';
+        import { LakesGenerator } from './lakes/LakesGenerator.js';
+        import { MarshGenerator } from './marshes/MarshGenerator.js';
+        import { RiversGenerator } from './rivers/RiversGenerator.js';
 
         // State
         let voronoiGenerator = null;
         let imageExporter = null;
         let coastlineGenerator = null;
+        let hillsGenerator = null;
+        let lakesGenerator = null;
+        let marshGenerator = null;
+        let riversGenerator = null;
         let showTriangulation = true;
         let showVoronoi = true;
         let showSites = true;
+        let showHeightGradient = true;
+        let showLakes = true;
+        let showMarshes = true;
+        let showRivers = true;
 
         // Mock terrain data
         const mockTerrainData = {
@@ -366,6 +460,12 @@
                 document.getElementById('cellsCount').textContent = '0';
                 document.getElementById('trianglesCount').textContent = '0';
                 document.getElementById('coastalCellsCount').textContent = '0';
+                document.getElementById('hillCellsCount').textContent = '0';
+                document.getElementById('maxHeight').textContent = '0';
+                document.getElementById('lakeCellsCount').textContent = '0';
+                document.getElementById('maxDepth').textContent = '0';
+                document.getElementById('marshCellsCount').textContent = '0';
+                document.getElementById('riversCount').textContent = '0';
                 return;
             }
 
@@ -373,11 +473,25 @@
             const cells = voronoiGenerator.cells ? voronoiGenerator.cells.size : 0;
             const triangles = voronoiGenerator.getTriangulation()?.triangles?.length || 0;
             const coastalCells = coastlineGenerator ? coastlineGenerator.getCoastalCells().length : 0;
+            const hillCells = hillsGenerator ? hillsGenerator.getHillCells().length : 0;
+            const heightStats = hillsGenerator ? hillsGenerator.getHeightStats() : null;
+            const maxHeight = heightStats ? Math.round(heightStats.maxHeight) : 0;
+            const lakeCells = lakesGenerator ? lakesGenerator.getLakeCells().length : 0;
+            const depthStats = lakesGenerator ? lakesGenerator.getDepthStats() : null;
+            const maxDepth = depthStats ? Math.round(depthStats.maxDepth) : 0;
+            const marshCells = marshGenerator ? marshGenerator.getMarshCells().length : 0;
+            const riversCount = riversGenerator ? riversGenerator.getRiverPaths().length : 0;
 
             document.getElementById('sitesCount').textContent = sites;
             document.getElementById('cellsCount').textContent = cells;
             document.getElementById('trianglesCount').textContent = triangles;
             document.getElementById('coastalCellsCount').textContent = coastalCells;
+            document.getElementById('hillCellsCount').textContent = hillCells;
+            document.getElementById('maxHeight').textContent = maxHeight;
+            document.getElementById('lakeCellsCount').textContent = lakeCells;
+            document.getElementById('maxDepth').textContent = maxDepth;
+            document.getElementById('marshCellsCount').textContent = marshCells;
+            document.getElementById('riversCount').textContent = riversCount;
         }
 
         function getSettings() {
@@ -394,9 +508,15 @@
         }
 
         function enableDependentButtons(enable) {
-            const buttons = ['generateCoastBtn', 'clearCoastBtn', 'generateLakesBtn', 'generateRiversBtn', 'exportImageBtn'];
+            const buttons = ['generateCoastBtn', 'clearCoastBtn', 'generateHillsBtn', 'clearHillsBtn', 'generateLakesBtn', 'clearLakesBtn', 'generateRiversBtn', 'clearRiversBtn', 'generateMarshesBtn', 'clearMarshesBtn', 'exportImageBtn'];
             buttons.forEach(id => {
-                document.getElementById(id).disabled = !enable;
+                const element = document.getElementById(id);
+                if (element) {
+                    element.disabled = !enable;
+                    console.log(`${enable ? 'Enabled' : 'Disabled'} button: ${id}`);
+                } else {
+                    console.error(`Button not found: ${id}`);
+                }
             });
         }
 
@@ -410,6 +530,25 @@
                 // Set coastline generator reference if available
                 if (coastlineGenerator) {
                     imageExporter.setCoastlineGenerator(coastlineGenerator);
+                }
+                
+                // Set hills generator reference if available
+                if (hillsGenerator) {
+                    imageExporter.setHillsGenerator(hillsGenerator);
+                }
+                
+                // Set lakes generator reference if available
+                if (lakesGenerator) {
+                    imageExporter.setLakesGenerator(lakesGenerator);
+                }
+
+                if (riversGenerator) {
+                    imageExporter.setRiversGenerator(riversGenerator);
+                }
+                
+                // Set marsh generator reference if available
+                if (marshGenerator) {
+                    imageExporter.setMarshGenerator(marshGenerator);
                 }
                 
                 const canvas = imageExporter.generateDiagramImage(
@@ -430,6 +569,10 @@
                         showTriangulation: showTriangulation,
                         showVoronoiEdges: showVoronoi,
                         showCoastalCells: true,
+                        showHeightGradient: showHeightGradient,
+                        showLakes: showLakes,
+                        showMarshes: showMarshes,
+                        showRivers: showRivers,
                         lineWidth: 1,
                         siteRadius: 3
                     }
@@ -457,6 +600,10 @@
                 voronoiGenerator = new VoronoiGenerator(mockTerrainData, settings);
                 imageExporter = new VoronoiImageExporter(voronoiGenerator, settings);
                 coastlineGenerator = new CoastlineGenerator(voronoiGenerator, settings);
+                hillsGenerator = new HillsGenerator(voronoiGenerator, settings);
+                lakesGenerator = new LakesGenerator(voronoiGenerator, settings);
+                marshGenerator = new MarshGenerator(voronoiGenerator, settings);
+                riversGenerator = new RiversGenerator(voronoiGenerator, settings);
 
                 voronoiGenerator.generateVoronoi();
                 
@@ -507,10 +654,172 @@
             log('Cleared all coastlines');
         });
 
+        document.getElementById('generateHillsBtn').addEventListener('click', function() {
+            if (!hillsGenerator) return;
+
+            try {
+                const budget = parseInt(document.getElementById('hillsBudget').value);
+                const numOrigins = parseInt(document.getElementById('hillsOrigins').value);
+                const gradientEnabled = document.getElementById('hillsGradient').value === 'true';
+                
+                updateStatus(`Generating hills with budget ${budget}, ${numOrigins} origins...`);
+                
+                const hillCells = hillsGenerator.generateHills(budget, numOrigins, gradientEnabled);
+                const heightStats = hillsGenerator.getHeightStats();
+                
+                updateStats();
+                drawDiagram();
+                
+                updateStatus(`Generated ${hillCells.length} hill cells (max height: ${Math.round(heightStats.maxHeight)})`);
+                log(`Generated hills: ${hillCells.length} cells, ${numOrigins} origins, gradient: ${gradientEnabled}`);
+                if (heightStats.gradientEdges.length > 0) {
+                    log(`Gradient edges: ${heightStats.gradientEdges.join(', ')}`);
+                }
+
+            } catch (error) {
+                updateStatus(`Error: ${error.message}`);
+                log(`Error generating hills: ${error.message}`);
+                console.error(error);
+            }
+        });
+
+        document.getElementById('clearHillsBtn').addEventListener('click', function() {
+            if (!hillsGenerator) return;
+
+            hillsGenerator.clearHills();
+            updateStats();
+            drawDiagram();
+            updateStatus('Hills cleared');
+            log('Cleared all hills');
+        });
+
+        document.getElementById('generateLakesBtn').addEventListener('click', function() {
+            if (!lakesGenerator) return;
+
+            try {
+                const budget = parseInt(document.getElementById('lakesBudget').value);
+                const numOrigins = parseInt(document.getElementById('lakesOrigins').value);
+                
+                // Set references to other generators to avoid overlaps
+                lakesGenerator.setCoastlineGenerator(coastlineGenerator);
+                lakesGenerator.setHillsGenerator(hillsGenerator);
+                
+                updateStatus(`Generating lakes with budget ${budget}, ${numOrigins} origins...`);
+                
+                const lakeCells = lakesGenerator.generateLakes(budget, numOrigins);
+                const depthStats = lakesGenerator.getDepthStats();
+                
+                updateStats();
+                drawDiagram();
+                
+                updateStatus(`Generated ${lakeCells.length} lake cells (max depth: ${Math.round(depthStats.maxDepth)})`);
+                log(`Generated lakes: ${lakeCells.length} cells, ${numOrigins} origins`);
+                log(`Depth range: ${Math.round(depthStats.minDepth)} - ${Math.round(depthStats.maxDepth)}`);
+
+            } catch (error) {
+                updateStatus(`Error: ${error.message}`);
+                log(`Error generating lakes: ${error.message}`);
+                console.error(error);
+            }
+        });
+
+        document.getElementById('clearLakesBtn').addEventListener('click', function() {
+            if (!lakesGenerator) return;
+
+            lakesGenerator.clearLakes();
+            updateStats();
+            drawDiagram();
+            updateStatus('Lakes cleared');
+            log('Cleared all lakes');
+        });
+
+        document.getElementById('generateRiversBtn').addEventListener('click', function() {
+            if (!riversGenerator) return;
+
+            try {
+                const numRivers = parseInt(document.getElementById('riversCount').value);
+                
+                // Set references to other generators for pathfinding
+                riversGenerator.setCoastlineGenerator(coastlineGenerator);
+                riversGenerator.setLakesGenerator(lakesGenerator);
+                riversGenerator.setMarshGenerator(marshGenerator);
+                riversGenerator.setHillsGenerator(hillsGenerator);
+                
+                updateStatus(`Generating ${numRivers} rivers...`);
+                
+                const riverPaths = riversGenerator.generateRivers(numRivers);
+                const riverStats = riversGenerator.getRiverStats();
+                
+                updateStats();
+                drawDiagram();
+                
+                updateStatus(`Generated ${riverPaths.length} rivers (avg length: ${Math.round(riverStats.averageRiverLength)})`);
+                log(`Generated rivers: ${riverPaths.length} paths, ${riverStats.totalRiverCells} total cells`);
+                if (riverStats.longestRiver > 0) {
+                    log(`Longest river: ${riverStats.longestRiver} cells`);
+                }
+
+            } catch (error) {
+                updateStatus(`Error: ${error.message}`);
+                log(`Error generating rivers: ${error.message}`);
+                console.error(error);
+            }
+        });
+
+        document.getElementById('clearRiversBtn').addEventListener('click', function() {
+            if (!riversGenerator) return;
+
+            riversGenerator.clearRivers();
+            updateStats();
+            drawDiagram();
+            updateStatus('Rivers cleared');
+            log('Cleared all rivers');
+        });
+
+        document.getElementById('generateMarshesBtn').addEventListener('click', function() {
+            if (!marshGenerator) return;
+
+            try {
+                // Set references to other generators for proximity detection
+                marshGenerator.setCoastlineGenerator(coastlineGenerator);
+                marshGenerator.setLakesGenerator(lakesGenerator);
+                
+                updateStatus('Generating marshes...');
+                
+                const marshCells = marshGenerator.generateMarshes();
+                const marshStats = marshGenerator.getMarshStats();
+                
+                updateStats();
+                drawDiagram();
+                
+                updateStatus(`Generated ${marshCells.length} marsh cells`);
+                log(`Generated marshes: ${marshCells.length} cells between lakes and coasts`);
+
+            } catch (error) {
+                updateStatus(`Error: ${error.message}`);
+                log(`Error generating marshes: ${error.message}`);
+                console.error(error);
+            }
+        });
+
+        document.getElementById('clearMarshesBtn').addEventListener('click', function() {
+            if (!marshGenerator) return;
+
+            marshGenerator.clearMarshes();
+            updateStats();
+            drawDiagram();
+            updateStatus('Marshes cleared');
+            log('Cleared all marshes');
+        });
+
         document.getElementById('clearAllBtn').addEventListener('click', function() {
             voronoiGenerator = null;
             imageExporter = null;
             coastlineGenerator = null;
+            hillsGenerator = null;
+            lakesGenerator = null;
+            marshGenerator = null;
+            riversGenerator = null;
             
             const canvas = document.getElementById('canvas');
             const ctx = canvas.getContext('2d');
@@ -540,6 +849,30 @@
             log(`Sites ${showSites ? 'enabled' : 'disabled'}`);
         });
 
+        document.getElementById('toggleHeightBtn').addEventListener('click', function() {
+            showHeightGradient = !showHeightGradient;
+            drawDiagram();
+            log(`Height gradient ${showHeightGradient ? 'enabled' : 'disabled'}`);
+        });
+
+        document.getElementById('toggleLakesBtn').addEventListener('click', function() {
+            showLakes = !showLakes;
+            drawDiagram();
+            log(`Lakes ${showLakes ? 'enabled' : 'disabled'}`);
+        });
+
+        document.getElementById('toggleMarshesBtn').addEventListener('click', function() {
+            showMarshes = !showMarshes;
+            drawDiagram();
+            log(`Marshes ${showMarshes ? 'enabled' : 'disabled'}`);
+        });
+
+        document.getElementById('toggleRiversBtn').addEventListener('click', function() {
+            showRivers = !showRivers;
+            drawDiagram();
+            log(`Rivers ${showRivers ? 'enabled' : 'disabled'}`);
+        });
+
         document.getElementById('exportImageBtn').addEventListener('click', function() {
             if (!imageExporter) return;
             
@@ -558,14 +891,7 @@
             }
         });
 
-        // Future feature buttons (placeholder)
-        document.getElementById('generateLakesBtn').addEventListener('click', function() {
-            log('Lakes generation - Coming soon!');
-        });
-
-        document.getElementById('generateRiversBtn').addEventListener('click', function() {
-            log('Rivers generation - Coming soon!');
-        });
+        // Future feature buttons (placeholder) - Rivers now implemented above
 
         // Initialize
         log('Dashboard initialized');

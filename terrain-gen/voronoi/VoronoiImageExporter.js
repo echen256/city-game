@@ -5,10 +5,30 @@ export class VoronoiImageExporter {
     this.canvas = null;
     this.ctx = null;
     this.coastlineGenerator = null;
+    this.hillsGenerator = null;
+    this.lakesGenerator = null;
+    this.marshGenerator = null;
+    this.riversGenerator = null;
   }
 
   setCoastlineGenerator(coastlineGenerator) {
     this.coastlineGenerator = coastlineGenerator;
+  }
+
+  setHillsGenerator(hillsGenerator) {
+    this.hillsGenerator = hillsGenerator;
+  }
+
+  setLakesGenerator(lakesGenerator) {
+    this.lakesGenerator = lakesGenerator;
+  }
+
+  setMarshGenerator(marshGenerator) {
+    this.marshGenerator = marshGenerator;
+  }
+
+  setRiversGenerator(riversGenerator) {
+    this.riversGenerator = riversGenerator;
   }
 
   getCoastalColorByDepth(baseColor, depth) {
@@ -43,6 +63,83 @@ export class VoronoiImageExporter {
     return newHex;
   }
 
+  getHeightColor(height) {
+    // Convert height (0-100) to grayscale color
+    // Height 0 = dark gray (#2a2a2a)
+    // Height 100 = light gray (#d0d0d0)
+    const maxHeight = 100;
+    const normalizedHeight = Math.min(height, maxHeight) / maxHeight;
+    
+    // Map to gray range: 42 (dark) to 208 (light)
+    const minGray = 42;   // #2a2a2a
+    const maxGray = 208;  // #d0d0d0
+    const grayValue = Math.floor(minGray + (normalizedHeight * (maxGray - minGray)));
+    
+    // Add transparency based on height (higher = more opaque)
+    const opacity = Math.floor(128 + (normalizedHeight * 96)); // 80-E0 range
+    
+    // Convert to hex
+    const grayHex = grayValue.toString(16).padStart(2, '0');
+    const opacityHex = opacity.toString(16).padStart(2, '0');
+    
+    return `#${grayHex}${grayHex}${grayHex}${opacityHex}`;
+  }
+
+  getLakeColor(depth) {
+    // Convert depth (5-50) to blue color
+    // Depth 5 = light blue (#4da6ff)
+    // Depth 50 = dark blue (#003366)
+    const maxDepth = 50;
+    const minDepth = 5;
+    const normalizedDepth = Math.min(Math.max(depth, minDepth), maxDepth);
+    const depthFactor = (normalizedDepth - minDepth) / (maxDepth - minDepth);
+    
+    // Interpolate between light blue and dark blue
+    const lightBlue = { r: 77, g: 166, b: 255 };  // #4da6ff
+    const darkBlue = { r: 0, g: 51, b: 102 };     // #003366
+    
+    const r = Math.floor(lightBlue.r + (darkBlue.r - lightBlue.r) * depthFactor);
+    const g = Math.floor(lightBlue.g + (darkBlue.g - lightBlue.g) * depthFactor);
+    const b = Math.floor(lightBlue.b + (darkBlue.b - lightBlue.b) * depthFactor);
+    
+    // Add transparency based on depth (deeper = more opaque)
+    const opacity = Math.floor(160 + (depthFactor * 64)); // A0-E0 range
+    
+    // Convert to hex
+    const rHex = r.toString(16).padStart(2, '0');
+    const gHex = g.toString(16).padStart(2, '0');
+    const bHex = b.toString(16).padStart(2, '0');
+    const opacityHex = opacity.toString(16).padStart(2, '0');
+    
+    return `#${rHex}${gHex}${bHex}${opacityHex}`;
+  }
+
+  getMarshColor(baseColor) {
+    // Parse the base marsh color and add transparency
+    const hex = baseColor.replace('#', '');
+    const r = parseInt(hex.substr(0, 2), 16);
+    const g = parseInt(hex.substr(2, 2), 16);
+    const b = parseInt(hex.substr(4, 2), 16);
+    
+    // Add transparency for marshes
+    const opacity = 'C0'; // 75% opacity
+    
+    return `#${hex}${opacity}`;
+  }
+
+  getRiverColor(baseColor) {
+    // Parse the base river color and add transparency
+    const hex = baseColor.replace('#', '');
+    const r = parseInt(hex.substr(0, 2), 16);
+    const g = parseInt(hex.substr(2, 2), 16);
+    const b = parseInt(hex.substr(4, 2), 16);
+    
+    // Add transparency for rivers (more opaque than marshes)
+    const opacity = 'D0'; // 82% opacity
+    
+    return `#${hex}${opacity}`;
+  }
+
   createCanvas(width, height) {
     // Create canvas element for image generation
     this.canvas = document.createElement('canvas');
@@ -63,12 +160,18 @@ export class VoronoiImageExporter {
       triangulationColor = '#888888',
       voronoiColor = '#00ff88',
       coastalColor = '#0088ff',
+      marshColor = '#2d5016',
+      riverColor = '#4da6ff',
       showSites = true,
       showCellBorders = true,
       showCellIds = false,
       showTriangulation = true,
       showVoronoiEdges = true,
       showCoastalCells = true,
+      showHeightGradient = true,
+      showLakes = true,
+      showMarshes = true,
+      showRivers = true,
       lineWidth = 1,
       siteRadius = 3
     } = options;
@@ -131,16 +234,38 @@ export class VoronoiImageExporter {
         }
         this.ctx.closePath();
 
-        // Check if cell is coastal and use appropriate color
+        // Determine cell color based on features (priority order: lakes > rivers > coastal > marshes > height > default)
+        const isLake = this.lakesGenerator && this.lakesGenerator.isLakeCell(cellId);
+        const isRiver = this.riversGenerator && this.riversGenerator.isRiverCell(cellId);
         const isCoastal = this.coastlineGenerator && this.coastlineGenerator.isCoastal(cellId);
+        const isMarsh = this.marshGenerator && this.marshGenerator.isMarshCell(cellId);
+        const hasHeight = this.hillsGenerator && this.hillsGenerator.getCellHeight(cellId) > 0;
         
-        if (isCoastal && showCoastalCells) {
-          // Get coastal depth for color variation
+        if (isLake && showLakes) {
+          // Lake cells - blue with depth variation (highest priority)
+          const depth = this.lakesGenerator.getLakeDepth(cellId);
+          const lakeColor = this.getLakeColor(depth);
+          this.ctx.fillStyle = lakeColor;
+        } else if (isRiver && showRivers) {
+          // River cells - light blue (second priority)
+          const riverColorWithAlpha = this.getRiverColor(riverColor);
+          this.ctx.fillStyle = riverColorWithAlpha;
+        } else if (isCoastal && showCoastalCells) {
+          // Coastal cells - blue with depth variation
           const depth = this.coastlineGenerator.getCoastalDepth(cellId);
           const coastalColorWithDepth = this.getCoastalColorByDepth(coastalColor, depth);
           this.ctx.fillStyle = coastalColorWithDepth;
+        } else if (isMarsh && showMarshes) {
+          // Marsh cells - dark green
+          const marshColorWithAlpha = this.getMarshColor(marshColor);
+          this.ctx.fillStyle = marshColorWithAlpha;
+        } else if (hasHeight && showHeightGradient) {
+          // Height-based cells - gray gradient
+          const height = this.hillsGenerator.getCellHeight(cellId);
+          const heightColor = this.getHeightColor(height);
+          this.ctx.fillStyle = heightColor;
         } else {
-          // Choose fill color based on cell ID with transparency
+          // Default cells - use standard color scheme
           const colorIndex = cellId % cellFillColors.length;
           this.ctx.fillStyle = cellFillColors[colorIndex] + '40'; // Add alpha
         }

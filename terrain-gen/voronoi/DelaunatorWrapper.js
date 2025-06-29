@@ -30,8 +30,8 @@ export class DelaunatorWrapper {
       coords.push(x, y); 
     }
     
-    console.log('DelaunatorWrapper: Input coordinates:', coords);
-    console.log('DelaunatorWrapper: Number of points:', this.points.length);
+    // console.log('DelaunatorWrapper: Input coordinates:', coords);
+    // console.log('DelaunatorWrapper: Number of points:', this.points.length);
     
     // Check if we have enough valid points
     if (coords.length < 6) { // Need at least 3 points (6 coordinates)
@@ -42,8 +42,8 @@ export class DelaunatorWrapper {
     // Create delaunator triangulation
     try {
       this.delaunay = new Delaunator(coords);
-      console.log('DelaunatorWrapper: Delaunay triangles array:', this.delaunay.triangles);
-      console.log('DelaunatorWrapper: Number of triangles:', this.delaunay.triangles.length / 3);
+      // console.log('DelaunatorWrapper: Delaunay triangles array:', this.delaunay.triangles);
+      // console.log('DelaunatorWrapper: Number of triangles:', this.delaunay.triangles.length / 3);
     } catch (error) {
       console.error('DelaunatorWrapper: Error creating triangulation:', error);
       return { triangles: [], edges: [], voronoiCells: new Map() };
@@ -57,7 +57,7 @@ export class DelaunatorWrapper {
     
     // Generate Voronoi cells
     this.generateVoronoiCells();
-    console.log('DelaunatorWrapper: Final edges count:', this.edges.length);
+    // console.log('DelaunatorWrapper: Final edges count:', this.edges.length);
     
     return {
       triangles: this.triangles,
@@ -71,7 +71,7 @@ export class DelaunatorWrapper {
     this.triangles = [];
     const triangleIndices = this.delaunay.triangles;
     
-    console.log('DelaunatorWrapper: Extracting triangles from indices:', triangleIndices);
+    // console.log('DelaunatorWrapper: Extracting triangles from indices:', triangleIndices);
     
     for (let i = 0; i < triangleIndices.length; i += 3) {
       const aIndex = triangleIndices[i];
@@ -94,7 +94,7 @@ export class DelaunatorWrapper {
       this.triangles.push(triangle);
     }
     
-    console.log('DelaunatorWrapper: Extracted triangles:', this.triangles.length);
+    //  console.log('DelaunatorWrapper: Extracted triangles:', this.triangles.length);
   }
 
   extractEdges() {

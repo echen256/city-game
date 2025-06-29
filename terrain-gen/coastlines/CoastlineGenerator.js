@@ -36,6 +36,7 @@ export class CoastlineGenerator {
         cell.setMetadata('coastal', true);
         cell.setMetadata('coastDirection', direction);
         cell.setMetadata('coastDepth', 0);
+        cell.setMetadata('height',0 )
         budgetUsed++;
       }
     }
