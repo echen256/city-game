@@ -246,6 +246,20 @@ export class RiversGenerator {
     console.log(`Starting pathfinding from cell ${startCellId} to targets:`, targetCells);
     console.log(`Number of target cells: ${targetCells.length}`);
     
+    // Validate start cell
+    const startCell = this.voronoiGenerator.cells.get(startCellId);
+    if (!startCell) {
+      console.log(`ERROR: Start cell ${startCellId} not found in Voronoi cells!`);
+      return [];
+    }
+    
+    if (!startCell.neighbors || startCell.neighbors.size === 0) {
+      console.log(`ERROR: Start cell ${startCellId} has no neighbors!`);
+      return [];
+    }
+    
+    console.log(`Start cell validation passed. Neighbors: [${Array.from(startCell.neighbors)}]`);
+    
     // A* pathfinding algorithm
     const openSet = new Set([startCellId]);
     const cameFrom = new Map();
@@ -315,6 +329,8 @@ export class RiversGenerator {
 
       // Check all neighbors
       let validNeighbors = 0;
+      let addedToOpenSet = 0;
+      
       for (const neighborId of currentCell.neighbors) {
         console.log(`\n  Evaluating neighbor: ${neighborId}`);
         
@@ -326,14 +342,17 @@ export class RiversGenerator {
 
         const neighborElevation = this.getCellElevation(neighborId);
         const movementCost = this.getMovementCost(current, neighborId);
-        const tentativeG = (gScore.get(current) || Infinity) + movementCost;
-        const currentG = gScore.get(neighborId) || Infinity;
+        const currentG = gScore.get(current) || 0; // Use 0 if not set (shouldn't happen)
+        const tentativeG = currentG + movementCost;
+        const existingG = gScore.get(neighborId);
 
         console.log(`    Neighbor elevation: ${neighborElevation}`);
         console.log(`    Movement cost: ${movementCost}`);
-        console.log(`    Tentative gScore: ${tentativeG} (current: ${currentG})`);
+        console.log(`    Current gScore: ${currentG}`);
+        console.log(`    Tentative gScore: ${tentativeG} (existing: ${existingG || 'undefined'})`);
 
-        if (tentativeG < currentG) {
+        // Check if this is a better path OR if neighbor hasn't been visited yet
+        if (existingG === undefined || tentativeG < existingG) {
           console.log(`    UPDATE: Better path found to neighbor ${neighborId}`);
           cameFrom.set(neighborId, current);
           gScore.set(neighborId, tentativeG);
@@ -347,14 +366,20 @@ export class RiversGenerator {
           if (!openSet.has(neighborId)) {
             openSet.add(neighborId);
             console.log(`    ADDED: Neighbor ${neighborId} to open set`);
+            addedToOpenSet++;
           }
           validNeighbors++;
         } else {
-          console.log(`    SKIP: No better path to neighbor ${neighborId}`);
+          console.log(`    SKIP: No better path to neighbor ${neighborId} (existing: ${existingG}, tentative: ${tentativeG})`);
         }
       }
 
-      console.log(`Valid neighbors processed: ${validNeighbors}`);
+      console.log(`Valid neighbors processed: ${validNeighbors}, Added to open set: ${addedToOpenSet}`);
+      
+      // Safety check: if no neighbors were added and we're not at a target, something is wrong
+      if (addedToOpenSet === 0 && validNeighbors === 0) {
+        console.log(`WARNING: No valid neighbors found for cell ${current}. This might indicate an isolated cell or all neighbors are obstacles.`);
+      }
     }
 
     if (iterationCount >= maxIterations) {
@@ -382,6 +407,11 @@ export class RiversGenerator {
     
     console.log(`    Heuristic calculation for cell ${cellId} (elevation: ${currentElevation})`);
     
+    if (targetCells.length === 0) {
+      console.log(`    Heuristic WARNING: No target cells provided!`);
+      return 0; // Return 0 instead of Infinity if no targets
+    }
+    
     for (const targetId of targetCells) {
       const targetCell = this.voronoiGenerator.cells.get(targetId);
       if (targetCell && targetCell.site) {
@@ -399,7 +429,7 @@ export class RiversGenerator {
         let elevationCost = 0;
         if (elevationDiff < 0) {
           // Going uphill to target
-          elevationCost = Math.abs(elevationDiff) * 2; // Penalty for uphill targets
+          elevationCost = Math.abs(elevationDiff) * 1; // Reduced from 2 to 1
         } else {
           // Going downhill to target
           elevationCost = -elevationDiff * 0.1; // Bonus for downhill targets
@@ -411,6 +441,12 @@ export class RiversGenerator {
       } else {
         console.log(`      Target ${targetId}: INVALID (no cell or site)`);
       }
+    }
+
+    // Safety check: if all targets were invalid, return a reasonable default
+    if (minCost === Infinity) {
+      console.log(`    Heuristic WARNING: All targets were invalid, returning default cost`);
+      minCost = 100; // Reasonable default cost
     }
 
     console.log(`    Final heuristic for cell ${cellId}: ${minCost.toFixed(2)}`);
@@ -432,13 +468,13 @@ export class RiversGenerator {
       const downhillBonus = Math.abs(elevationChange) * 0.1; // Bonus for steeper downhill
       cost = Math.max(0.1, 1 - downhillBonus); // Minimum cost of 0.1
     } else {
-      // Flowing uphill - heavily penalized
-      const uphillPenalty = elevationChange * 10; // Heavy penalty for going uphill
+      // Flowing uphill - penalized but not as heavily
+      const uphillPenalty = elevationChange * 2; // Reduced from 10 to 2
       cost = 1 + uphillPenalty;
       
-      // Extreme penalty for significant uphill movement
+      // Moderate penalty for significant uphill movement
       if (elevationChange > 10) {
-        cost += elevationChange * 20; // Even heavier penalty for steep uphill
+        cost += elevationChange * 5; // Reduced from 20 to 5
       }
     }
 
@@ -450,7 +486,7 @@ export class RiversGenerator {
 
     // Slight penalty for very high elevations (mountains)
     if (toHeight > 70) {
-      cost *= 1.5; // Rivers avoid mountain peaks
+      cost *= 1.2; // Reduced from 1.5 to 1.2
     }
 
     // Bonus for flowing toward lower-elevation neighbors
@@ -525,17 +561,17 @@ export class RiversGenerator {
       return false; // Allow rivers to flow into lakes
     }
     
-    // Very high elevations are impassable obstacles
+    // Very high elevations are impassable obstacles (reduced threshold)
     const elevation = this.getCellElevation(cellId);
-    if (elevation > 80) {
+    if (elevation > 90) { // Increased from 80 to 90
       console.log(`    Obstacle check: Cell ${cellId} is mountain peak (elevation: ${elevation})`);
       return true; // Mountain peaks are impassable
     }
     
-    // Check if cell is completely surrounded by higher elevation (trapped valley)
+    // Check if cell is completely surrounded by higher elevation (trapped valley) - less strict
     const neighborElevations = this.getNeighborElevations(cellId);
     const isTrappedValley = neighborElevations.length > 0 && 
-      neighborElevations.every(h => h > elevation + 20);
+      neighborElevations.every(h => h > elevation + 30); // Increased from 20 to 30
     
     if (isTrappedValley) {
       console.log(`    Obstacle check: Cell ${cellId} is trapped valley (elevation: ${elevation}, neighbor elevations: [${neighborElevations.map(e => e.toFixed(1)).join(', ')}])`);
