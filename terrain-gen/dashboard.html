@@ -208,8 +208,27 @@
             background-color: rgba(255, 255, 0, 0.3);
         }
         
+        .voronoi-vertex-hover {
+            position: absolute;
+            border-radius: 50%;
+            background-color: rgba(255, 0, 0, 0.7);
+            cursor: pointer;
+            pointer-events: auto;
+            border: 2px solid #ff0000;
+        }
+        
+        .voronoi-vertex-hover:hover {
+            background-color: rgba(255, 0, 0, 0.9);
+        }
+        
         .neighbor-highlight {
             background-color: rgba(255, 0, 0, 0.5) !important;
+            pointer-events: none;
+        }
+        
+        .vertex-highlight {
+            background-color: rgba(255, 255, 0, 0.8) !important;
+            border-color: #ffff00 !important;
             pointer-events: none;
         }
         
@@ -370,6 +389,7 @@
                     <button id="toggleTriangulationBtn">Toggle Triangulation</button>
                     <button id="toggleVoronoiBtn">Toggle Voronoi Edges</button>
                     <button id="toggleSitesBtn">Toggle Sites</button>
+                    <button id="toggleVerticesBtn">Toggle Vertices</button>
                     <button id="toggleHeightBtn">Toggle Height Gradient</button>
                     <button id="toggleLakesBtn">Toggle Lakes</button>
                     <button id="toggleMarshesBtn">Toggle Marshes</button>
@@ -434,6 +454,7 @@
             <div class="canvas-wrapper">
                 <canvas id="canvas" width="800" height="600"></canvas>
                 <div id="cellHoverElements"></div>
+                <div id="vertexHoverElements"></div>
             </div>
         </div>
         
@@ -442,6 +463,8 @@
             <div class="cell-info-line">ID: <span id="cellId">-</span></div>
             <div class="cell-info-line">Position: <span id="cellPosition">-</span></div>
             <div class="cell-info-line">Neighbors: <span id="cellNeighbors">-</span></div>
+            <div class="cell-info-line">Type: <span id="infoType">Cell</span></div>
+            <div class="cell-info-line" id="vertexInfo" style="display: none;">Connected Cells: <span id="connectedCells">-</span></div>
         </div>
     </div>
 
@@ -465,12 +488,15 @@
         let showTriangulation = true;
         let showVoronoi = true;
         let showSites = true;
+        let showVertices = true;
         let showHeightGradient = true;
         let showLakes = true;
         let showMarshes = true;
         let showRivers = true;
         let selectedCellId = null; // Track which cell is selected
         let highlightedNeighbors = new Set(); // Track highlighted neighbor cells
+        let selectedVertexIndex = null; // Track which vertex is selected
+        let highlightedVertices = new Set(); // Track highlighted connected vertices
 
         // Mock terrain data
         const mockTerrainData = {
@@ -592,7 +618,7 @@
             
             const scaleX = canvas.width / voronoiGenerator.settings.gridSize;
             const scaleZ = canvas.height / voronoiGenerator.settings.gridSize;
-            const hoverRadius = 10; // 10px radius as requested
+            const hoverRadius = 5; // 10px radius as requested
             
             voronoiGenerator.cells.forEach((cell, cellId) => {
                 if (!cell.site) return;
@@ -630,6 +656,67 @@
                 
                 hoverContainer.appendChild(hoverElement);
             });
+            
+            // Create vertex hover elements
+            const triangulationData = voronoiGenerator.getTriangulation();
+            createVertexHoverElements(triangulationData);
+        }
+
+        function createVertexHoverElements(triangulationData) {
+            const vertexContainer = document.getElementById('vertexHoverElements');
+            const canvas = document.getElementById('canvas');
+            
+            // Clear existing vertex elements
+            vertexContainer.innerHTML = '';
+            
+            if (!voronoiGenerator || !triangulationData) {
+                return;
+            }
+            
+            if (!triangulationData.delaunayCircumcenters) {
+                return;
+            }
+            
+            const scaleX = canvas.width / voronoiGenerator.settings.gridSize;
+            const scaleZ = canvas.height / voronoiGenerator.settings.gridSize;
+            const vertexRadius = 1; // 5px radius for vertices (10px diameter)
+            
+            triangulationData.delaunayCircumcenters.forEach((circumcenter, vertexIndex) => {
+                if (!circumcenter) return;
+                
+                const vertexElement = document.createElement('div');
+                vertexElement.className = 'voronoi-vertex-hover';
+                vertexElement.style.left = `${(circumcenter.x * scaleX) - vertexRadius}px`;
+                vertexElement.style.top = `${(circumcenter.z * scaleZ) - vertexRadius}px`;
+                vertexElement.style.width = `${vertexRadius * 2}px`;
+                vertexElement.style.height = `${vertexRadius * 2}px`;
+                
+                // Add data attribute for identification
+                vertexElement.dataset.vertexIndex = vertexIndex;
+                
+                // Add hover event listeners
+                vertexElement.addEventListener('mouseenter', () => {
+                    showVertexInfo(vertexIndex, circumcenter);
+                });
+                
+                vertexElement.addEventListener('mouseleave', () => {
+                    hideCellInfo();
+                });
+                
+                // Add click event listener for connected vertex highlighting
+                vertexElement.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (selectedVertexIndex === vertexIndex) {
+                        // If clicking the same vertex, clear highlights
+                        clearVertexHighlights();
+                    } else {
+                        // Highlight connected vertices
+                        highlightConnectedVertices(vertexIndex, circumcenter);
+                    }
+                });
+                
+                vertexContainer.appendChild(vertexElement);
+            });
         }
 
         function showCellInfo(cellId, cell) {
@@ -637,6 +724,8 @@
             const cellIdSpan = document.getElementById('cellId');
             const cellPositionSpan = document.getElementById('cellPosition');
             const cellNeighborsSpan = document.getElementById('cellNeighbors');
+            const infoTypeSpan = document.getElementById('infoType');
+            const vertexInfoDiv = document.getElementById('vertexInfo');
             
             // Update widget content
             cellIdSpan.textContent = cellId;
@@ -649,8 +738,68 @@
             const neighbors = cell.neighbors ? Array.from(cell.neighbors).sort((a, b) => a - b) : [];
             cellNeighborsSpan.textContent = `[${neighbors.join(', ')}]`;
             
+            // Set type to Cell
+            infoTypeSpan.textContent = 'Cell';
+            vertexInfoDiv.style.display = 'none';
+            
             // Show widget
             widget.style.display = 'block';
+        }
+
+        function showVertexInfo(vertexIndex, circumcenter) {
+            const widget = document.getElementById('cellInfoWidget');
+            const cellIdSpan = document.getElementById('cellId');
+            const cellPositionSpan = document.getElementById('cellPosition');
+            const cellNeighborsSpan = document.getElementById('cellNeighbors');
+            const infoTypeSpan = document.getElementById('infoType');
+            const vertexInfoDiv = document.getElementById('vertexInfo');
+            const connectedCellsSpan = document.getElementById('connectedCells');
+            
+            // Update widget content for vertex
+            cellIdSpan.textContent = `Vertex ${vertexIndex}`;
+            
+            const x = circumcenter.x.toFixed(1);
+            const y = circumcenter.z.toFixed(1);
+            cellPositionSpan.textContent = `(${x}, ${y})`;
+            
+            // Find connected cells (cells that share this vertex)
+            const triangulationData = voronoiGenerator.getTriangulation();
+            const connectedCells = findCellsConnectedToVertex(vertexIndex, triangulationData);
+            cellNeighborsSpan.textContent = `[${connectedCells.join(', ')}]`;
+            
+            // Set type to Vertex and show connected cells info
+            infoTypeSpan.textContent = 'Vertex';
+            connectedCellsSpan.textContent = `[${connectedCells.join(', ')}]`;
+            vertexInfoDiv.style.display = 'block';
+            
+            // Show widget
+            widget.style.display = 'block';
+        }
+
+        function findCellsConnectedToVertex(vertexIndex, triangulationData) {
+            if (!voronoiGenerator || !triangulationData) {
+                return [];
+            }
+            
+            if (!triangulationData.triangles) {
+                return [];
+            }
+            
+            const connectedCells = new Set();
+            
+            // Find triangles that contain this vertex index
+            triangulationData.triangles.forEach((triangle, triangleIndex) => {
+                if (triangle && triangleIndex === vertexIndex) {
+                    // This triangle corresponds to our vertex
+                    if (triangle.indices) {
+                        triangle.indices.forEach(cellIndex => {
+                            connectedCells.add(cellIndex);
+                        });
+                    }
+                }
+            });
+            
+            return Array.from(connectedCells).sort((a, b) => a - b);
         }
 
         function hideCellInfo() {
@@ -669,9 +818,21 @@
             selectedCellId = null;
         }
 
+        function clearVertexHighlights() {
+            // Remove highlight class from all previously highlighted vertex elements
+            const vertexContainer = document.getElementById('vertexHoverElements');
+            const highlightedElements = vertexContainer.querySelectorAll('.vertex-highlight');
+            highlightedElements.forEach(element => {
+                element.classList.remove('vertex-highlight');
+            });
+            highlightedVertices.clear();
+            selectedVertexIndex = null;
+        }
+
         function highlightNeighbors(cellId, cell) {
             // Clear previous highlights
             clearNeighborHighlights();
+            clearVertexHighlights();
             
             // Set new selection
             selectedCellId = cellId;
@@ -694,6 +855,35 @@
                     const element = hoverElements[i];
                     if (element.dataset.cellId == neighborId) {
                         element.classList.add('neighbor-highlight');
+                        break;
+                    }
+                }
+            });
+        }
+
+        function highlightConnectedVertices(vertexIndex, circumcenter) {
+            // Clear previous highlights
+            clearNeighborHighlights();
+            clearVertexHighlights();
+            
+            // Set new selection
+            selectedVertexIndex = vertexIndex;
+             
+            const connectedVertices = voronoiGenerator.findConnectedVertices(vertexIndex);
+            
+            // Get vertex container for finding vertex elements
+            const vertexContainer = document.getElementById('vertexHoverElements');
+            const vertexElements = vertexContainer.children;
+            
+            // Highlight each connected vertex
+            connectedVertices.forEach(connectedVertexIndex => {
+                highlightedVertices.add(connectedVertexIndex);
+                
+                // Find the corresponding vertex element
+                for (let i = 0; i < vertexElements.length; i++) {
+                    const element = vertexElements[i];
+                    if (element.dataset.vertexIndex == connectedVertexIndex) {
+                        element.classList.add('vertex-highlight');
                         break;
                     }
                 }
@@ -731,9 +921,13 @@
                     imageExporter.setMarshGenerator(marshGenerator);
                 }
                 
+                // Get triangulation data once
+                const triangulationData = voronoiGenerator.getTriangulation();
+                
                 const canvas = imageExporter.generateDiagramImage(
                     voronoiGenerator.getCells(),
                     voronoiGenerator.sites,
+                    triangulationData,
                     {
                         width: 800,
                         height: 600,
@@ -748,6 +942,7 @@
                         showCellBorders: true,
                         showTriangulation: showTriangulation,
                         showVoronoiEdges: showVoronoi,
+                        showVertices: showVertices,
                         showCoastalCells: true,
                         showHeightGradient: showHeightGradient,
                         showLakes: showLakes,
@@ -1012,8 +1207,18 @@
             const hoverContainer = document.getElementById('cellHoverElements');
             hoverContainer.innerHTML = '';
             
+            // Clear vertex hover elements
+            const vertexContainer = document.getElementById('vertexHoverElements');
+            vertexContainer.innerHTML = '';
+            
             // Hide info widget
             hideCellInfo();
+            
+            // Reset selection state
+            selectedCellId = null;
+            selectedVertexIndex = null;
+            highlightedNeighbors.clear();
+            highlightedVertices.clear();
             
             updateStats();
             enableDependentButtons(false);
@@ -1037,6 +1242,12 @@
             showSites = !showSites;
             drawDiagram();
             log(`Sites ${showSites ? 'enabled' : 'disabled'}`);
+        });
+
+        document.getElementById('toggleVerticesBtn').addEventListener('click', function() {
+            showVertices = !showVertices;
+            drawDiagram();
+            log(`Vertices ${showVertices ? 'enabled' : 'disabled'}`);
         });
 
         document.getElementById('toggleHeightBtn').addEventListener('click', function() {
@@ -1081,13 +1292,13 @@
             }
         });
 
-        // Future feature buttons (placeholder) - Rivers now implemented above
-
         // Add document click listener to clear highlights when clicking outside
         document.addEventListener('click', (e) => {
             // Only clear if not clicking on a hover element
-            if (!e.target.classList.contains('voronoi-cell-hover')) {
+            if (!e.target.classList.contains('voronoi-cell-hover') && 
+                !e.target.classList.contains('voronoi-vertex-hover')) {
                 clearNeighborHighlights();
+                clearVertexHighlights();
             }
         });
 

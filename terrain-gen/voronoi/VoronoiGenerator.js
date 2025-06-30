@@ -605,4 +605,41 @@ export class VoronoiGenerator {
   getDelaunator() {
     return this.delaunatorWrapper ? this.delaunatorWrapper.getDelaunator() : null;
   }
+
+  findConnectedVertices(vertexIndex) {
+ 
+    if (!this.delaunatorWrapper.delaunayCircumcenters) {
+        return [];
+    }
+    
+    const connectedVertices = new Set();
+    const currentVertex = this.delaunatorWrapper.delaunayCircumcenters[vertexIndex];
+    
+    if (!currentVertex) {
+        return [];
+    }
+    
+    // Find vertices that are connected by Voronoi edges
+    // We'll look for vertices that are close to this vertex (within a reasonable distance)
+    const connectionThreshold = 50; // Distance threshold for considering vertices connected
+    
+    this.delaunatorWrapper.delaunayCircumcenters.forEach((circumcenter, index) => {
+     
+        if (circumcenter && index !== vertexIndex) {
+            const distance = Math.sqrt(
+                Math.pow(circumcenter.x - currentVertex.x, 2) + 
+                Math.pow(circumcenter.z - currentVertex.z, 2)
+            );
+            
+            if (distance <= connectionThreshold) {
+                console.log(circumcenter)
+                console.log(index)
+                console.log(vertexIndex)
+                connectedVertices.add(index);
+            }
+        }
+    });
+    
+    return Array.from(connectedVertices).sort((a, b) => a - b);
+}
 }

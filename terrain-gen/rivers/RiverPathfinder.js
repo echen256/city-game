@@ -3,7 +3,6 @@ export class RiverPathfinder {
     this.voronoiGenerator = voronoiGenerator;
     this.settings = settings;
     this.voronoiEdgeGraph = null; // Graph of Voronoi edges for pathfinding
-    this.edgeHeights = new Map(); // Cache of edge heights (minimum of bordering cells)
     this.riverCells = new Set(); // Reference to river cells from main generator
     this.coastlineGenerator = null;
     this.lakesGenerator = null;
@@ -32,8 +31,8 @@ export class RiverPathfinder {
   }
 
   // Build graph of Voronoi edges for pathfinding
-  buildVoronoiEdgeGraph() {
-    console.log('Building Voronoi edge graph for pathfinding...');
+  buildVoronoiPointGraph() {
+    console.log('Building Voronoi point graph for pathfinding...');
     
     const voronoiDiagram = this.voronoiGenerator.getVoronoiDiagram();
     console.log(voronoiDiagram)
@@ -43,10 +42,10 @@ export class RiverPathfinder {
     }
 
     const voronoiEdges = voronoiDiagram.getVoronoiEdgesWithCells();
+    console.log(voronoiEdges)
     
     // Build adjacency list representation
     this.voronoiEdgeGraph = new Map();
-    this.edgeHeights.clear();
     
     // Initialize adjacency lists for all cells
     this.voronoiGenerator.cells.forEach((cell, cellId) => {
@@ -55,28 +54,23 @@ export class RiverPathfinder {
     
     // Add edges and calculate edge heights
     voronoiEdges.forEach(edge => {
-      const { cellA, cellB, edgeId } = edge;
-      
-      // Get heights of both cells
-      const heightA = this.getCellElevation(cellA);
-      const heightB = this.getCellElevation(cellB);
-      
-      // Edge height is minimum of bordering cell heights
-      const edgeHeight = Math.min(heightA, heightB);
-      this.edgeHeights.set(edgeId, edgeHeight);
+
+      const pointA = edge.pointA;
+      const pointB = edge.pointB;
+      console.log(pointA, pointB)
       
       // Add bidirectional edges in adjacency list
-      this.voronoiEdgeGraph.get(cellA)?.set(cellB, {
-        edgeId: edgeId,
-        edgeHeight: edgeHeight,
-        neighborHeight: heightB
-      });
+      // this.voronoiEdgeGraph.get(cellA)?.set(cellB, {
+      //   edgeId: edgeId,
+      //   edgeHeight: edgeHeight,
+      //   neighborHeight: heightB
+      // });
       
-      this.voronoiEdgeGraph.get(cellB)?.set(cellA, {
-        edgeId: edgeId,
-        edgeHeight: edgeHeight,
-        neighborHeight: heightA
-      });
+      // this.voronoiEdgeGraph.get(cellB)?.set(cellA, {
+      //   edgeId: edgeId,
+      //   edgeHeight: edgeHeight,
+      //   neighborHeight: heightA
+      // });
     });
     
     console.log(`Built Voronoi edge graph with ${voronoiEdges.length} edges`);

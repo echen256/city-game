@@ -28,18 +28,18 @@ export class RiversGenerator {
     // Setup pathfinder with current state
     this.setupPathfinder();
     
-    console.log(`Generating ${numRivers} rivers...`);
+    // console.log(`Generating ${numRivers} rivers...`);
 
-    for (let i = 0; i < numRivers; i++) {
-      const river = this.generateSingleRiver(i);
-      if (river.length > 0) {
-        this.riverPaths.push(river);
-        console.log(`Generated river ${i + 1} with ${river.length} cells`);
-      }
-    }
+    // for (let i = 0; i < numRivers; i++) {
+    //   const river = this.generateSingleRiver(i);
+    //   if (river.length > 0) {
+    //     this.riverPaths.push(river);
+    //     console.log(`Generated river ${i + 1} with ${river.length} cells`);
+    //   }
+    // }
 
-    console.log(`Rivers generation complete. Total paths: ${this.riverPaths.length}, total cells: ${this.riverCells.size}`);
-    return this.riverPaths;
+    // console.log(`Rivers generation complete. Total paths: ${this.riverPaths.length}, total cells: ${this.riverCells.size}`);
+    // return this.riverPaths;
   }
 
   setupPathfinder() {
@@ -51,7 +51,7 @@ export class RiversGenerator {
     this.pathfinder.setRiverCells(this.riverCells);
     
     // Build Voronoi edge graph for pathfinding
-    this.pathfinder.buildVoronoiEdgeGraph();
+    this.pathfinder.buildVoronoiPointGraph();
   }
 
   generateSingleRiver(riverIndex) {

@@ -7,6 +7,7 @@ export class DelaunatorWrapper {
     this.triangles = [];
     this.edges = [];
     this.voronoiCells = new Map();
+    this.delaunayCircumcenters = [];
   }
 
   triangulate() {
@@ -139,21 +140,40 @@ export class DelaunatorWrapper {
     }
 
     // Generate Voronoi vertices (circumcenters of triangles)
-    const circumcenters = [];
+    this.delaunayCircumcenters = [];
+    
+    // Track unique circumcenters per cell using Maps
+    const cellCircumcenters = new Map(); // cellIndex -> Map of circumcenter keys
+    
     for (let i = 0; i < this.triangles.length; i++) {
       const triangle = this.triangles[i];
       const circumcenter = this.getCircumcenter(triangle);
-      circumcenters.push(circumcenter);
+      this.delaunayCircumcenters.push(circumcenter);
       
       // Add circumcenter as vertex to each triangle vertex's Voronoi cell
       for (const pointIndex of triangle.indices) {
         const cell = this.voronoiCells.get(pointIndex);
         if (cell && circumcenter) {
-          cell.vertices.push({
-            x: circumcenter.x,
-            z: circumcenter.z,
-            triangleIndex: i
-          });
+          // Create a unique key for this circumcenter
+          const circumcenterKey = `${circumcenter.x.toFixed(6)}_${circumcenter.z.toFixed(6)}`;
+          
+          // Initialize the cell's circumcenter tracking if needed
+          if (!cellCircumcenters.has(pointIndex)) {
+            cellCircumcenters.set(pointIndex, new Map());
+          }
+          
+          const cellCircumcenterMap = cellCircumcenters.get(pointIndex);
+          
+          // Only add if we haven't seen this circumcenter before
+          if (!cellCircumcenterMap.has(circumcenterKey)) {
+            cellCircumcenterMap.set(circumcenterKey, true);
+            cell.vertices.push({
+              x: circumcenter.x,
+              z: circumcenter.z,
+              triangleIndex: i,
+              circumcenter: this.delaunayCircumcenters.length - 1
+            });
+          }
         }
       }
     }

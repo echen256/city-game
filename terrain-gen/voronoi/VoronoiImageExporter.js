@@ -149,7 +149,7 @@ export class VoronoiImageExporter {
     return this.canvas;
   }
 
-  generateDiagramImage(cells, sites, options = {}) {
+  generateDiagramImage(cells, sites, triangulationData = null, options = {}) {
     const {
       width = 800,
       height = 800,
@@ -167,6 +167,7 @@ export class VoronoiImageExporter {
       showCellIds = false,
       showTriangulation = true,
       showVoronoiEdges = true,
+      showVertices = false,
       showCoastalCells = true,
       showHeightGradient = true,
       showLakes = true,
@@ -186,14 +187,13 @@ export class VoronoiImageExporter {
     const scaleZ = height / this.settings.gridSize;
 
     // Draw triangulation first (if enabled)
-    if (showTriangulation && this.voronoiGenerator.getTriangulation()) {
-      const delaunatorWrapper = this.voronoiGenerator.getTriangulation();
+    if (showTriangulation && triangulationData) {
       this.ctx.strokeStyle = triangulationColor;
       this.ctx.lineWidth = lineWidth * 0.5;
       this.ctx.setLineDash([2, 2]); // Dashed lines for triangulation
       
-      if (delaunatorWrapper.triangles) {
-        delaunatorWrapper.triangles.forEach(triangle => {
+      if (triangulationData.triangles) {
+        triangulationData.triangles.forEach(triangle => {
           this.ctx.beginPath();
           this.ctx.moveTo(triangle.a.x * scaleX, (triangle.a.z || triangle.a.y || 0) * scaleZ);
           this.ctx.lineTo(triangle.b.x * scaleX, (triangle.b.z || triangle.b.y || 0) * scaleZ);
@@ -312,6 +312,28 @@ export class VoronoiImageExporter {
         );
         this.ctx.fill();
       });
+    }
+
+    // Draw Voronoi vertices (circumcenters) as red dots
+    if (showVertices && triangulationData) {
+      if (triangulationData.delaunayCircumcenters) {
+        this.ctx.fillStyle = '#ff0000'; // Red color for vertices
+        const vertexRadius = 1; // 5px radius for 10px diameter
+        
+        triangulationData.delaunayCircumcenters.forEach(circumcenter => {
+          if (circumcenter) {
+            this.ctx.beginPath();
+            this.ctx.arc(
+              circumcenter.x * scaleX,
+              circumcenter.z * scaleZ,
+              vertexRadius,
+              0,
+              2 * Math.PI
+            );
+            this.ctx.fill();
+          }
+        });
+      }
     }
 
     // Draw river start and end points as small red dots
@@ -587,6 +609,7 @@ export class VoronoiImageExporter {
       const canvas = this.generateDiagramImage(
         tempGenerator.getCells(),
         tempGenerator.sites,
+        tempGenerator.getTriangulation(),
         {
           width: 800,
           height: 800,
