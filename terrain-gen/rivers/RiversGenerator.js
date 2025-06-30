@@ -443,19 +443,18 @@ export class RiversGenerator {
         const dy = (cell.site.z || cell.site.y || 0) - (targetCell.site.z || targetCell.site.y || 0);
         const distance = Math.sqrt(dx * dx + dy * dy);
         
-        // Factor in elevation difference
+        // Factor in elevation difference - much more lenient
         const targetElevation = this.getCellElevation(targetId);
         const elevationDiff = currentElevation - targetElevation;
         
-        // If target is lower (downhill), reduce heuristic cost
-        // If target is higher (uphill), increase heuristic cost
+        // Prefer downhill but don't heavily penalize uphill
         let elevationCost = 0;
         if (elevationDiff < 0) {
-          // Going uphill to target
-          elevationCost = Math.abs(elevationDiff) * 1; // Reduced from 2 to 1
+          // Going uphill to target - very light penalty
+          elevationCost = Math.abs(elevationDiff) * 0.1;
         } else {
-          // Going downhill to target
-          elevationCost = -elevationDiff * 0.1; // Bonus for downhill targets
+          // Going downhill to target - strong bonus
+          elevationCost = -elevationDiff * 0.3; // Increased bonus for downhill targets
         }
         
         const totalCost = distance + elevationCost;
@@ -482,44 +481,44 @@ export class RiversGenerator {
     const toHeight = this.getCellElevation(toCellId);
     const elevationChange = toHeight - fromHeight;
 
-    // Base cost
+    // Base cost - much more permissive
     let cost = 1;
 
-    // Elevation-based cost calculation
+    // Elevation-based cost calculation - emphasize preference, not prohibition
     if (elevationChange <= 0) {
-      // Flowing downhill or staying level - preferred
-      const downhillBonus = Math.abs(elevationChange) * 0.1; // Bonus for steeper downhill
-      cost = Math.max(0.1, 1 - downhillBonus); // Minimum cost of 0.1
+      // Flowing downhill or staying level - strongly preferred
+      const downhillBonus = Math.abs(elevationChange) * 0.2; // Increased bonus for steeper downhill
+      cost = Math.max(0.01, 1 - downhillBonus); // Very low cost for downhill
     } else {
-      // Flowing uphill - penalized but not as heavily
-      const uphillPenalty = elevationChange * 2; // Reduced from 10 to 2
+      // Flowing uphill - penalized but still passable
+      const uphillPenalty = elevationChange * 0.5; // Much smaller penalty
       cost = 1 + uphillPenalty;
       
-      // Moderate penalty for significant uphill movement
-      if (elevationChange > 10) {
-        cost += elevationChange * 5; // Reduced from 20 to 5
+      // Even for significant uphill, keep it reasonable
+      if (elevationChange > 20) {
+        cost += elevationChange * 0.1; // Very light additional penalty
       }
     }
 
     // Additional terrain modifiers
     // Lower cost for marshes (rivers like wetlands)
     if (this.marshGenerator && this.marshGenerator.isMarshCell(toCellId)) {
-      cost *= 0.7; // Prefer flowing through marshes
+      cost *= 0.5; // Strong preference for flowing through marshes
     }
 
-    // Slight penalty for very high elevations (mountains)
-    if (toHeight > 70) {
-      cost *= 1.2; // Reduced from 1.5 to 1.2
+    // Slight penalty for very high elevations (mountains) - but still passable
+    if (toHeight > 80) {
+      cost *= 1.1; // Very light penalty
     }
 
-    // Bonus for flowing toward lower-elevation neighbors
+    // Strong bonus for flowing toward lower-elevation neighbors
     const toNeighborHeights = this.getNeighborElevations(toCellId);
     const hasLowerNeighbors = toNeighborHeights.some(h => h < toHeight);
     if (hasLowerNeighbors) {
-      cost *= 0.8; // Prefer cells that have downhill exits
+      cost *= 0.3; // Strong preference for cells that have downhill exits
     }
 
-    const finalCost = Math.max(0.05, cost); // Ensure minimum cost
+    const finalCost = Math.max(0.01, cost); // Very low minimum cost to allow all paths
     
     console.log(`    Movement cost ${fromCellId} -> ${toCellId}: fromHeight=${fromHeight.toFixed(1)}, toHeight=${toHeight.toFixed(1)}, elevationChange=${elevationChange.toFixed(1)}, baseCost=${cost.toFixed(2)}, finalCost=${finalCost.toFixed(2)}`);
     
@@ -572,35 +571,34 @@ export class RiversGenerator {
   }
 
   isObstacle(cellId) {
-    // Rivers can't flow through existing rivers or lakes (they merge instead)
+    // Rivers can't flow through existing rivers (they merge instead)
     if (this.riverCells.has(cellId)) {
       console.log(`    Obstacle check: Cell ${cellId} is existing river`);
       return true;
     }
     
+    // Lakes and marshes are always passable (rivers can flow through them)
     if (this.lakesGenerator && this.lakesGenerator.isLakeCell(cellId)) {
-      // Lakes are targets, not obstacles, but check if it's the final destination
-      console.log(`    Obstacle check: Cell ${cellId} is lake (but allowed as target)`);
-      return false; // Allow rivers to flow into lakes
+      console.log(`    Obstacle check: Cell ${cellId} is lake (passable)`);
+      return false;
     }
     
-    // Very high elevations are impassable obstacles (reduced threshold)
-    const elevation = this.getCellElevation(cellId);
-    if (elevation > 90) { // Increased from 80 to 90
-      console.log(`    Obstacle check: Cell ${cellId} is mountain peak (elevation: ${elevation})`);
-      return true; // Mountain peaks are impassable
-    }
-    
-    // Check if cell is completely surrounded by higher elevation (trapped valley) - less strict
-    const neighborElevations = this.getNeighborElevations(cellId);
-    const isTrappedValley = neighborElevations.length > 0 && 
-      neighborElevations.every(h => h > elevation + 30); // Increased from 20 to 30
-    
-    if (isTrappedValley) {
-      console.log(`    Obstacle check: Cell ${cellId} is trapped valley (elevation: ${elevation}, neighbor elevations: [${neighborElevations.map(e => e.toFixed(1)).join(', ')}])`);
-      return true; // Can't escape from deep valleys
+    if (this.marshGenerator && this.marshGenerator.isMarshCell(cellId)) {
+      console.log(`    Obstacle check: Cell ${cellId} is marsh (passable)`);
+      return false;
     }
 
+    // Remove most elevation-based obstacles - rivers should be able to go anywhere
+    // Only block extremely unrealistic scenarios
+    const elevation = this.getCellElevation(cellId);
+    
+    // Only block impossibly high elevations (like 150+ units)
+    if (elevation > 150) {
+      console.log(`    Obstacle check: Cell ${cellId} is impossibly high peak (elevation: ${elevation})`);
+      return true;
+    }
+
+    // Remove trapped valley check - rivers should find a way even through difficult terrain
     console.log(`    Obstacle check: Cell ${cellId} is passable (elevation: ${elevation})`);
     return false;
   }
