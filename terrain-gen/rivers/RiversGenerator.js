@@ -1,19 +1,37 @@
+import { Point, Edge, Triangle, HalfEdge, VoronoiEdge, GeometryUtils } from '../voronoi/GeometryTypes.js';
 import { RiverPathfinder } from './RiverPathfinder.js';
 
+/**
+ * Rivers generator using typed geometry and pathfinding
+ */
 export class RiversGenerator {
+  /**
+   * @param {Object} voronoiGenerator - Voronoi diagram generator
+   * @param {Object} settings - Generator settings
+   */
   constructor(voronoiGenerator, settings) {
+    /** @type {Object} */
     this.voronoiGenerator = voronoiGenerator;
+    /** @type {Object} */
     this.settings = settings;
+    /** @type {Set<number>} */
     this.riverCells = new Set();
-    this.riverPaths = []; // Array of river path arrays
+    /** @type {Array<Array<number>>} */
+    this.riverPaths = [];
+    /** @type {Object|null} */
     this.coastlineGenerator = null;
+    /** @type {Object|null} */
     this.lakesGenerator = null;
+    /** @type {Object|null} */
     this.marshGenerator = null;
-    this.usedStartPoints = new Set(); // Track used start points
-    this.usedEndPoints = new Set();   // Track used end points
-    this.minSeparationDistance = 50; // Minimum distance between start/end points
+    /** @type {Set<number>} */
+    this.usedStartPoints = new Set();
+    /** @type {Set<number>} */
+    this.usedEndPoints = new Set();
+    /** @type {number} */
+    this.minSeparationDistance = 50;
     
-    // Create pathfinder instance
+    /** @type {RiverPathfinder} */
     this.pathfinder = new RiverPathfinder(voronoiGenerator, settings);
   }
 

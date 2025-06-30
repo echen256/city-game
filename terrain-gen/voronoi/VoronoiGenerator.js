@@ -1,12 +1,29 @@
+import { Point, Edge, Triangle, HalfEdge, VoronoiEdge, GeometryUtils } from './GeometryTypes.js';
+
+/**
+ * Represents a Voronoi cell with typed geometry
+ */
 export class VoronoiCell {
+  /**
+   * @param {Point|Object} site - Seed point coordinates
+   * @param {number} id - Cell identifier
+   */
   constructor(site, id) {
-    this.site = site; // {x, z} coordinates of the seed point
+    /** @type {Point|Object} */
+    this.site = site;
+    /** @type {number} */
     this.id = id;
-    this.vertices = []; // Polygon vertices defining the cell boundary
-    this.neighbors = []; // Adjacent cell IDs
+    /** @type {Array<Point|Object>} */
+    this.vertices = [];
+    /** @type {Array<number>} */
+    this.neighbors = [];
+    /** @type {number} */
     this.area = 0;
+    /** @type {number} */
     this.perimeter = 0;
-    this.affectedTiles = []; // Tiles that belong to this cell
+    /** @type {Array<Object>} */
+    this.affectedTiles = [];
+    /** @type {Object} */
     this.metadata = {};
   }
 
@@ -84,13 +101,26 @@ export class VoronoiCell {
 
 import { DelaunatorWrapper } from './DelaunatorWrapper.js';
 
+/**
+ * Voronoi diagram generator with typed geometry support
+ */
 export class VoronoiGenerator {
+  /**
+   * @param {Object} terrainData - Terrain data manager
+   * @param {Object} settings - Generation settings
+   */
   constructor(terrainData, settings) {
+    /** @type {Object} */
     this.terrainData = terrainData;
+    /** @type {Object} */
     this.settings = settings;
+    /** @type {Map<number, VoronoiCell>} */
     this.cells = new Map();
+    /** @type {Array<Point|Object>} */
     this.sites = [];
+    /** @type {DelaunatorWrapper|null} */
     this.delaunatorWrapper = null;
+    /** @type {Object} */
     this.bounds = { 
       minX: 0, 
       maxX: settings.gridSize, 

@@ -1,15 +1,38 @@
 import Delaunator from 'delaunator';
+import { Point, Edge, Triangle, HalfEdge, VoronoiEdge, GeometryUtils } from './GeometryTypes.js';
 
+/**
+ * Wrapper around Delaunator library with geometry type integration
+ */
 export class DelaunatorWrapper {
+  /**
+   * @param {Array<Point|Object>} points - Array of points for triangulation
+   */
   constructor(points) {
+    /** @type {Array<Point|Object>} */
     this.points = points;
+    /** @type {Delaunator|null} */
     this.delaunay = null;
+    /** @type {Array<Triangle>} */
     this.triangles = [];
+    /** @type {Array<Edge>} */
     this.edges = [];
+    /** @type {Map<number, Object>} */
     this.voronoiCells = new Map();
+    /** @type {Map<number, Set<number>>} */
     this.voronoiAdjacentCells = new Map();
+    /** @type {Array<Point>} */
+    this.delaunayCircumcenters = [];
+    /** @type {Set<number>|null} */
+    this.validCellIndices = null;
+    /** @type {Map<number, number>|null} */
+    this.indexMapping = null;
   }
 
+  /**
+   * Perform Delaunay triangulation on the points
+   * @returns {Object} Triangulation results with triangles, edges, and Voronoi cells
+   */
   triangulate() {
     if (this.points.length < 3) {
       console.warn('DelaunatorWrapper: Not enough points for triangulation (need at least 3)');
@@ -65,11 +88,12 @@ export class DelaunatorWrapper {
     };
   }
 
+  /**
+   * Extract triangles from Delaunator result using Triangle class
+   */
   extractTriangles() {
     this.triangles = [];
     const triangleIndices = this.delaunay.triangles;
-    
-    // console.log('DelaunatorWrapper: Extracting triangles from indices:', triangleIndices);
     
     for (let i = 0; i < triangleIndices.length; i += 3) {
       const aIndex = triangleIndices[i];
@@ -82,42 +106,40 @@ export class DelaunatorWrapper {
         continue;
       }
       
-      const triangle = {
-        a: this.points[aIndex],
-        b: this.points[bIndex],
-        c: this.points[cIndex],
-        indices: [aIndex, bIndex, cIndex]
-      };
+      const pointA = this.points[aIndex];
+      const pointB = this.points[bIndex];
+      const pointC = this.points[cIndex];
       
+      const triangle = new Triangle(pointA, pointB, pointC, [aIndex, bIndex, cIndex]);
       this.triangles.push(triangle);
     }
-    
-    //  console.log('DelaunatorWrapper: Extracted triangles:', this.triangles.length);
   }
 
+  /**
+   * Extract edges from triangles using Edge class
+   */
   extractEdges() {
     this.edges = [];
     const edgeSet = new Set();
     
     // Extract unique edges from triangles
     for (const triangle of this.triangles) {
-      const edges = [
+      const edgeIndices = [
         [triangle.indices[0], triangle.indices[1]],
         [triangle.indices[1], triangle.indices[2]],
         [triangle.indices[2], triangle.indices[0]]
       ];
       
-      for (const edge of edges) {
-        const [a, b] = edge.sort((x, y) => x - y); // Ensure consistent ordering
-        const key = `${a}-${b}`;
+      for (const [a, b] of edgeIndices) {
+        const [minIndex, maxIndex] = [Math.min(a, b), Math.max(a, b)];
+        const key = `${minIndex}-${maxIndex}`;
         
         if (!edgeSet.has(key)) {
           edgeSet.add(key);
-          this.edges.push({
-            a: this.points[a],
-            b: this.points[b],
-            indices: [a, b]
-          });
+          const pointA = this.points[minIndex];
+          const pointB = this.points[maxIndex];
+          const edge = new Edge(pointA, pointB, key);
+          this.edges.push(edge);
         }
       }
     }
@@ -144,7 +166,7 @@ export class DelaunatorWrapper {
     
     for (let i = 0; i < this.triangles.length; i++) {
       const triangle = this.triangles[i];
-      const circumcenter = this.getCircumcenter(triangle);
+      const circumcenter = triangle.getCircumcenter();
       this.delaunayCircumcenters.push(circumcenter);
       
       // Add circumcenter as vertex to each triangle vertex's Voronoi cell
@@ -178,7 +200,7 @@ export class DelaunatorWrapper {
     // Order vertices counterclockwise for each cell
     for (const [pointIndex, cell] of this.voronoiCells) {
       if (cell.vertices.length > 0) {
-        cell.vertices = this.orderVerticesCounterclockwise(cell.site, cell.vertices);
+        cell.vertices = GeometryUtils.sortCounterclockwise(cell.site, cell.vertices);
       }
       
       // Find neighbors using delaunator's halfedge structure
@@ -186,46 +208,23 @@ export class DelaunatorWrapper {
     }
   }
 
+  /**
+   * Get circumcenter of triangle (delegated to Triangle class)
+   * @param {Triangle} triangle - Triangle to get circumcenter for
+   * @returns {Point|null} Circumcenter point or null if degenerate
+   */
   getCircumcenter(triangle) {
-    if (!triangle) {
-      return null;
-    }
-    const ax = triangle.a.x;
-    const ay = triangle.a.z || triangle.a.y || 0;
-    const bx = triangle.b.x;
-    const by = triangle.b.z || triangle.b.y || 0;
-    const cx = triangle.c.x;
-    const cy = triangle.c.z || triangle.c.y || 0;
-
-    const d = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by));
-    
-    if (Math.abs(d) < 1e-10) {
-      console.warn('DelaunatorWrapper: Degenerate triangle detected:', triangle);
-      return null; // Degenerate triangle
-    }
-
-    const ux = ((ax * ax + ay * ay) * (by - cy) + (bx * bx + by * by) * (cy - ay) + (cx * cx + cy * cy) * (ay - by)) / d;
-    const uy = ((ax * ax + ay * ay) * (cx - bx) + (bx * bx + by * by) * (ax - cx) + (cx * cx + cy * cy) * (bx - ax)) / d;
-
-    return { x: ux, z: uy }; // Keep consistent with z coordinate system
+    return triangle ? triangle.getCircumcenter() : null;
   }
 
+  /**
+   * Order vertices counterclockwise (delegated to GeometryUtils)
+   * @param {Point|Object} center - Center point
+   * @param {Array} vertices - Vertices to sort
+   * @returns {Array} Sorted vertices
+   */
   orderVerticesCounterclockwise(center, vertices) {
-    if (vertices.length <= 2) return vertices;
-
-    const cx = center.x;
-    const cy = center.z || center.y || 0;
-
-    // Calculate angles from center to each vertex
-    const verticesWithAngles = vertices.map(vertex => ({
-      vertex,
-      angle: Math.atan2(vertex.z - cy, vertex.x - cx)
-    }));
-
-    // Sort by angle
-    verticesWithAngles.sort((a, b) => a.angle - b.angle);
-
-    return verticesWithAngles.map(item => item.vertex);
+    return GeometryUtils.sortCounterclockwise(center, vertices);
   }
 
   findCellNeighbors(pointIndex, cell) {
