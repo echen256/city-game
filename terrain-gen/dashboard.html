@@ -208,6 +208,11 @@
             background-color: rgba(255, 255, 0, 0.3);
         }
         
+        .neighbor-highlight {
+            background-color: rgba(255, 0, 0, 0.5) !important;
+            pointer-events: none;
+        }
+        
         .cell-info-widget {
             position: fixed;
             bottom: 20px;
@@ -464,6 +469,8 @@
         let showLakes = true;
         let showMarshes = true;
         let showRivers = true;
+        let selectedCellId = null; // Track which cell is selected
+        let highlightedNeighbors = new Set(); // Track highlighted neighbor cells
 
         // Mock terrain data
         const mockTerrainData = {
@@ -597,6 +604,9 @@
                 hoverElement.style.width = `${hoverRadius * 2}px`;
                 hoverElement.style.height = `${hoverRadius * 2}px`;
                 
+                // Add data attribute for identification
+                hoverElement.dataset.cellId = cellId;
+                
                 // Add hover event listeners
                 hoverElement.addEventListener('mouseenter', () => {
                     showCellInfo(cellId, cell);
@@ -604,6 +614,18 @@
                 
                 hoverElement.addEventListener('mouseleave', () => {
                     hideCellInfo();
+                });
+                
+                // Add click event listener for neighbor highlighting
+                hoverElement.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (selectedCellId === cellId) {
+                        // If clicking the same cell, clear highlights
+                        clearNeighborHighlights();
+                    } else {
+                        // Highlight neighbors of clicked cell
+                        highlightNeighbors(cellId, cell);
+                    }
                 });
                 
                 hoverContainer.appendChild(hoverElement);
@@ -634,6 +656,48 @@
         function hideCellInfo() {
             const widget = document.getElementById('cellInfoWidget');
             widget.style.display = 'none';
+        }
+
+        function clearNeighborHighlights() {
+            // Remove highlight class from all previously highlighted elements
+            const hoverContainer = document.getElementById('cellHoverElements');
+            const highlightedElements = hoverContainer.querySelectorAll('.neighbor-highlight');
+            highlightedElements.forEach(element => {
+                element.classList.remove('neighbor-highlight');
+            });
+            highlightedNeighbors.clear();
+            selectedCellId = null;
+        }
+
+        function highlightNeighbors(cellId, cell) {
+            // Clear previous highlights
+            clearNeighborHighlights();
+            
+            // Set new selection
+            selectedCellId = cellId;
+            
+            if (!cell.neighbors || cell.neighbors.length === 0) {
+                return;
+            }
+            
+            // Get hover container for finding neighbor elements
+            const hoverContainer = document.getElementById('cellHoverElements');
+            const hoverElements = hoverContainer.children;
+            
+            // Highlight each neighbor
+            cell.neighbors.forEach(neighborId => {
+                highlightedNeighbors.add(neighborId);
+                
+                // Find the corresponding hover element
+                // Elements are created in the same order as cells.forEach()
+                for (let i = 0; i < hoverElements.length; i++) {
+                    const element = hoverElements[i];
+                    if (element.dataset.cellId == neighborId) {
+                        element.classList.add('neighbor-highlight');
+                        break;
+                    }
+                }
+            });
         }
 
         function drawDiagram() {
@@ -1018,6 +1082,14 @@
         });
 
         // Future feature buttons (placeholder) - Rivers now implemented above
+
+        // Add document click listener to clear highlights when clicking outside
+        document.addEventListener('click', (e) => {
+            // Only clear if not clicking on a hover element
+            if (!e.target.classList.contains('voronoi-cell-hover')) {
+                clearNeighborHighlights();
+            }
+        });
 
         // Initialize
         log('Dashboard initialized');

@@ -108,13 +108,16 @@ export class VoronoiGenerator {
     // Step 1: Generate seed points
     this.generateSeedPoints(voronoiSettings);
 
-    // Step 2: Calculate Voronoi diagram using Fortune's algorithm (simplified)
+    // Step 2: Clean and validate points before triangulation
+    this.cleanAndValidatePoints();
+
+    // Step 3: Calculate Voronoi diagram using Fortune's algorithm (simplified)
     this.calculateVoronoiDiagram();
 
-    // Step 3: Create terrain features for each cell
+    // Step 4: Create terrain features for each cell
     this.createCellFeatures();
 
-    // Step 4: Assign tiles to cells
+    // Step 5: Assign tiles to cells
     this.assignTilesToCells();
 
     return this.cells;
@@ -142,7 +145,7 @@ export class VoronoiGenerator {
         this.generateRandomSites(numSites, minDistance);
         break;
       case 'poisson':
-        this.generatePoissonSites(poissonRadius);
+        this.generatePoissonSites(poissonRadius || minDistance);
         break;
       case 'grid':
         this.generateGridSites(gridSpacing);
@@ -198,15 +201,31 @@ export class VoronoiGenerator {
     }
   }
 
+  // Helper function to check if a point is a duplicate (within epsilon distance)
+  isDuplicatePoint(newPoint, epsilon = 0.1) {
+    for (const site of this.sites) {
+      const distance = Math.sqrt(
+        Math.pow(newPoint.x - site.x, 2) + Math.pow(newPoint.z - site.z, 2)
+      );
+      if (distance < epsilon) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   generatePoissonSites(radius) {
-    // Bridson's Poisson disk sampling algorithm
+    // Bridson's Poisson disk sampling algorithm with improved duplicate checking
     const { gridSize } = this.settings;
     const cellSize = radius / Math.sqrt(2);
     const gridWidth = Math.ceil(gridSize / cellSize);
     const gridHeight = Math.ceil(gridSize / cellSize);
     const grid = new Array(gridWidth * gridHeight).fill(null);
     const activeList = [];
-
+    
+    // Increase minimum distance slightly to avoid numerical issues
+    const minDistance = radius * 1.01;
+    
     // Helper function to get grid index
     const getGridIndex = (x, z) => {
       const i = Math.floor(x / cellSize);
@@ -214,10 +233,11 @@ export class VoronoiGenerator {
       return j * gridWidth + i;
     };
 
-    // Start with random point
+    // Start with random point, but ensure it's not too close to edges
+    const margin = radius;
     const firstPoint = {
-      x: this.random() * gridSize,
-      z: this.random() * gridSize
+      x: margin + this.random() * (gridSize - 2 * margin),
+      z: margin + this.random() * (gridSize - 2 * margin)
     };
     
     this.sites.push(firstPoint);
@@ -232,19 +252,19 @@ export class VoronoiGenerator {
       // Try to place new points around this point
       for (let attempts = 0; attempts < 30; attempts++) {
         const angle = this.random() * 2 * Math.PI;
-        const distance = radius + this.random() * radius;
+        const distance = minDistance + this.random() * minDistance;
         const newPoint = {
           x: point.x + Math.cos(angle) * distance,
           z: point.z + Math.sin(angle) * distance
         };
 
-        // Check bounds
-        if (newPoint.x < 0 || newPoint.x >= gridSize || newPoint.z < 0 || newPoint.z >= gridSize) {
+        // Check bounds with margin
+        if (newPoint.x < margin || newPoint.x >= gridSize - margin || 
+            newPoint.z < margin || newPoint.z >= gridSize - margin) {
           continue;
         }
 
         // Check distance to existing points
-        const gridIndex = getGridIndex(newPoint.x, newPoint.z);
         let valid = true;
 
         // Check surrounding grid cells
@@ -264,7 +284,7 @@ export class VoronoiGenerator {
                 const dist = Math.sqrt(
                   Math.pow(newPoint.x - neighbor.x, 2) + Math.pow(newPoint.z - neighbor.z, 2)
                 );
-                if (dist < radius) {
+                if (dist < minDistance) {
                   valid = false;
                   break;
                 }
@@ -277,7 +297,7 @@ export class VoronoiGenerator {
         if (valid) {
           this.sites.push(newPoint);
           activeList.push(newPoint);
-          grid[gridIndex] = newPoint;
+          grid[getGridIndex(newPoint.x, newPoint.z)] = newPoint;
           found = true;
           break;
         }
@@ -328,38 +348,180 @@ export class VoronoiGenerator {
     }
   }
 
-  calculateVoronoiDiagram() {
-    // Use delaunator for proper Delaunay triangulation and Voronoi generation
-    console.log(this.sites)
-    this.delaunatorWrapper = new DelaunatorWrapper(this.sites);
-    const result = this.delaunatorWrapper.triangulate();
+  cleanAndValidatePoints() {
+    // Remove duplicate points and ensure minimum separation
+    const epsilon = 0.001; // Very small epsilon for exact duplicates
+    const minSeparation = 0.1; // Minimum separation to avoid degenerate triangles
     
-    // Convert delaunator results to our VoronoiCell format
-    this.cells.clear();
-    result.voronoiCells.forEach((cell, index) => {
-      const voronoiCell = new VoronoiCell(cell.site, index);
+    const cleanedSites = [];
+    
+    for (const site of this.sites) {
+      let isValid = true;
       
-      // Add vertices from delaunator Voronoi calculation
-      cell.vertices.forEach(vertex => voronoiCell.addVertex(vertex));
+      // Check against already added clean sites
+      for (const cleanSite of cleanedSites) {
+        const distance = Math.sqrt(
+          Math.pow(site.x - cleanSite.x, 2) + Math.pow(site.z - cleanSite.z, 2)
+        );
+        
+        if (distance < minSeparation) {
+          isValid = false;
+          break;
+        }
+      }
       
-      // Add neighbors
-      cell.neighbors.forEach(neighborIndex => {
-        voronoiCell.addNeighbor(neighborIndex);
+      if (isValid) {
+        // Round to avoid floating point precision issues
+        cleanedSites.push({
+          x: Math.round(site.x * 1000) / 1000,
+          z: Math.round(site.z * 1000) / 1000
+        });
+      }
+    }
+    
+    this.sites = cleanedSites;
+    
+    // Add boundary points if needed to ensure proper triangulation
+    if (this.settings.voronoi.addBoundaryPoints !== false) {
+      this.addBoundaryPoints();
+    }
+  }
+
+  addBoundaryPoints() {
+    const { gridSize } = this.settings;
+    const margin = gridSize * 0.1;
+    
+    // Add points outside the boundary to ensure proper Voronoi cells at edges
+    const boundaryPoints = [
+      { x: -margin, z: -margin },
+      { x: gridSize / 2, z: -margin },
+      { x: gridSize + margin, z: -margin },
+      { x: -margin, z: gridSize / 2 },
+      { x: gridSize + margin, z: gridSize / 2 },
+      { x: -margin, z: gridSize + margin },
+      { x: gridSize / 2, z: gridSize + margin },
+      { x: gridSize + margin, z: gridSize + margin }
+    ];
+    
+    // Mark these as boundary points
+    boundaryPoints.forEach(point => {
+      point.isBoundary = true;
+    });
+    
+    this.sites.push(...boundaryPoints);
+  }
+
+  calculateVoronoiDiagram() {
+    try {
+      // Use delaunator for proper Delaunay triangulation and Voronoi generation
+      console.log(`Triangulating ${this.sites.length} sites...`);
+      this.delaunatorWrapper = new DelaunatorWrapper(this.sites);
+      const result = this.delaunatorWrapper.triangulate();
+      
+      if (!result || !result.voronoiCells) {
+        console.error('Triangulation failed or returned invalid results');
+        return;
+      }
+      
+      console.log(`Generated ${result.voronoiCells.length} Voronoi cells`);
+      
+      // First pass: identify which cells are valid (non-boundary)
+      const validCellIndices = new Set();
+      const indexMapping = new Map(); // Maps original index to new index
+      let newIndex = 0;
+      
+      result.voronoiCells.forEach((cell, originalIndex) => {
+        if (!cell.site || !cell.site.isBoundary) {
+          validCellIndices.add(originalIndex);
+          indexMapping.set(originalIndex, newIndex++);
+        }
       });
       
-      // Calculate area and perimeter
-      voronoiCell.calculateArea();
-      voronoiCell.calculatePerimeter();
+      // Second pass: create cells with corrected neighbor relationships
+      this.cells.clear();
+      result.voronoiCells.forEach((cell, originalIndex) => {
+        // Skip boundary cells
+        if (cell.site && cell.site.isBoundary) {
+          return;
+        }
+        
+        const newCellIndex = indexMapping.get(originalIndex);
+        const voronoiCell = new VoronoiCell(cell.site, newCellIndex);
+        
+        // Add vertices from delaunator Voronoi calculation
+        if (cell.vertices && cell.vertices.length > 0) {
+          cell.vertices.forEach(vertex => {
+            // Clip vertices to bounds
+            const clippedVertex = {
+              x: Math.max(0, Math.min(this.settings.gridSize, vertex.x)),
+              z: Math.max(0, Math.min(this.settings.gridSize, vertex.z))
+            };
+            voronoiCell.addVertex(clippedVertex);
+          });
+        }
+        
+        // Add neighbors with corrected indices
+        if (cell.neighbors) {
+          cell.neighbors.forEach(neighborOriginalIndex => {
+            // Only add neighbors that are valid cells (not boundary)
+            if (validCellIndices.has(neighborOriginalIndex)) {
+              const neighborNewIndex = indexMapping.get(neighborOriginalIndex);
+              voronoiCell.addNeighbor(neighborNewIndex);
+            }
+          });
+        }
+        
+        // Calculate area and perimeter
+        voronoiCell.calculateArea();
+        voronoiCell.calculatePerimeter();
+        
+        this.cells.set(newCellIndex, voronoiCell);
+      });
       
-      this.cells.set(index, voronoiCell);
+      // Update sites array to exclude boundary points
+      this.sites = this.sites.filter(site => !site.isBoundary);
+      
+      // Store mapping for DelaunatorWrapper edge filtering
+      this.delaunatorWrapper.validCellIndices = validCellIndices;
+      this.delaunatorWrapper.indexMapping = indexMapping;
+ 
+      
+    } catch (error) {
+      console.error('Error during triangulation:', error);
+      // Fallback to simple nearest-neighbor assignment if triangulation fails
+      this.fallbackToCentroidalVoronoi();
+    }
+  }
+
+  fallbackToCentroidalVoronoi() {
+    console.warn('Falling back to simple centroidal Voronoi');
+    this.cells.clear();
+    
+    // Create a simple cell for each site
+    this.sites.forEach((site, index) => {
+      if (!site.isBoundary) {
+        const cell = new VoronoiCell(site, index);
+        // For fallback, just create a square around each site
+        const radius = this.settings.gridSize / Math.sqrt(this.sites.length) / 2;
+        cell.addVertex({ x: site.x - radius, z: site.z - radius });
+        cell.addVertex({ x: site.x + radius, z: site.z - radius });
+        cell.addVertex({ x: site.x + radius, z: site.z + radius });
+        cell.addVertex({ x: site.x - radius, z: site.z + radius });
+        
+        cell.calculateArea();
+        cell.calculatePerimeter();
+        this.cells.set(index, cell);
+      }
     });
   }
 
   findClosestSite(x, z) {
     let minDistance = Infinity;
-    let closestIndex = 0;
+    let closestIndex = -1;
 
-    this.sites.forEach((site, index) => {
+    // Only search through non-boundary sites with proper indices
+    this.cells.forEach((cell, index) => {
+      const site = cell.site;
       const distance = Math.sqrt(
         Math.pow(x - site.x, 2) + Math.pow(z - site.z, 2)
       );
@@ -371,48 +533,6 @@ export class VoronoiGenerator {
 
     return closestIndex;
   }
-
-  calculateConvexHull(points) {
-    if (points.length < 3) return points;
-
-    // Graham scan algorithm for convex hull
-    const sortedPoints = [...points].sort((a, b) => {
-      if (a.x === b.x) return a.z - b.z;
-      return a.x - b.x;
-    });
-
-    const cross = (o, a, b) => {
-      return (a.x - o.x) * (b.z - o.z) - (a.z - o.z) * (b.x - o.x);
-    };
-
-    // Build lower hull
-    const lower = [];
-    for (const point of sortedPoints) {
-      while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], point) <= 0) {
-        lower.pop();
-      }
-      lower.push(point);
-    }
-
-    // Build upper hull
-    const upper = [];
-    for (let i = sortedPoints.length - 1; i >= 0; i--) {
-      const point = sortedPoints[i];
-      while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], point) <= 0) {
-        upper.pop();
-      }
-      upper.push(point);
-    }
-
-    // Remove last point of each half because it's repeated
-    lower.pop();
-    upper.pop();
-
-    return lower.concat(upper);
-  }
-
-  // These methods are no longer needed with delaunator
-  // Neighbors are handled automatically in calculateVoronoiDiagram
 
   createCellFeatures() {
     this.cells.forEach((cell, cellId) => {
@@ -442,16 +562,19 @@ export class VoronoiGenerator {
     for (let x = 0; x < gridSize; x++) {
       for (let z = 0; z < gridSize; z++) {
         const closestCellId = this.findClosestSite(x, z);
-        const cell = this.cells.get(closestCellId);
         
-        if (cell) {
-          cell.affectedTiles.push({ x, z });
+        if (closestCellId >= 0) {
+          const cell = this.cells.get(closestCellId);
           
-          // Update the corresponding terrain feature
-          const features = this.terrainData.getFeaturesByType('voronoi_cell');
-          const cellFeature = features.find(f => f.getMetadata('cellId') === closestCellId);
-          if (cellFeature) {
-            cellFeature.addAffectedTile(x, z);
+          if (cell) {
+            cell.affectedTiles.push({ x, z });
+            
+            // Update the corresponding terrain feature
+            const features = this.terrainData.getFeaturesByType('voronoi_cell');
+            const cellFeature = features.find(f => f.getMetadata('cellId') === closestCellId);
+            if (cellFeature) {
+              cellFeature.addAffectedTile(x, z);
+            }
           }
         }
       }

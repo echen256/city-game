@@ -212,16 +212,30 @@ export class DelaunatorWrapper {
   }
 
   findCellNeighbors(pointIndex, cell) {
-    // Use delaunator's halfedge structure to find neighbors
-    const halfedges = this.delaunay.halfedges;
+    // Build edge list from triangulation to find direct neighbors
     const triangles = this.delaunay.triangles;
+    const edgeSet = new Set();
     
-    // Find all halfedges that start from this point
-    for (let e = 0; e < halfedges.length; e++) {
-      if (triangles[e] === pointIndex) {
-        // Get the endpoint of this halfedge
-        const neighborIndex = triangles[e % 3 === 2 ? e - 2 : e + 1];
-        cell.neighbors.add(neighborIndex);
+    // Extract all edges from triangles
+    for (let i = 0; i < triangles.length; i += 3) {
+      const a = triangles[i];
+      const b = triangles[i + 1];
+      const c = triangles[i + 2];
+      
+      // Add edges (ensuring consistent ordering for deduplication)
+      edgeSet.add(`${Math.min(a, b)}-${Math.max(a, b)}`);
+      edgeSet.add(`${Math.min(b, c)}-${Math.max(b, c)}`);
+      edgeSet.add(`${Math.min(c, a)}-${Math.max(c, a)}`);
+    }
+    
+    // Find edges that include our point
+    for (const edge of edgeSet) {
+      const [v1, v2] = edge.split('-').map(Number);
+      
+      if (v1 === pointIndex) {
+        cell.neighbors.add(v2);
+      } else if (v2 === pointIndex) {
+        cell.neighbors.add(v1);
       }
     }
   }
@@ -230,10 +244,21 @@ export class DelaunatorWrapper {
   getVoronoiEdges() {
     const voronoiEdges = [];
     const halfedges = this.delaunay.halfedges;
+    const triangles = this.delaunay.triangles;
     
     for (let e = 0; e < halfedges.length; e++) {
       const opposite = halfedges[e];
-      if (opposite > e) continue; // Avoid duplicates
+      if (opposite < 0 || opposite <= e) continue; // Skip boundary edges and avoid duplicates
+      
+      // If we have valid cell filtering, skip edges involving boundary cells
+      if (this.validCellIndices && this.indexMapping) {
+        const cellA = triangles[e];
+        const cellB = triangles[opposite];
+        
+        if (!this.validCellIndices.has(cellA) || !this.validCellIndices.has(cellB)) {
+          continue; // Skip edges involving boundary cells
+        }
+      }
       
       const triangleA = Math.floor(e / 3);
       const triangleB = Math.floor(opposite / 3);
@@ -253,10 +278,14 @@ export class DelaunatorWrapper {
   }
 
   // Generate Voronoi edges with adjacent cell information for pathfinding
-  getVoronoiEdgesWithCells() {
+  getVoronoiEdgesWithCells(validCellIndices = null, indexMapping = null) {
     const voronoiEdges = [];
     const halfedges = this.delaunay.halfedges;
     const triangles = this.delaunay.triangles;
+    
+    // Use stored mapping if available and no explicit parameters provided
+    const useValidCells = validCellIndices || this.validCellIndices;
+    const useMapping = indexMapping || this.indexMapping;
     
     for (let e = 0; e < halfedges.length; e++) {
       const opposite = halfedges[e];
@@ -266,20 +295,48 @@ export class DelaunatorWrapper {
       const cellA = triangles[e];
       const cellB = triangles[opposite];
       
-      const triangleA = Math.floor(e / 3);
-      const triangleB = Math.floor(opposite / 3);
-      
-      const circumcenterA = this.getCircumcenter(this.triangles[triangleA]);
-      const circumcenterB = this.getCircumcenter(this.triangles[triangleB]);
-      
-      if (circumcenterA && circumcenterB && cellA !== cellB) {
-        voronoiEdges.push({
-          edgeStart: circumcenterA,
-          edgeEnd: circumcenterB,
-          cellA: cellA,
-          cellB: cellB,
-          edgeId: `${Math.min(cellA, cellB)}-${Math.max(cellA, cellB)}`
-        });
+      // If we have valid cell filtering, skip edges that involve boundary cells
+      if (useValidCells && useMapping) {
+        if (!useValidCells.has(cellA) || !useValidCells.has(cellB)) {
+          continue; // Skip edges involving boundary cells
+        }
+        
+        // Map to new indices
+        const newCellA = useMapping.get(cellA);
+        const newCellB = useMapping.get(cellB);
+        
+        const triangleA = Math.floor(e / 3);
+        const triangleB = Math.floor(opposite / 3);
+        
+        const circumcenterA = this.getCircumcenter(this.triangles[triangleA]);
+        const circumcenterB = this.getCircumcenter(this.triangles[triangleB]);
+        
+        if (circumcenterA && circumcenterB && newCellA !== newCellB) {
+          voronoiEdges.push({
+            edgeStart: circumcenterA,
+            edgeEnd: circumcenterB,
+            cellA: newCellA,
+            cellB: newCellB,
+            edgeId: `${Math.min(newCellA, newCellB)}-${Math.max(newCellA, newCellB)}`
+          });
+        }
+      } else {
+        // Original behavior for backward compatibility
+        const triangleA = Math.floor(e / 3);
+        const triangleB = Math.floor(opposite / 3);
+        
+        const circumcenterA = this.getCircumcenter(this.triangles[triangleA]);
+        const circumcenterB = this.getCircumcenter(this.triangles[triangleB]);
+        
+        if (circumcenterA && circumcenterB && cellA !== cellB) {
+          voronoiEdges.push({
+            edgeStart: circumcenterA,
+            edgeEnd: circumcenterB,
+            cellA: cellA,
+            cellB: cellB,
+            edgeId: `${Math.min(cellA, cellB)}-${Math.max(cellA, cellB)}`
+          });
+        }
       }
     }
     

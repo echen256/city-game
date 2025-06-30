@@ -214,10 +214,23 @@ export class VoronoiImageExporter {
       this.ctx.strokeStyle = voronoiColor;
       this.ctx.lineWidth = lineWidth;
       
-      voronoiEdges.forEach(edge => {
+      voronoiEdges.forEach((edge, index) => {
+        const startX = edge.a.x * scaleX;
+        const startY = edge.a.z * scaleZ;
+        const endX = edge.b.x * scaleX;
+        const endY = edge.b.z * scaleZ;
+        
+        // // Debug logging for zero or negative coordinates
+        // if (startX <= 0 || startY <= 0 || endX <= 0 || endY <= 0) {
+        //   console.warn(`VoronoiImageExporter: Edge ${index} has zero/negative coordinates:`);
+        //   console.warn(`  Start: (${edge.a.x}, ${edge.a.z}) -> Scaled: (${startX}, ${startY})`);
+        //   console.warn(`  End: (${edge.b.x}, ${edge.b.z}) -> Scaled: (${endX}, ${endY})`);
+        //   console.warn(`  Scale factors: scaleX=${scaleX}, scaleZ=${scaleZ}`);
+        // }
+        
         this.ctx.beginPath();
-        this.ctx.moveTo(edge.a.x * scaleX, edge.a.z * scaleZ);
-        this.ctx.lineTo(edge.b.x * scaleX, edge.b.z * scaleZ);
+        this.ctx.moveTo(startX, startY);
+        this.ctx.lineTo(endX, endY);
         this.ctx.stroke();
       });
     }
