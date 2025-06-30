@@ -32,27 +32,74 @@ export class RiversGenerator {
   }
 
   generateSingleRiver(riverIndex) {
+    console.log(`\n=== GENERATING SINGLE RIVER ${riverIndex + 1} ===`);
+    
     // Step 1: Select a random edge as starting point (non-coastal edge)
     const startCell = this.selectEdgeStartPoint();
     if (!startCell) {
-      console.log(`No valid start point found for river ${riverIndex + 1}`);
+      console.log(`FAILURE: No valid start point found for river ${riverIndex + 1}`);
       return [];
     }
 
+    // Mark start point immediately
+    const startCellObj = this.voronoiGenerator.cells.get(startCell);
+    if (startCellObj) {
+      startCellObj.setMetadata('riverStartPoint', true);
+      startCellObj.setMetadata('riverIndex', riverIndex);
+      console.log(`Marked start point: ${startCell}`);
+    }
+
     // Step 2: Find target (water features: lakes, coasts, marshes, or opposite edge)
-    const targets = this.findWaterTargets();
+    let targets = this.findWaterTargets();
     if (targets.length === 0) {
-      console.log(`No water targets found for river ${riverIndex + 1}`);
-      return [];
+      console.log(`No water targets found for river ${riverIndex + 1}, using parallel edge targets`);
+      targets = this.selectParallelEdgeTargets(startCell);
+      
+      if (targets.length === 0) {
+        console.log(`FAILURE: No parallel edge targets found for river ${riverIndex + 1}`);
+        return [];
+      }
+    }
+
+    // Mark end point immediately (choose closest target)
+    if (targets.length > 0) {
+      let endPointId = targets[0]; // Default to first target
+      
+      // If multiple targets, find the closest one
+      if (targets.length > 1 && startCellObj?.site) {
+        let minDistance = Infinity;
+        const startSite = startCellObj.site;
+        
+        for (const targetId of targets) {
+          const targetCell = this.voronoiGenerator.cells.get(targetId);
+          if (targetCell && targetCell.site) {
+            const dx = startSite.x - targetCell.site.x;
+            const dy = (startSite.z || startSite.y || 0) - (targetCell.site.z || targetCell.site.y || 0);
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            if (distance < minDistance) {
+              minDistance = distance;
+              endPointId = targetId;
+            }
+          }
+        }
+      }
+      
+      const endCellObj = this.voronoiGenerator.cells.get(endPointId);
+      if (endCellObj) {
+        endCellObj.setMetadata('riverEndPoint', true);
+        endCellObj.setMetadata('riverIndex', riverIndex);
+        console.log(`Marked end point: ${endPointId}`);
+      }
     }
 
     // Log elevation info for debugging
     const startElevation = this.getCellElevation(startCell);
-    console.log(`River ${riverIndex + 1}: Starting at elevation ${Math.round(startElevation)}`);
+    console.log(`River ${riverIndex + 1}: Starting at cell ${startCell}, elevation ${Math.round(startElevation)}`);
 
     // Step 3: Use A* pathfinding to find path to nearest water target
+    console.log(`Starting A* pathfinding from ${startCell} to ${targets.length} targets...`);
     const path = this.findPathToWater(startCell, targets);
-    console.log(startCell, targets)
+    console.log(`A* pathfinding result: ${path.length > 0 ? 'SUCCESS' : 'FAILED'}`);
     
     if (path.length > 0) {
       // Analyze elevation profile of the path
@@ -88,26 +135,36 @@ export class RiversGenerator {
           cell.setMetadata('riverElevation', elevations[index]);
         }
       });
+      
+      console.log(`SUCCESS: River ${riverIndex + 1} generated with ${path.length} cells`);
     } else {
-      console.log(`River ${riverIndex + 1}: No path found from elevation ${Math.round(startElevation)}`);
+      console.log(`FAILURE: No path found from elevation ${Math.round(startElevation)}`);
     }
 
+    console.log(`=== SINGLE RIVER ${riverIndex + 1} COMPLETE ===\n`);
     return path;
   }
 
   selectEdgeStartPoint() {
+    console.log(`=== SELECTING EDGE START POINT ===`);
     const gridSize = this.settings.gridSize;
     const edgeTolerance = 20; // Distance from edge to consider "edge cell"
     const edgeCells = [];
 
+    console.log(`Grid size: ${gridSize}, Edge tolerance: ${edgeTolerance}`);
+
     this.voronoiGenerator.cells.forEach((cell, cellId) => {
       // Skip coastal cells
       if (this.coastlineGenerator && this.coastlineGenerator.isCoastal(cellId)) {
+        console.log(`Skipping coastal cell ${cellId}`);
         return;
       }
 
       const site = cell.site;
-      if (!site) return;
+      if (!site) {
+        console.log(`Skipping cell ${cellId} - no site`);
+        return;
+      }
 
       const x = site.x;
       const y = site.z || site.y || 0;
@@ -120,11 +177,16 @@ export class RiversGenerator {
         y >= (gridSize - edgeTolerance);         // South edge
 
       if (isNearEdge) {
+        console.log(`Found edge cell ${cellId} at (${x.toFixed(1)}, ${y.toFixed(1)})`);
         edgeCells.push(cellId);
       }
     });
 
+    console.log(`Total edge cells found: ${edgeCells.length}`);
+    console.log(`Edge cells: [${edgeCells}]`);
+
     if (edgeCells.length === 0) {
+      console.log(`ERROR: No valid edge cells found!`);
       return null;
     }
 
@@ -133,31 +195,57 @@ export class RiversGenerator {
     this.seedRandom(seed + 2000); // Offset seed for rivers
     
     const randomIndex = Math.floor(this.random() * edgeCells.length);
-    return edgeCells[randomIndex];
+    const selectedCell = edgeCells[randomIndex];
+    
+    console.log(`Selected start cell: ${selectedCell} (random index: ${randomIndex})`);
+    console.log(`=== EDGE START POINT SELECTED ===`);
+    
+    return selectedCell;
   }
 
   findWaterTargets() {
+    console.log(`=== FINDING WATER TARGETS ===`);
     const targets = [];
 
     // Add coastal cells as targets
     if (this.coastlineGenerator) {
-      targets.push(...this.coastlineGenerator.getCoastalCells());
+      const coastalCells = this.coastlineGenerator.getCoastalCells();
+      console.log(`Found ${coastalCells.length} coastal cells: [${coastalCells}]`);
+      targets.push(...coastalCells);
+    } else {
+      console.log(`No coastline generator available`);
     }
 
     // Add lake cells as targets
     if (this.lakesGenerator) {
-      targets.push(...this.lakesGenerator.getLakeCells());
+      const lakeCells = this.lakesGenerator.getLakeCells();
+      console.log(`Found ${lakeCells.length} lake cells: [${lakeCells}]`);
+      targets.push(...lakeCells);
+    } else {
+      console.log(`No lakes generator available`);
     }
 
     // Add marsh cells as targets (lower priority)
     if (this.marshGenerator) {
-      targets.push(...this.marshGenerator.getMarshCells());
+      const marshCells = this.marshGenerator.getMarshCells();
+      console.log(`Found ${marshCells.length} marsh cells: [${marshCells}]`);
+      targets.push(...marshCells);
+    } else {
+      console.log(`No marsh generator available`);
     }
+
+    console.log(`Total water targets found: ${targets.length}`);
+    console.log(`All targets: [${targets}]`);
+    console.log(`=== WATER TARGETS FOUND ===`);
 
     return targets;
   }
 
   findPathToWater(startCellId, targetCells) {
+    console.log(`=== A* PATHFINDING DEBUG ===`);
+    console.log(`Starting pathfinding from cell ${startCellId} to targets:`, targetCells);
+    console.log(`Number of target cells: ${targetCells.length}`);
+    
     // A* pathfinding algorithm
     const openSet = new Set([startCellId]);
     const cameFrom = new Map();
@@ -167,7 +255,19 @@ export class RiversGenerator {
     gScore.set(startCellId, 0);
     fScore.set(startCellId, this.heuristic(startCellId, targetCells));
 
-    while (openSet.size > 0) {
+    console.log(`Initial open set: [${Array.from(openSet)}]`);
+    console.log(`Initial gScore[${startCellId}]: 0`);
+    console.log(`Initial fScore[${startCellId}]: ${fScore.get(startCellId)}`);
+
+    let iterationCount = 0;
+    const maxIterations = 1000; // Prevent infinite loops
+
+    while (openSet.size > 0 && iterationCount < maxIterations) {
+      iterationCount++;
+      console.log(`\n--- Iteration ${iterationCount} ---`);
+      console.log(`Open set size: ${openSet.size}`);
+      console.log(`Open set contents: [${Array.from(openSet)}]`);
+      
       // Get cell with lowest fScore
       let current = null;
       let lowestF = Infinity;
@@ -180,53 +280,110 @@ export class RiversGenerator {
         }
       }
 
-      if (current === null) break;
+      console.log(`Selected current cell: ${current} (fScore: ${lowestF})`);
+
+      if (current === null) {
+        console.log(`ERROR: No valid current cell found!`);
+        break;
+      }
 
       // Check if we reached a target
       if (targetCells.includes(current)) {
-        return this.reconstructPath(cameFrom, current);
+        console.log(`SUCCESS: Reached target cell ${current}!`);
+        const path = this.reconstructPath(cameFrom, current);
+        console.log(`Final path: [${path}]`);
+        console.log(`Path length: ${path.length}`);
+        console.log(`=== PATHFINDING COMPLETE ===`);
+        return path;
       }
 
       openSet.delete(current);
       const currentCell = this.voronoiGenerator.cells.get(current);
       
-      if (!currentCell || !currentCell.neighbors) continue;
+      if (!currentCell) {
+        console.log(`ERROR: Current cell ${current} not found in Voronoi cells!`);
+        continue;
+      }
+      
+      if (!currentCell.neighbors) {
+        console.log(`ERROR: Current cell ${current} has no neighbors!`);
+        continue;
+      }
+
+      console.log(`Current cell neighbors: [${Array.from(currentCell.neighbors)}]`);
+      console.log(`Current cell elevation: ${this.getCellElevation(current)}`);
 
       // Check all neighbors
+      let validNeighbors = 0;
       for (const neighborId of currentCell.neighbors) {
+        console.log(`\n  Evaluating neighbor: ${neighborId}`);
+        
         // Skip if neighbor is already a river, coast, lake, or hill
         if (this.isObstacle(neighborId)) {
+          console.log(`    SKIP: Neighbor ${neighborId} is an obstacle`);
           continue;
         }
 
-        const tentativeG = (gScore.get(current) || Infinity) + this.getMovementCost(current, neighborId);
+        const neighborElevation = this.getCellElevation(neighborId);
+        const movementCost = this.getMovementCost(current, neighborId);
+        const tentativeG = (gScore.get(current) || Infinity) + movementCost;
+        const currentG = gScore.get(neighborId) || Infinity;
 
-        if (tentativeG < (gScore.get(neighborId) || Infinity)) {
+        console.log(`    Neighbor elevation: ${neighborElevation}`);
+        console.log(`    Movement cost: ${movementCost}`);
+        console.log(`    Tentative gScore: ${tentativeG} (current: ${currentG})`);
+
+        if (tentativeG < currentG) {
+          console.log(`    UPDATE: Better path found to neighbor ${neighborId}`);
           cameFrom.set(neighborId, current);
           gScore.set(neighborId, tentativeG);
-          fScore.set(neighborId, tentativeG + this.heuristic(neighborId, targetCells));
+          const heuristic = this.heuristic(neighborId, targetCells);
+          fScore.set(neighborId, tentativeG + heuristic);
+          
+          console.log(`    New gScore[${neighborId}]: ${tentativeG}`);
+          console.log(`    Heuristic[${neighborId}]: ${heuristic}`);
+          console.log(`    New fScore[${neighborId}]: ${tentativeG + heuristic}`);
           
           if (!openSet.has(neighborId)) {
             openSet.add(neighborId);
+            console.log(`    ADDED: Neighbor ${neighborId} to open set`);
           }
+          validNeighbors++;
+        } else {
+          console.log(`    SKIP: No better path to neighbor ${neighborId}`);
         }
       }
+
+      console.log(`Valid neighbors processed: ${validNeighbors}`);
     }
 
+    if (iterationCount >= maxIterations) {
+      console.log(`ERROR: Pathfinding exceeded maximum iterations (${maxIterations})`);
+    } else {
+      console.log(`ERROR: No path found - open set exhausted`);
+    }
+    
+    console.log(`Final open set: [${Array.from(openSet)}]`);
+    console.log(`Final gScores:`, Object.fromEntries(gScore));
+    console.log(`=== PATHFINDING FAILED ===`);
     return []; // No path found
   }
 
   heuristic(cellId, targetCells) {
     // Return distance to nearest target, considering elevation
     const cell = this.voronoiGenerator.cells.get(cellId);
-    if (!cell || !cell.site) return Infinity;
+    if (!cell || !cell.site) {
+      console.log(`    Heuristic ERROR: Cell ${cellId} not found or has no site`);
+      return Infinity;
+    }
 
     const currentElevation = this.getCellElevation(cellId);
     let minCost = Infinity;
     
+    console.log(`    Heuristic calculation for cell ${cellId} (elevation: ${currentElevation})`);
+    
     for (const targetId of targetCells) {
       const targetCell = this.voronoiGenerator.cells.get(targetId);
-      console.log(targetCell)
       if (targetCell && targetCell.site) {
         // Calculate straight-line distance
         const dx = cell.site.x - targetCell.site.x;
@@ -249,10 +406,14 @@ export class RiversGenerator {
         }
         
         const totalCost = distance + elevationCost;
+        console.log(`      Target ${targetId}: distance=${distance.toFixed(2)}, elevationDiff=${elevationDiff.toFixed(2)}, elevationCost=${elevationCost.toFixed(2)}, totalCost=${totalCost.toFixed(2)}`);
         minCost = Math.min(minCost, totalCost);
+      } else {
+        console.log(`      Target ${targetId}: INVALID (no cell or site)`);
       }
     }
 
+    console.log(`    Final heuristic for cell ${cellId}: ${minCost.toFixed(2)}`);
     return minCost;
   }
 
@@ -299,7 +460,11 @@ export class RiversGenerator {
       cost *= 0.8; // Prefer cells that have downhill exits
     }
 
-    return Math.max(0.05, cost); // Ensure minimum cost
+    const finalCost = Math.max(0.05, cost); // Ensure minimum cost
+    
+    console.log(`    Movement cost ${fromCellId} -> ${toCellId}: fromHeight=${fromHeight.toFixed(1)}, toHeight=${toHeight.toFixed(1)}, elevationChange=${elevationChange.toFixed(1)}, baseCost=${cost.toFixed(2)}, finalCost=${finalCost.toFixed(2)}`);
+    
+    return finalCost;
   }
 
   getCellElevation(cellId) {
@@ -349,23 +514,35 @@ export class RiversGenerator {
 
   isObstacle(cellId) {
     // Rivers can't flow through existing rivers or lakes (they merge instead)
-    if (this.riverCells.has(cellId)) return true;
+    if (this.riverCells.has(cellId)) {
+      console.log(`    Obstacle check: Cell ${cellId} is existing river`);
+      return true;
+    }
+    
     if (this.lakesGenerator && this.lakesGenerator.isLakeCell(cellId)) {
       // Lakes are targets, not obstacles, but check if it's the final destination
+      console.log(`    Obstacle check: Cell ${cellId} is lake (but allowed as target)`);
       return false; // Allow rivers to flow into lakes
     }
     
     // Very high elevations are impassable obstacles
     const elevation = this.getCellElevation(cellId);
-    if (elevation > 80) return true; // Mountain peaks are impassable
+    if (elevation > 80) {
+      console.log(`    Obstacle check: Cell ${cellId} is mountain peak (elevation: ${elevation})`);
+      return true; // Mountain peaks are impassable
+    }
     
     // Check if cell is completely surrounded by higher elevation (trapped valley)
     const neighborElevations = this.getNeighborElevations(cellId);
     const isTrappedValley = neighborElevations.length > 0 && 
       neighborElevations.every(h => h > elevation + 20);
     
-    if (isTrappedValley) return true; // Can't escape from deep valleys
+    if (isTrappedValley) {
+      console.log(`    Obstacle check: Cell ${cellId} is trapped valley (elevation: ${elevation}, neighbor elevations: [${neighborElevations.map(e => e.toFixed(1)).join(', ')}])`);
+      return true; // Can't escape from deep valleys
+    }
 
+    console.log(`    Obstacle check: Cell ${cellId} is passable (elevation: ${elevation})`);
     return false;
   }
 
@@ -409,6 +586,8 @@ export class RiversGenerator {
       cell.setMetadata('river', false);
       cell.setMetadata('riverIndex', null);
       cell.setMetadata('riverPosition', null);
+      cell.setMetadata('riverStartPoint', false);
+      cell.setMetadata('riverEndPoint', false);
     });
     
     this.riverCells.clear();
@@ -430,6 +609,81 @@ export class RiversGenerator {
 
   setHillsGenerator(hillsGenerator) {
     this.settings.hillsGenerator = hillsGenerator;
+  }
+
+  selectParallelEdgeTargets(startCell) {
+    const gridSize = this.settings.gridSize;
+    const edgeTolerance = 20; // Distance from edge to consider "edge cell"
+    const startSite = this.voronoiGenerator.cells.get(startCell)?.site;
+    
+    if (!startSite) {
+      console.log('No start site found for parallel edge targeting');
+      return [];
+    }
+
+    const startX = startSite.x;
+    const startY = startSite.z || startSite.y || 0;
+
+    // Determine which edge the start cell is on
+    let startEdge = null;
+    if (startX <= edgeTolerance) {
+      startEdge = 'W'; // West edge
+    } else if (startX >= (gridSize - edgeTolerance)) {
+      startEdge = 'E'; // East edge
+    } else if (startY <= edgeTolerance) {
+      startEdge = 'N'; // North edge
+    } else if (startY >= (gridSize - edgeTolerance)) {
+      startEdge = 'S'; // South edge
+    }
+
+    if (!startEdge) {
+      console.log('Start cell is not on any edge');
+      return [];
+    }
+
+    // Determine parallel/opposite edge
+    let targetEdge = null;
+    switch (startEdge) {
+      case 'N': targetEdge = 'S'; break; // North -> South
+      case 'S': targetEdge = 'N'; break; // South -> North
+      case 'E': targetEdge = 'W'; break; // East -> West
+      case 'W': targetEdge = 'E'; break; // West -> East
+    }
+
+    console.log(`Start edge: ${startEdge}, Target edge: ${targetEdge}`);
+
+    // Find cells on the target edge
+    const targetCells = [];
+    this.voronoiGenerator.cells.forEach((cell, cellId) => {
+      const site = cell.site;
+      if (!site) return;
+
+      const x = site.x;
+      const y = site.z || site.y || 0;
+
+      let isOnTargetEdge = false;
+      switch (targetEdge) {
+        case 'N': // North edge (top)
+          isOnTargetEdge = y <= edgeTolerance;
+          break;
+        case 'S': // South edge (bottom)
+          isOnTargetEdge = y >= (gridSize - edgeTolerance);
+          break;
+        case 'E': // East edge (right)
+          isOnTargetEdge = x >= (gridSize - edgeTolerance);
+          break;
+        case 'W': // West edge (left)
+          isOnTargetEdge = x <= edgeTolerance;
+          break;
+      }
+
+      if (isOnTargetEdge) {
+        targetCells.push(cellId);
+      }
+    });
+
+    console.log(`Found ${targetCells.length} target cells on ${targetEdge} edge`);
+    return targetCells;
   }
 
   // Seeded random number generator

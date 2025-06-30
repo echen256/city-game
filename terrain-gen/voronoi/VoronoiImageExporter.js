@@ -308,6 +308,47 @@ export class VoronoiImageExporter {
       });
     }
 
+    // Draw river start and end points as large red dots
+    if (showRivers) {
+      const riverStartEndRadius = 100; // Large radius for start/end points
+      
+      // Draw all marked start and end points
+      cells.forEach((cell, cellId) => {
+        const isStartPoint = cell.getMetadata('riverStartPoint');
+        const isEndPoint = cell.getMetadata('riverEndPoint');
+        
+        if ((isStartPoint || isEndPoint) && cell.site) {
+          this.ctx.fillStyle = '#ff0000'; // Red color
+          this.ctx.beginPath();
+          this.ctx.arc(
+            cell.site.x * scaleX,
+            (cell.site.z || cell.site.y || 0) * scaleZ,
+            riverStartEndRadius,
+            0,
+            2 * Math.PI
+          );
+          this.ctx.fill();
+          
+          // Add white border for better visibility
+          this.ctx.strokeStyle = '#ffffff';
+          this.ctx.lineWidth = 4;
+          this.ctx.stroke();
+          
+          // Add text label to distinguish start vs end
+          this.ctx.fillStyle = '#ffffff';
+          this.ctx.font = 'bold 30px Arial';
+          this.ctx.textAlign = 'center';
+          this.ctx.textBaseline = 'middle';
+          const label = isStartPoint ? 'S' : 'E';
+          this.ctx.fillText(
+            label,
+            cell.site.x * scaleX,
+            (cell.site.z || cell.site.y || 0) * scaleZ
+          );
+        }
+      });
+    }
+
     return this.canvas;
   }
 
