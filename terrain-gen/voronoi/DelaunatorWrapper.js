@@ -7,7 +7,7 @@ export class DelaunatorWrapper {
     this.triangles = [];
     this.edges = [];
     this.voronoiCells = new Map();
-    this.delaunayCircumcenters = [];
+    this.voronoiAdjacentCells = new Map();
   }
 
   triangulate() {
@@ -30,9 +30,6 @@ export class DelaunatorWrapper {
       
       coords.push(x, y); 
     }
-    
-    // console.log('DelaunatorWrapper: Input coordinates:', coords);
-    // console.log('DelaunatorWrapper: Number of points:', this.points.length);
     
     // Check if we have enough valid points
     if (coords.length < 6) { // Need at least 3 points (6 coordinates)
@@ -166,7 +163,7 @@ export class DelaunatorWrapper {
           
           // Only add if we haven't seen this circumcenter before
           if (!cellCircumcenterMap.has(circumcenterKey)) {
-            cellCircumcenterMap.set(circumcenterKey, true);
+            cellCircumcenterMap.set(circumcenterKey, i);
             cell.vertices.push({
               x: circumcenter.x,
               z: circumcenter.z,
@@ -291,6 +288,18 @@ export class DelaunatorWrapper {
           a: circumcenterA,
           b: circumcenterB
         });
+
+        if (!this.voronoiAdjacentCells[triangleA]) {
+          this.voronoiAdjacentCells[triangleA] = new Set()
+        }
+
+        if (!this.voronoiAdjacentCells[triangleB]) {
+          this.voronoiAdjacentCells[triangleB] = new Set()
+        }
+
+        this.voronoiAdjacentCells[triangleA].add(triangleB);
+        this.voronoiAdjacentCells[triangleB].add(triangleA);
+
       }
     }
     
