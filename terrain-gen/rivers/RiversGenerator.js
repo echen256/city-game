@@ -2,17 +2,42 @@ import { Point, Edge, Triangle, HalfEdge, VoronoiEdge, GeometryUtils } from '../
 import { RiverPathfinder } from './RiverPathfinder.js';
 
 /**
+ * @typedef {Object} RiverSettings
+ * @property {number} [minSeparationDistance=50] - Minimum separation between river start/end points
+ * @property {Object} [hillsGenerator] - Hills generator for elevation data
+ */
+
+/**
+ * @typedef {Object} RiverStats
+ * @property {number} totalRiverCells - Total number of cells occupied by rivers
+ * @property {number} numberOfRivers - Number of river paths generated
+ * @property {number} averageRiverLength - Average length of river paths
+ * @property {number} longestRiver - Length of the longest river path
+ */
+
+/**
+ * @typedef {Object} RiverFeature
+ * @property {string} id - Feature ID
+ * @property {string} type - Feature type
+ * @property {Object} centroid - Feature centroid coordinates
+ * @property {Array<Object>} bezierCurves - Bezier curves defining the feature
+ * @property {Array<Array<Object>>} pointDistributions - Point distributions
+ * @property {Array<Object>} affectedTiles - Affected tiles
+ * @property {Object} metadata - Feature metadata
+ */
+
+/**
  * Rivers generator using typed geometry and pathfinding
  */
 export class RiversGenerator {
   /**
    * @param {Object} voronoiGenerator - Voronoi diagram generator
-   * @param {Object} settings - Generator settings
+   * @param {RiverSettings} settings - Generator settings
    */
   constructor(voronoiGenerator, settings) {
     /** @type {Object} */
     this.voronoiGenerator = voronoiGenerator;
-    /** @type {Object} */
+    /** @type {RiverSettings} */
     this.settings = settings;
     /** @type {Set<number>} */
     this.riverCells = new Set();
@@ -30,11 +55,18 @@ export class RiversGenerator {
     this.usedEndPoints = new Set();
     /** @type {number} */
     this.minSeparationDistance = 50;
+    /** @type {number} */
+    this._seed = undefined;
     
     /** @type {RiverPathfinder} */
     this.pathfinder = new RiverPathfinder(voronoiGenerator, settings);
   }
 
+  /**
+   * Generate rivers using pathfinding
+   * @param {number} [numRivers=2] - Number of rivers to generate
+   * @returns {Array<Array<number>>} Array of river paths
+   */
   generateRivers(numRivers = 2) {
     if (!this.voronoiGenerator || !this.voronoiGenerator.cells || this.voronoiGenerator.cells.size === 0) {
       console.error('RiversGenerator: No Voronoi diagram available');
@@ -60,6 +92,9 @@ export class RiversGenerator {
     // return this.riverPaths;
   }
 
+  /**
+   * Setup pathfinder with current generator state
+   */
   setupPathfinder() {
     // Set references to other generators
     this.pathfinder.setCoastlineGenerator(this.coastlineGenerator);
@@ -72,6 +107,11 @@ export class RiversGenerator {
     this.pathfinder.buildVoronoiPointGraph();
   }
 
+  /**
+   * Generate a single river path
+   * @param {number} riverIndex - Index of the river to generate
+   * @returns {Array<number>} River path as array of cell IDs
+   */
   generateSingleRiver(riverIndex) {
     console.log(`\n=== GENERATING SINGLE RIVER ${riverIndex + 1} ===`);
     
@@ -200,6 +240,10 @@ export class RiversGenerator {
     return path;
   }
 
+  /**
+   * Select a start point on the edge of the grid
+   * @returns {number|null} Selected cell ID or null if none found
+   */
   selectEdgeStartPoint() {
     console.log(`=== SELECTING EDGE START POINT ===`);
     const gridSize = this.settings.gridSize;
@@ -266,6 +310,10 @@ export class RiversGenerator {
     return selectedCell;
   }
 
+  /**
+   * Find water targets (coastal cells, lakes, marshes)
+   * @returns {Array<number>} Array of target cell IDs
+   */
   findWaterTargets() {
     console.log(`=== FINDING WATER TARGETS ===`);
     const targets = [];
@@ -304,6 +352,11 @@ export class RiversGenerator {
     return targets;
   }
 
+  /**
+   * Get cell elevation from various sources
+   * @param {number} cellId - Cell ID
+   * @returns {number} Cell elevation
+   */
   getCellElevation(cellId) {
     // Get elevation from hills generator, or use gradient height, or default to 0
     if (this.settings.hillsGenerator) {
@@ -342,18 +395,35 @@ export class RiversGenerator {
     return 0;
   }
 
+  /**
+   * Check if a cell is part of a river
+   * @param {number} cellId - Cell ID to check
+   * @returns {boolean} True if cell is part of a river
+   */
   isRiverCell(cellId) {
     return this.riverCells.has(cellId);
   }
 
+  /**
+   * Get all river cell IDs
+   * @returns {Array<number>} Array of river cell IDs
+   */
   getRiverCells() {
     return Array.from(this.riverCells);
   }
 
+  /**
+   * Get all river paths
+   * @returns {Array<Array<number>>} Array of river paths
+   */
   getRiverPaths() {
     return [...this.riverPaths];
   }
 
+  /**
+   * Get river generation statistics
+   * @returns {RiverStats} River statistics
+   */
   getRiverStats() {
     return {
       totalRiverCells: this.riverCells.size,
@@ -365,6 +435,9 @@ export class RiversGenerator {
     };
   }
 
+  /**
+   * Clear all river data
+   */
   clearRivers() {
     // Remove river metadata from all cells
     this.voronoiGenerator.cells.forEach((cell) => {
@@ -381,23 +454,43 @@ export class RiversGenerator {
     this.usedEndPoints.clear();
   }
 
-  // Set references to other generators
+  /**
+   * Set coastline generator reference
+   * @param {Object} coastlineGenerator - Coastline generator
+   */
   setCoastlineGenerator(coastlineGenerator) {
     this.coastlineGenerator = coastlineGenerator;
   }
 
+  /**
+   * Set lakes generator reference
+   * @param {Object} lakesGenerator - Lakes generator
+   */
   setLakesGenerator(lakesGenerator) {
     this.lakesGenerator = lakesGenerator;
   }
 
+  /**
+   * Set marsh generator reference
+   * @param {Object} marshGenerator - Marsh generator
+   */
   setMarshGenerator(marshGenerator) {
     this.marshGenerator = marshGenerator;
   }
 
+  /**
+   * Set hills generator reference
+   * @param {Object} hillsGenerator - Hills generator
+   */
   setHillsGenerator(hillsGenerator) {
     this.settings.hillsGenerator = hillsGenerator;
   }
 
+  /**
+   * Select parallel edge targets for rivers
+   * @param {number} startCell - Starting cell ID
+   * @returns {Array<number>} Array of target cell IDs
+   */
   selectParallelEdgeTargets(startCell) {
     const gridSize = this.settings.gridSize;
     const edgeTolerance = 100; // Distance from edge to consider "edge cell"
@@ -473,7 +566,12 @@ export class RiversGenerator {
     return targetCells;
   }
 
-  // Helper method to calculate distance between two cells
+  /**
+   * Calculate distance between two cells
+   * @param {number} cellId1 - First cell ID
+   * @param {number} cellId2 - Second cell ID
+   * @returns {number} Distance between cells
+   */
   getDistanceBetweenCells(cellId1, cellId2) {
     const cell1 = this.voronoiGenerator.cells.get(cellId1);
     const cell2 = this.voronoiGenerator.cells.get(cellId2);
@@ -487,7 +585,12 @@ export class RiversGenerator {
     return Math.sqrt(dx * dx + dy * dy);
   }
 
-  // Check if a cell is too close to any used points
+  /**
+   * Check if a cell is too close to any used points
+   * @param {number} cellId - Cell ID to check
+   * @param {Set<number>} usedPoints - Set of used point IDs
+   * @returns {boolean} True if cell is too close to used points
+   */
   isTooCloseToUsedPoints(cellId, usedPoints) {
     for (const usedCellId of usedPoints) {
       if (this.getDistanceBetweenCells(cellId, usedCellId) < this.minSeparationDistance) {
@@ -497,11 +600,18 @@ export class RiversGenerator {
     return false;
   }
 
-  // Seeded random number generator
+  /**
+   * Set random seed for reproducibility
+   * @param {number} seed - Random seed
+   */
   seedRandom(seed) {
     this._seed = seed;
   }
 
+  /**
+   * Generate random number (seeded if available)
+   * @returns {number} Random number between 0 and 1
+   */
   random() {
     if (this._seed !== undefined) {
       this._seed = (this._seed * 9301 + 49297) % 233280;
@@ -510,7 +620,11 @@ export class RiversGenerator {
     return Math.random();
   }
 
-  // Create terrain features for rivers
+  /**
+   * Create terrain features for rivers
+   * @param {Object} terrainData - Terrain data manager
+   * @returns {RiverFeature} Overall rivers feature
+   */
   createRiverFeatures(terrainData) {
     this.riverPaths.forEach((path, index) => {
       const riverFeature = terrainData.createFeature(`river_${index}`);

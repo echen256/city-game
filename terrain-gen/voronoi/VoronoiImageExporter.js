@@ -1,36 +1,128 @@
+/**
+ * @typedef {Object} VoronoiImageOptions
+ * @property {number} [width=800] - Canvas width
+ * @property {number} [height=800] - Canvas height
+ * @property {string} [backgroundColor='#000000'] - Background color
+ * @property {string[]} [cellFillColors=['#1a1a1a', '#2a2a2a', '#3a3a3a', '#4a4a4a']] - Cell fill colors
+ * @property {string} [cellStrokeColor='#ffffff'] - Cell stroke color
+ * @property {string} [siteColor='#ff0000'] - Site point color
+ * @property {string} [triangulationColor='#888888'] - Triangulation line color
+ * @property {string} [voronoiColor='#00ff88'] - Voronoi edge color
+ * @property {string} [coastalColor='#0088ff'] - Coastal cell color
+ * @property {string} [marshColor='#2d5016'] - Marsh cell color
+ * @property {string} [riverColor='#4da6ff'] - River cell color
+ * @property {boolean} [showSites=true] - Whether to show site points
+ * @property {boolean} [showCellBorders=true] - Whether to show cell borders
+ * @property {boolean} [showCellIds=false] - Whether to show cell IDs
+ * @property {boolean} [showTriangulation=true] - Whether to show triangulation
+ * @property {boolean} [showVoronoiEdges=true] - Whether to show Voronoi edges
+ * @property {boolean} [showVertices=false] - Whether to show Voronoi vertices
+ * @property {boolean} [showCoastalCells=true] - Whether to show coastal cells
+ * @property {boolean} [showHeightGradient=true] - Whether to show height gradient
+ * @property {boolean} [showLakes=true] - Whether to show lakes
+ * @property {boolean} [showMarshes=true] - Whether to show marshes
+ * @property {boolean} [showRivers=true] - Whether to show rivers
+ * @property {number} [lineWidth=1] - Line width for edges
+ * @property {number} [siteRadius=3] - Radius for site points
+ */
+
+/**
+ * @typedef {Object} TriangulationData
+ * @property {Array<Object>} triangles - Array of triangle objects
+ * @property {Array<Object>} delaunayCircumcenters - Array of circumcenter points
+ * @property {Array<Object>} edges - Array of edge objects
+ * @property {Map<number, Object>} voronoiCells - Map of Voronoi cells
+ */
+
+/**
+ * @typedef {Object} VoronoiCell
+ * @property {Object} site - Cell site point {x, z}
+ * @property {number} id - Cell ID
+ * @property {Array<Object>} vertices - Cell vertices
+ * @property {Array<number>} neighbors - Neighbor cell IDs
+ * @property {number} area - Cell area
+ * @property {number} perimeter - Cell perimeter
+ * @property {Array<Object>} affectedTiles - Affected tiles
+ * @property {Object} metadata - Cell metadata
+ */
+
+/**
+ * @typedef {Object} VoronoiSite
+ * @property {number} x - X coordinate
+ * @property {number} z - Z coordinate
+ * @property {number} [y] - Y coordinate (alternative)
+ */
+
+/**
+ * Exports Voronoi diagrams as images with various visualization options
+ */
 export class VoronoiImageExporter {
+  /**
+   * @param {Object} voronoiGenerator - The Voronoi generator instance
+   * @param {Object} settings - Generator settings
+   */
   constructor(voronoiGenerator, settings) {
+    /** @type {Object} */
     this.voronoiGenerator = voronoiGenerator;
+    /** @type {Object} */
     this.settings = settings;
+    /** @type {HTMLCanvasElement|null} */
     this.canvas = null;
+    /** @type {CanvasRenderingContext2D|null} */
     this.ctx = null;
+    /** @type {Object|null} */
     this.coastlineGenerator = null;
+    /** @type {Object|null} */
     this.hillsGenerator = null;
+    /** @type {Object|null} */
     this.lakesGenerator = null;
+    /** @type {Object|null} */
     this.marshGenerator = null;
+    /** @type {Object|null} */
     this.riversGenerator = null;
   }
 
+  /**
+   * @param {Object} coastlineGenerator - Coastline generator instance
+   */
   setCoastlineGenerator(coastlineGenerator) {
     this.coastlineGenerator = coastlineGenerator;
   }
 
+  /**
+   * @param {Object} hillsGenerator - Hills generator instance
+   */
   setHillsGenerator(hillsGenerator) {
     this.hillsGenerator = hillsGenerator;
   }
 
+  /**
+   * @param {Object} lakesGenerator - Lakes generator instance
+   */
   setLakesGenerator(lakesGenerator) {
     this.lakesGenerator = lakesGenerator;
   }
 
+  /**
+   * @param {Object} marshGenerator - Marsh generator instance
+   */
   setMarshGenerator(marshGenerator) {
     this.marshGenerator = marshGenerator;
   }
 
+  /**
+   * @param {Object} riversGenerator - Rivers generator instance
+   */
   setRiversGenerator(riversGenerator) {
     this.riversGenerator = riversGenerator;
   }
 
+  /**
+   * Get coastal color with depth variation
+   * @param {string} baseColor - Base hex color
+   * @param {number} depth - Coastal depth
+   * @returns {string} Color with depth variation
+   */
   getCoastalColorByDepth(baseColor, depth) {
     // Parse hex color (e.g., "#0088ff")
     const hex = baseColor.replace('#', '');
@@ -63,6 +155,11 @@ export class VoronoiImageExporter {
     return newHex;
   }
 
+  /**
+   * Get height-based color
+   * @param {number} height - Height value (0-100)
+   * @returns {string} Grayscale color with transparency
+   */
   getHeightColor(height) {
     // Convert height (0-100) to grayscale color
     // Height 0 = dark gray (#2a2a2a)
@@ -85,6 +182,11 @@ export class VoronoiImageExporter {
     return `#${grayHex}${grayHex}${grayHex}${opacityHex}`;
   }
 
+  /**
+   * Get lake color with depth variation
+   * @param {number} depth - Lake depth (5-50)
+   * @returns {string} Blue color with depth variation
+   */
   getLakeColor(depth) {
     // Convert depth (5-50) to blue color
     // Depth 5 = light blue (#4da6ff)
@@ -114,6 +216,11 @@ export class VoronoiImageExporter {
     return `#${rHex}${gHex}${bHex}${opacityHex}`;
   }
 
+  /**
+   * Get marsh color with transparency
+   * @param {string} baseColor - Base marsh color
+   * @returns {string} Marsh color with transparency
+   */
   getMarshColor(baseColor) {
     // Parse the base marsh color and add transparency
     const hex = baseColor.replace('#', '');
@@ -127,6 +234,11 @@ export class VoronoiImageExporter {
     return `#${hex}${opacity}`;
   }
 
+  /**
+   * Get river color with transparency
+   * @param {string} baseColor - Base river color
+   * @returns {string} River color with transparency
+   */
   getRiverColor(baseColor) {
     // Parse the base river color and add transparency
     const hex = baseColor.replace('#', '');
@@ -140,6 +252,12 @@ export class VoronoiImageExporter {
     return `#${hex}${opacity}`;
   }
 
+  /**
+   * Create canvas element for image generation
+   * @param {number} width - Canvas width
+   * @param {number} height - Canvas height
+   * @returns {HTMLCanvasElement} Created canvas element
+   */
   createCanvas(width, height) {
     // Create canvas element for image generation
     this.canvas = document.createElement('canvas');
@@ -149,6 +267,14 @@ export class VoronoiImageExporter {
     return this.canvas;
   }
 
+  /**
+   * Generate diagram image with all visualization options
+   * @param {Map<number, VoronoiCell>} cells - Voronoi cells
+   * @param {Array<VoronoiSite>} sites - Voronoi sites
+   * @param {TriangulationData|null} triangulationData - Triangulation data
+   * @param {VoronoiImageOptions} options - Rendering options
+   * @returns {HTMLCanvasElement} Generated canvas
+   */
   generateDiagramImage(cells, sites, triangulationData = null, options = {}) {
     const {
       width = 800,
@@ -380,6 +506,12 @@ export class VoronoiImageExporter {
     return this.canvas;
   }
 
+  /**
+   * Export canvas as data URL
+   * @param {string} [format='image/png'] - Image format
+   * @returns {string} Data URL
+   * @throws {Error} If no canvas is created
+   */
   exportAsDataURL(format = 'image/png') {
     if (!this.canvas) {
       throw new Error('No canvas created. Call generateDiagramImage first.');
@@ -387,6 +519,12 @@ export class VoronoiImageExporter {
     return this.canvas.toDataURL(format);
   }
 
+  /**
+   * Export canvas as blob
+   * @param {string} [format='image/png'] - Image format
+   * @returns {Promise<Blob>} Promise resolving to blob
+   * @throws {Error} If no canvas is created
+   */
   async exportAsBlob(format = 'image/png') {
     if (!this.canvas) {
       throw new Error('No canvas created. Call generateDiagramImage first.');
@@ -397,6 +535,12 @@ export class VoronoiImageExporter {
     });
   }
 
+  /**
+   * Save canvas to file
+   * @param {string} filename - Output filename
+   * @param {string} [format='image/png'] - Image format
+   * @returns {Promise<void>}
+   */
   async saveToFile(filename, format = 'image/png') {
     const blob = await this.exportAsBlob(format);
     
@@ -415,7 +559,14 @@ export class VoronoiImageExporter {
     URL.revokeObjectURL(url);
   }
 
+  /**
+   * Generate variation images with different settings
+   * @param {Object} baseSettings - Base settings for generation
+   * @param {string} [outputPath='terrain-gen/voronoi/output/'] - Output path
+   * @returns {Array<Object>} Array of variation results
+   */
   generateVariationImages(baseSettings, outputPath = 'terrain-gen/voronoi/output/') {
+    /** @type {Array<Object>} */
     const variations = [
       {
         name: 'seed_001',
@@ -589,6 +740,7 @@ export class VoronoiImageExporter {
       }
     ];
 
+    /** @type {Array<Object>} */
     const results = [];
 
     variations.forEach((variation, index) => {

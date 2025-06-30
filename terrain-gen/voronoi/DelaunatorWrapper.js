@@ -2,6 +2,37 @@ import Delaunator from 'delaunator';
 import { Point, Edge, Triangle, HalfEdge, VoronoiEdge, GeometryUtils } from './GeometryTypes.js';
 
 /**
+ * @typedef {Object} TriangulationResult
+ * @property {Array<Triangle>} triangles - Array of triangles
+ * @property {Array<Edge>} edges - Array of edges
+ * @property {Map<number, Object>} voronoiCells - Map of Voronoi cells
+ * @property {Object} delaunay - Raw Delaunator instance
+ */
+
+/**
+ * @typedef {Object} VoronoiCellData
+ * @property {Point|Object} site - Cell site point
+ * @property {number} siteIndex - Site index
+ * @property {Array<Object>} vertices - Cell vertices
+ * @property {Set<number>} neighbors - Neighbor cell indices
+ */
+
+/**
+ * @typedef {Object} VoronoiEdgeResult
+ * @property {Point} a - Start point of edge
+ * @property {Point} b - End point of edge
+ */
+
+/**
+ * @typedef {Object} VoronoiEdgeWithCells
+ * @property {Point} edgeStart - Start point of edge
+ * @property {Point} edgeEnd - End point of edge
+ * @property {number} cellA - First cell ID
+ * @property {number} cellB - Second cell ID
+ * @property {string} edgeId - Unique edge identifier
+ */
+
+/**
  * Wrapper around Delaunator library with geometry type integration
  */
 export class DelaunatorWrapper {
@@ -17,7 +48,7 @@ export class DelaunatorWrapper {
     this.triangles = [];
     /** @type {Array<Edge>} */
     this.edges = [];
-    /** @type {Map<number, Object>} */
+    /** @type {Map<number, VoronoiCellData>} */
     this.voronoiCells = new Map();
     /** @type {Map<number, Set<number>>} */
     this.voronoiAdjacentCells = new Map();
@@ -31,7 +62,7 @@ export class DelaunatorWrapper {
 
   /**
    * Perform Delaunay triangulation on the points
-   * @returns {Object} Triangulation results with triangles, edges, and Voronoi cells
+   * @returns {TriangulationResult} Triangulation results with triangles, edges, and Voronoi cells
    */
   triangulate() {
     if (this.points.length < 3) {
@@ -145,6 +176,9 @@ export class DelaunatorWrapper {
     }
   }
 
+  /**
+   * Generate Voronoi cells from triangulation
+   */
   generateVoronoiCells() {
     this.voronoiCells.clear();
     
@@ -227,6 +261,11 @@ export class DelaunatorWrapper {
     return GeometryUtils.sortCounterclockwise(center, vertices);
   }
 
+  /**
+   * Find neighbors for a Voronoi cell
+   * @param {number} pointIndex - Point index
+   * @param {VoronoiCellData} cell - Cell data
+   */
   findCellNeighbors(pointIndex, cell) {
     // Build edge list from triangulation to find direct neighbors
     const triangles = this.delaunay.triangles;
@@ -256,7 +295,10 @@ export class DelaunatorWrapper {
     }
   }
 
-  // Generate Voronoi edges by connecting adjacent circumcenters
+  /**
+   * Generate Voronoi edges by connecting adjacent circumcenters
+   * @returns {Array<VoronoiEdgeResult>} Array of Voronoi edges
+   */
   getVoronoiEdges() {
     const voronoiEdges = [];
     const halfedges = this.delaunay.halfedges;
@@ -305,83 +347,29 @@ export class DelaunatorWrapper {
     return voronoiEdges;
   }
 
-  // Generate Voronoi edges with adjacent cell information for pathfinding
-  // getVoronoiEdgesWithCells(validCellIndices = null, indexMapping = null) {
-  //   const voronoiEdges = [];
-  //   const halfedges = this.delaunay.halfedges;
-  //   const triangles = this.delaunay.triangles;
-    
-  //   // Use stored mapping if available and no explicit parameters provided
-  //   const useValidCells = validCellIndices || this.validCellIndices;
-  //   const useMapping = indexMapping || this.indexMapping;
-    
-  //   for (let e = 0; e < halfedges.length; e++) {
-  //     const opposite = halfedges[e];
-  //     if (opposite < 0 || opposite <= e) continue; // Skip boundary edges and avoid duplicates
-      
-  //     // Get the two cells that share this edge
-  //     const cellA = triangles[e];
-  //     const cellB = triangles[opposite];
-      
-  //     // If we have valid cell filtering, skip edges that involve boundary cells
-  //     if (useValidCells && useMapping) {
-  //       if (!useValidCells.has(cellA) || !useValidCells.has(cellB)) {
-  //         continue; // Skip edges involving boundary cells
-  //       }
-        
-  //       // Map to new indices
-  //       const newCellA = useMapping.get(cellA);
-  //       const newCellB = useMapping.get(cellB);
-        
-  //       const triangleA = Math.floor(e / 3);
-  //       const triangleB = Math.floor(opposite / 3);
-        
-  //       const circumcenterA = this.getCircumcenter(this.triangles[triangleA]);
-  //       const circumcenterB = this.getCircumcenter(this.triangles[triangleB]);
-        
-  //       if (circumcenterA && circumcenterB && newCellA !== newCellB) {
-  //         voronoiEdges.push({
-  //           edgeStart: circumcenterA,
-  //           edgeEnd: circumcenterB,
-  //           cellA: newCellA,
-  //           cellB: newCellB,
-  //           edgeId: `${Math.min(newCellA, newCellB)}-${Math.max(newCellA, newCellB)}`
-  //         });
-  //       }
-  //     } else {
-  //       // Original behavior for backward compatibility
-  //       const triangleA = Math.floor(e / 3);
-  //       const triangleB = Math.floor(opposite / 3);
-        
-  //       const circumcenterA = this.getCircumcenter(this.triangles[triangleA]);
-  //       const circumcenterB = this.getCircumcenter(this.triangles[triangleB]);
-        
-  //       if (circumcenterA && circumcenterB && cellA !== cellB) {
-  //         voronoiEdges.push({
-  //           edgeStart: circumcenterA,
-  //           edgeEnd: circumcenterB,
-  //           cellA: cellA,
-  //           cellB: cellB,
-  //           edgeId: `${Math.min(cellA, cellB)}-${Math.max(cellA, cellB)}`
-  //         });
-  //       }
-  //     }
-  //   }
-    
-  //   return voronoiEdges;
-  // }
-
-  // Get the delaunator instance for advanced operations
+  /**
+   * Get the delaunator instance for advanced operations
+   * @returns {Delaunator|null} Delaunator instance or null
+   */
   getDelaunator() {
     return this.delaunay;
   }
 
-  // Helper method to get point by index
+  /**
+   * Helper method to get point by index
+   * @param {number} index - Point index
+   * @returns {Point|Object|undefined} Point at index or undefined
+   */
   getPoint(index) {
     return this.points[index];
   }
 
-  // Helper method to get triangle containing a point
+  /**
+   * Helper method to get triangle containing a point
+   * @param {number} x - X coordinate
+   * @param {number} y - Y coordinate
+   * @returns {number|null} Triangle index or null if not found
+   */
   getTriangleContainingPoint(x, y) {
     if (!this.delaunay) return null;
     
@@ -403,6 +391,13 @@ export class DelaunatorWrapper {
     return null;
   }
 
+  /**
+   * Check if a point is inside a triangle
+   * @param {number} px - Point X coordinate
+   * @param {number} py - Point Y coordinate
+   * @param {Triangle} triangle - Triangle to check
+   * @returns {boolean} True if point is inside triangle
+   */
   isPointInTriangle(px, py, triangle) {
     const ax = triangle.a.x;
     const ay = triangle.a.z || triangle.a.y || 0;

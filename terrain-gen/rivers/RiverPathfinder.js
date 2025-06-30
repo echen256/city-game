@@ -1,17 +1,40 @@
 import { Point, Edge, Triangle, HalfEdge, VoronoiEdge, GeometryUtils } from '../voronoi/GeometryTypes.js';
 
 /**
+ * @typedef {Object} PathfindingSettings
+ * @property {number} gridSize - Size of the grid
+ * @property {Object} [hillsGenerator] - Hills generator for elevation data
+ */
+
+/**
+ * @typedef {Object} EdgeInfo
+ * @property {string} edgeId - Unique edge identifier
+ * @property {number} edgeHeight - Height at the edge
+ * @property {number} neighborHeight - Height of the neighboring cell
+ * @property {VoronoiEdge} voronoiEdge - Voronoi edge object
+ */
+
+/**
+ * @typedef {Object} VoronoiEdgeData
+ * @property {Point} edgeStart - Start point of the edge
+ * @property {Point} edgeEnd - End point of the edge
+ * @property {number} cellA - First cell ID
+ * @property {number} cellB - Second cell ID
+ * @property {string} edgeId - Unique edge identifier
+ */
+
+/**
  * A* pathfinding for rivers using Voronoi edges
  */
 export class RiverPathfinder {
   /**
    * @param {Object} voronoiGenerator - Voronoi diagram generator
-   * @param {Object} settings - Pathfinding settings
+   * @param {PathfindingSettings} settings - Pathfinding settings
    */
   constructor(voronoiGenerator, settings) {
     /** @type {Object} */
     this.voronoiGenerator = voronoiGenerator;
-    /** @type {Object} */
+    /** @type {PathfindingSettings} */
     this.settings = settings;
     /** @type {Object|null} */
     this.coastlineGenerator = null;
@@ -23,7 +46,7 @@ export class RiverPathfinder {
     this.hillsGenerator = null;
     /** @type {Set<number>} */
     this.riverCells = new Set();
-    /** @type {Map<number, Map<number, Object>>|null} */
+    /** @type {Map<number, Map<number, EdgeInfo>>|null} */
     this.voronoiEdgeGraph = null;
     /** @type {Map<string, number>} */
     this.edgeHeights = new Map();
@@ -281,7 +304,7 @@ export class RiverPathfinder {
    * Get edge-based movement cost using VoronoiEdge information
    * @param {number} fromCellId - Source cell ID
    * @param {number} toCellId - Target cell ID
-   * @param {Object} edgeInfo - Edge information with VoronoiEdge
+   * @param {EdgeInfo} edgeInfo - Edge information with VoronoiEdge
    * @returns {number} Movement cost
    */
   getEdgeMovementCost(fromCellId, toCellId, edgeInfo) {
@@ -385,7 +408,7 @@ export class RiverPathfinder {
 
   /**
    * Reconstruct path from A* search
-   * @param {Map} cameFrom - Parent map from A* search
+   * @param {Map<number, number>} cameFrom - Parent map from A* search
    * @param {number} current - Current cell ID
    * @returns {Array<number>} Path as array of cell IDs
    */

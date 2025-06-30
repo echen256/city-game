@@ -271,7 +271,14 @@
                 <h3>1. Voronoi Diagram</h3>
                 <div class="button-group">
                     <button id="generateVoronoiBtn">Generate Voronoi Diagram</button>
+                    <button id="importDataBtn">Import Data JSON</button>
                     <button id="clearAllBtn">Clear All</button>
+                </div>
+                <div class="settings">
+                    <div class="setting-item" style="grid-column: 1 / -1;">
+                        <label>Import JSON File</label>
+                        <input type="file" id="jsonFileInput" accept=".json" style="display: none;">
+                    </div>
                 </div>
                 <div class="settings">
                     <div class="setting-item">
@@ -395,6 +402,7 @@
                     <button id="toggleMarshesBtn">Toggle Marshes</button>
                     <button id="toggleRiversBtn">Toggle Rivers</button>
                     <button id="exportImageBtn" disabled>Export Image</button>
+                    <button id="exportDataBtn" disabled>Export Data JSON</button>
                 </div>
             </div>
         </div>
@@ -593,7 +601,7 @@
         }
 
         function enableDependentButtons(enable) {
-            const buttons = ['generateCoastBtn', 'clearCoastBtn', 'generateHillsBtn', 'clearHillsBtn', 'generateLakesBtn', 'clearLakesBtn', 'generateRiversBtn', 'clearRiversBtn', 'generateMarshesBtn', 'clearMarshesBtn', 'exportImageBtn'];
+            const buttons = ['generateCoastBtn', 'clearCoastBtn', 'generateHillsBtn', 'clearHillsBtn', 'generateLakesBtn', 'clearLakesBtn', 'generateRiversBtn', 'clearRiversBtn', 'generateMarshesBtn', 'clearMarshesBtn', 'exportImageBtn', 'exportDataBtn'];
             buttons.forEach(id => {
                 const element = document.getElementById(id);
                 if (element) {
@@ -999,6 +1007,235 @@
             }
         });
 
+        document.getElementById('importDataBtn').addEventListener('click', function() {
+            document.getElementById('jsonFileInput').click();
+        });
+
+        document.getElementById('jsonFileInput').addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            if (!file.name.endsWith('.json')) {
+                updateStatus('Error: Please select a JSON file');
+                log('Error: Invalid file type. Please select a JSON file.');
+                return;
+            }
+
+            updateStatus('Loading JSON file...');
+            log(`Loading file: ${file.name} (${Math.round(file.size / 1024)} KB)`);
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const importedData = JSON.parse(e.target.result);
+                    
+                    // Validate the imported data structure
+                    if (!importedData.metadata || !importedData.points || !importedData.triangles) {
+                        throw new Error('Invalid JSON structure. Missing required fields.');
+                    }
+
+                    if (importedData.metadata.version !== '1.0') {
+                        log(`Warning: Version mismatch. Expected 1.0, got ${importedData.metadata.version}`);
+                    }
+
+                    updateStatus('Reconstructing Voronoi diagram from imported data...');
+                    log('Validating imported data structure...');
+
+                    // Create new generators with imported settings
+                    const settings = importedData.metadata.settings || getSettings();
+                    voronoiGenerator = new VoronoiGenerator(mockTerrainData, settings);
+                    imageExporter = new VoronoiImageExporter(voronoiGenerator, settings);
+                    coastlineGenerator = new CoastlineGenerator(voronoiGenerator, settings);
+                    hillsGenerator = new HillsGenerator(voronoiGenerator, settings);
+                    lakesGenerator = new LakesGenerator(voronoiGenerator, settings);
+                    marshGenerator = new MarshGenerator(voronoiGenerator, settings);
+                    riversGenerator = new RiversGenerator(voronoiGenerator, settings);
+
+                    // Reconstruct DelaunatorWrapper from imported data
+                    reconstructDelaunatorWrapper(importedData);
+
+                    // Reconstruct VoronoiGenerator cells from imported data
+                    reconstructVoronoiCells(importedData);
+
+                    updateStats();
+                    drawDiagram();
+                    enableDependentButtons(true);
+
+                    updateStatus(`Imported data successfully: ${importedData.points.length} points, ${importedData.triangles.length} triangles`);
+                    log(`Successfully imported: ${importedData.points.length} points, ${importedData.triangles.length} triangles, ${importedData.edges.length} edges, ${importedData.voronoiCells.length} cells`);
+                    log(`Original export: ${importedData.metadata.exportTimestamp}`);
+
+                    // Clear the file input
+                    event.target.value = '';
+
+                } catch (error) {
+                    updateStatus(`Error loading JSON: ${error.message}`);
+                    log(`Error loading JSON file: ${error.message}`);
+                    console.error('JSON Import Error:', error);
+                    
+                    // Clear the file input on error
+                    event.target.value = '';
+                }
+            };
+
+            reader.onerror = function() {
+                updateStatus('Error reading file');
+                log('Error: Failed to read the selected file');
+                event.target.value = '';
+            };
+
+            reader.readAsText(file);
+        });
+
+        function reconstructDelaunatorWrapper(importedData) {
+            log('Reconstructing DelaunatorWrapper...');
+            
+            // Reconstruct points array
+            const points = importedData.points.map(pointData => ({
+                x: pointData.x,
+                z: pointData.z,
+                isBoundary: pointData.isBoundary
+            }));
+
+            // Create new DelaunatorWrapper instance
+            voronoiGenerator.delaunatorWrapper = new (voronoiGenerator.delaunatorWrapper?.constructor || class {
+                constructor(points) {
+                    this.points = points;
+                    this.triangles = [];
+                    this.edges = [];
+                    this.voronoiCells = new Map();
+                    this.delaunayCircumcenters = [];
+                    this.voronoiAdjacentCells = {};
+                    this.validCellIndices = null;
+                    this.indexMapping = null;
+                }
+            })(points);
+
+            const wrapper = voronoiGenerator.delaunatorWrapper;
+
+            // Reconstruct triangles
+            wrapper.triangles = importedData.triangles.map(triangleData => ({
+                a: triangleData.vertices.a,
+                b: triangleData.vertices.b,
+                c: triangleData.vertices.c,
+                indices: triangleData.indices,
+                getCircumcenter: function() {
+                    return triangleData.circumcenter;
+                },
+                getArea: function() {
+                    return triangleData.area;
+                }
+            }));
+
+            // Reconstruct edges
+            wrapper.edges = importedData.edges.map(edgeData => ({
+                a: edgeData.pointA,
+                b: edgeData.pointB,
+                id: edgeData.id,
+                length: function() {
+                    return edgeData.length;
+                }
+            }));
+
+            // Reconstruct voronoi cells
+            wrapper.voronoiCells.clear();
+            importedData.voronoiCells.forEach(cellData => {
+                wrapper.voronoiCells.set(cellData.index, {
+                    site: cellData.site,
+                    siteIndex: cellData.site.index,
+                    vertices: cellData.vertices,
+                    neighbors: new Set(cellData.neighbors)
+                });
+            });
+
+            // Reconstruct circumcenters
+            wrapper.delaunayCircumcenters = importedData.delaunayCircumcenters.map(centerData => 
+                centerData.x !== null ? { x: centerData.x, z: centerData.z } : null
+            );
+
+            // Reconstruct adjacent cells
+            wrapper.voronoiAdjacentCells = {};
+            Object.entries(importedData.voronoiAdjacentCells).forEach(([key, value]) => {
+                wrapper.voronoiAdjacentCells[key] = new Set(value);
+            });
+
+            // Reconstruct index mapping
+            if (importedData.indexMapping.validCellIndices) {
+                wrapper.validCellIndices = new Set(importedData.indexMapping.validCellIndices);
+            }
+            if (importedData.indexMapping.indexMapping) {
+                wrapper.indexMapping = new Map(Object.entries(importedData.indexMapping.indexMapping).map(([k, v]) => [parseInt(k), v]));
+            }
+
+            // Reconstruct raw Delaunay data if available
+            if (importedData.delaunayRawData) {
+                wrapper.delaunay = {
+                    triangles: new Uint32Array(importedData.delaunayRawData.triangles),
+                    halfedges: new Int32Array(importedData.delaunayRawData.halfedges),
+                    hull: new Uint32Array(importedData.delaunayRawData.hull)
+                };
+            }
+
+            log('DelaunatorWrapper reconstruction complete');
+        }
+
+        function reconstructVoronoiCells(importedData) {
+            log('Reconstructing VoronoiGenerator cells...');
+            
+            // Clear existing cells
+            voronoiGenerator.cells.clear();
+            
+            // Reconstruct sites array (filter out boundary points)
+            voronoiGenerator.sites = importedData.points
+                .filter(pointData => !pointData.isBoundary)
+                .map(pointData => ({
+                    x: pointData.x,
+                    z: pointData.z
+                }));
+
+            // Reconstruct VoronoiCell instances
+            importedData.voronoiCells.forEach(cellData => {
+                // Skip boundary cells if they exist
+                const correspondingPoint = importedData.points[cellData.site.index];
+                if (correspondingPoint && correspondingPoint.isBoundary) {
+                    return;
+                }
+
+                const cell = new (voronoiGenerator.cells.get(0)?.constructor || class {
+                    constructor(site, id) {
+                        this.site = site;
+                        this.id = id;
+                        this.vertices = [];
+                        this.neighbors = [];
+                        this.area = 0;
+                        this.perimeter = 0;
+                        this.affectedTiles = [];
+                        this.metadata = {};
+                    }
+                    addVertex(vertex) { this.vertices.push(vertex); return this; }
+                    addNeighbor(id) { if (!this.neighbors.includes(id)) this.neighbors.push(id); return this; }
+                    calculateArea() { return 0; }
+                    calculatePerimeter() { return 0; }
+                    setMetadata(key, value) { this.metadata[key] = value; return this; }
+                    getMetadata(key) { return this.metadata[key]; }
+                })(cellData.site, cellData.index);
+
+                // Reconstruct vertices
+                cellData.vertices.forEach(vertex => {
+                    cell.addVertex(vertex);
+                });
+
+                // Reconstruct neighbors
+                cellData.neighbors.forEach(neighborId => {
+                    cell.addNeighbor(neighborId);
+                });
+
+                voronoiGenerator.cells.set(cellData.index, cell);
+            });
+
+            log('VoronoiGenerator cells reconstruction complete');
+        }
+
         document.getElementById('generateCoastBtn').addEventListener('click', function() {
             if (!coastlineGenerator) return;
 
@@ -1289,6 +1526,113 @@
                 log('Image exported successfully');
             } catch (error) {
                 log(`Error exporting image: ${error.message}`);
+            }
+        });
+
+        document.getElementById('exportDataBtn').addEventListener('click', function() {
+            if (!voronoiGenerator || !voronoiGenerator.delaunatorWrapper) {
+                log('Error: No Voronoi data available to export');
+                return;
+            }
+            
+            try {
+                updateStatus('Exporting DelaunatorWrapper data...');
+                
+                const delaunatorWrapper = voronoiGenerator.delaunatorWrapper;
+                
+                // Prepare export data object
+                const exportData = {
+                    metadata: {
+                        exportTimestamp: new Date().toISOString(),
+                        version: '1.0',
+                        description: 'Voronoi Delaunator data export',
+                        settings: voronoiGenerator.settings
+                    },
+                    points: delaunatorWrapper.points.map((point, index) => ({
+                        index: index,
+                        x: point.x,
+                        z: point.z || point.y || 0,
+                        isBoundary: point.isBoundary || false
+                    })),
+                    triangles: delaunatorWrapper.triangles.map((triangle, index) => ({
+                        index: index,
+                        indices: triangle.indices,
+                        vertices: {
+                            a: { x: triangle.a.x, z: triangle.a.z || triangle.a.y || 0 },
+                            b: { x: triangle.b.x, z: triangle.b.z || triangle.b.y || 0 },
+                            c: { x: triangle.c.x, z: triangle.c.z || triangle.c.y || 0 }
+                        },
+                        circumcenter: triangle.getCircumcenter ? triangle.getCircumcenter() : null,
+                        area: triangle.getArea ? triangle.getArea() : null
+                    })),
+                    edges: delaunatorWrapper.edges.map((edge, index) => ({
+                        index: index,
+                        id: edge.id,
+                        pointA: { x: edge.a.x, z: edge.a.z || edge.a.y || 0 },
+                        pointB: { x: edge.b.x, z: edge.b.z || edge.b.y || 0 },
+                        length: edge.length ? edge.length() : null
+                    })),
+                    voronoiCells: Array.from(delaunatorWrapper.voronoiCells.entries()).map(([index, cell]) => ({
+                        index: index,
+                        site: {
+                            x: cell.site.x,
+                            z: cell.site.z || cell.site.y || 0,
+                            index: cell.siteIndex
+                        },
+                        vertices: cell.vertices.map(vertex => ({
+                            x: vertex.x,
+                            z: vertex.z,
+                            triangleIndex: vertex.triangleIndex
+                        })),
+                        neighbors: Array.from(cell.neighbors || [])
+                    })),
+                    delaunayCircumcenters: delaunatorWrapper.delaunayCircumcenters ? 
+                        delaunatorWrapper.delaunayCircumcenters.map((center, index) => ({
+                            index: index,
+                            x: center ? center.x : null,
+                            z: center ? center.z : null
+                        })) : [],
+                    voronoiAdjacentCells: delaunatorWrapper.voronoiAdjacentCells ? 
+                        Object.fromEntries(
+                            Object.entries(delaunatorWrapper.voronoiAdjacentCells).map(([key, value]) => [
+                                key, 
+                                Array.from(value || [])
+                            ])
+                        ) : {},
+                    indexMapping: {
+                        validCellIndices: delaunatorWrapper.validCellIndices ? 
+                            Array.from(delaunatorWrapper.validCellIndices) : null,
+                        indexMapping: delaunatorWrapper.indexMapping ? 
+                            Object.fromEntries(delaunatorWrapper.indexMapping) : null
+                    },
+                    delaunayRawData: delaunatorWrapper.delaunay ? {
+                        triangles: Array.from(delaunatorWrapper.delaunay.triangles),
+                        halfedges: Array.from(delaunatorWrapper.delaunay.halfedges),
+                        hull: Array.from(delaunatorWrapper.delaunay.hull)
+                    } : null
+                };
+                
+                // Convert to JSON string
+                const jsonString = JSON.stringify(exportData, null, 2);
+                
+                // Create and download file
+                const blob = new Blob([jsonString], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `voronoi_data_${Date.now()}.json`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+                
+                updateStatus(`Data exported successfully (${Math.round(jsonString.length / 1024)} KB)`);
+                log(`Exported DelaunatorWrapper data: ${exportData.points.length} points, ${exportData.triangles.length} triangles, ${exportData.edges.length} edges, ${exportData.voronoiCells.length} cells`);
+                
+            } catch (error) {
+                updateStatus(`Error: ${error.message}`);
+                log(`Error exporting data: ${error.message}`);
+                console.error(error);
             }
         });
 

@@ -1,19 +1,69 @@
 import { Point, Edge, Triangle, HalfEdge, VoronoiEdge, GeometryUtils } from './GeometryTypes.js';
 
 /**
+ * @typedef {Object} VoronoiSettings
+ * @property {boolean} [enabled=true] - Whether Voronoi generation is enabled
+ * @property {number} [numSites=50] - Number of seed points to generate
+ * @property {string} [distribution='poisson'] - Distribution type: 'random', 'poisson', 'grid', 'hexagonal'
+ * @property {number} [minDistance=10] - Minimum distance between points
+ * @property {number} [poissonRadius=25] - Radius for Poisson disk sampling
+ * @property {number} [gridSpacing=30] - Spacing for grid distribution
+ * @property {number} [seed] - Random seed for reproducibility
+ * @property {boolean} [addBoundaryPoints=true] - Whether to add boundary points
+ */
+
+/**
+ * @typedef {Object} GeneratorSettings
+ * @property {number} gridSize - Size of the grid
+ * @property {VoronoiSettings} voronoi - Voronoi generation settings
+ */
+
+/**
+ * @typedef {Object} TerrainData
+ * @property {Map<string, Object>} features - Map of terrain features
+ * @property {number} featureCounter - Feature counter
+ * @property {function(string): Object} createFeature - Function to create features
+ * @property {function(string): Array<Object>} getFeaturesByType - Function to get features by type
+ */
+
+/**
+ * @typedef {Object} VoronoiSite
+ * @property {number} x - X coordinate
+ * @property {number} z - Z coordinate
+ * @property {number} [y] - Y coordinate (alternative)
+ * @property {boolean} [isBoundary] - Whether this is a boundary point
+ */
+
+/**
+ * @typedef {Object} VoronoiVertex
+ * @property {number} x - X coordinate
+ * @property {number} z - Z coordinate
+ * @property {number} [triangleIndex] - Associated triangle index
+ * @property {number} [circumcenter] - Circumcenter index
+ */
+
+/**
+ * @typedef {Object} VoronoiCellData
+ * @property {VoronoiSite} site - Cell site point
+ * @property {number} siteIndex - Site index
+ * @property {Array<VoronoiVertex>} vertices - Cell vertices
+ * @property {Set<number>} neighbors - Neighbor cell indices
+ */
+
+/**
  * Represents a Voronoi cell with typed geometry
  */
 export class VoronoiCell {
   /**
-   * @param {Point|Object} site - Seed point coordinates
+   * @param {Point|VoronoiSite} site - Seed point coordinates
    * @param {number} id - Cell identifier
    */
   constructor(site, id) {
-    /** @type {Point|Object} */
+    /** @type {Point|VoronoiSite} */
     this.site = site;
     /** @type {number} */
     this.id = id;
-    /** @type {Array<Point|Object>} */
+    /** @type {Array<Point|VoronoiVertex>} */
     this.vertices = [];
     /** @type {Array<number>} */
     this.neighbors = [];
@@ -27,11 +77,21 @@ export class VoronoiCell {
     this.metadata = {};
   }
 
+  /**
+   * Add a vertex to the cell
+   * @param {Point|VoronoiVertex} vertex - Vertex to add
+   * @returns {VoronoiCell} This cell for chaining
+   */
   addVertex(vertex) {
     this.vertices.push(vertex);
     return this;
   }
 
+  /**
+   * Add a neighbor cell
+   * @param {number} cellId - Neighbor cell ID
+   * @returns {VoronoiCell} This cell for chaining
+   */
   addNeighbor(cellId) {
     if (!this.neighbors.includes(cellId)) {
       this.neighbors.push(cellId);
@@ -39,6 +99,10 @@ export class VoronoiCell {
     return this;
   }
 
+  /**
+   * Calculate cell area using shoelace formula
+   * @returns {number} Cell area
+   */
   calculateArea() {
     if (this.vertices.length < 3) {
       this.area = 0;
@@ -56,6 +120,10 @@ export class VoronoiCell {
     return this.area;
   }
 
+  /**
+   * Calculate cell perimeter
+   * @returns {number} Cell perimeter
+   */
   calculatePerimeter() {
     if (this.vertices.length < 2) {
       this.perimeter = 0;
@@ -73,6 +141,12 @@ export class VoronoiCell {
     return this.perimeter;
   }
 
+  /**
+   * Check if a point is inside the cell using ray casting
+   * @param {number} x - X coordinate
+   * @param {number} z - Z coordinate
+   * @returns {boolean} True if point is inside
+   */
   isPointInside(x, z) {
     // Ray casting algorithm for point-in-polygon test
     let inside = false;
@@ -89,11 +163,22 @@ export class VoronoiCell {
     return inside;
   }
 
+  /**
+   * Set metadata for the cell
+   * @param {string} key - Metadata key
+   * @param {*} value - Metadata value
+   * @returns {VoronoiCell} This cell for chaining
+   */
   setMetadata(key, value) {
     this.metadata[key] = value;
     return this;
   }
 
+  /**
+   * Get metadata from the cell
+   * @param {string} key - Metadata key
+   * @returns {*} Metadata value
+   */
   getMetadata(key) {
     return this.metadata[key];
   }
@@ -106,17 +191,17 @@ import { DelaunatorWrapper } from './DelaunatorWrapper.js';
  */
 export class VoronoiGenerator {
   /**
-   * @param {Object} terrainData - Terrain data manager
-   * @param {Object} settings - Generation settings
+   * @param {TerrainData} terrainData - Terrain data manager
+   * @param {GeneratorSettings} settings - Generation settings
    */
   constructor(terrainData, settings) {
-    /** @type {Object} */
+    /** @type {TerrainData} */
     this.terrainData = terrainData;
-    /** @type {Object} */
+    /** @type {GeneratorSettings} */
     this.settings = settings;
     /** @type {Map<number, VoronoiCell>} */
     this.cells = new Map();
-    /** @type {Array<Point|Object>} */
+    /** @type {Array<VoronoiSite>} */
     this.sites = [];
     /** @type {DelaunatorWrapper|null} */
     this.delaunatorWrapper = null;
@@ -127,8 +212,14 @@ export class VoronoiGenerator {
       minZ: 0, 
       maxZ: settings.gridSize 
     };
+    /** @type {number} */
+    this._seed = undefined;
   }
 
+  /**
+   * Generate complete Voronoi diagram
+   * @returns {Map<number, VoronoiCell>} Generated cells
+   */
   generateVoronoi() {
     const voronoiSettings = this.settings.voronoi;
     if (!voronoiSettings || !voronoiSettings.enabled) {
@@ -153,6 +244,10 @@ export class VoronoiGenerator {
     return this.cells;
   }
 
+  /**
+   * Generate seed points based on distribution settings
+   * @param {VoronoiSettings} settings - Voronoi settings
+   */
   generateSeedPoints(settings) {
     const { 
       numSites, 
@@ -188,11 +283,18 @@ export class VoronoiGenerator {
     }
   }
 
+  /**
+   * Set random seed for reproducibility
+   * @param {number} seed - Random seed
+   */
   seedRandom(seed) {
-    // Simple seeded random number generator
     this._seed = seed;
   }
 
+  /**
+   * Generate random number (seeded if available)
+   * @returns {number} Random number between 0 and 1
+   */
   random() {
     if (this._seed !== undefined) {
       this._seed = (this._seed * 9301 + 49297) % 233280;
@@ -201,6 +303,11 @@ export class VoronoiGenerator {
     return Math.random();
   }
 
+  /**
+   * Generate random sites with minimum distance constraint
+   * @param {number} numSites - Number of sites to generate
+   * @param {number} minDistance - Minimum distance between sites
+   */
   generateRandomSites(numSites, minDistance) {
     const { gridSize } = this.settings;
     const maxAttempts = numSites * 10;
@@ -231,7 +338,12 @@ export class VoronoiGenerator {
     }
   }
 
-  // Helper function to check if a point is a duplicate (within epsilon distance)
+  /**
+   * Check if a point is a duplicate (within epsilon distance)
+   * @param {VoronoiSite} newPoint - Point to check
+   * @param {number} [epsilon=0.1] - Distance threshold
+   * @returns {boolean} True if point is a duplicate
+   */
   isDuplicatePoint(newPoint, epsilon = 0.1) {
     for (const site of this.sites) {
       const distance = Math.sqrt(
@@ -244,6 +356,10 @@ export class VoronoiGenerator {
     return false;
   }
 
+  /**
+   * Generate Poisson disk distributed sites
+   * @param {number} radius - Poisson disk radius
+   */
   generatePoissonSites(radius) {
     // Bridson's Poisson disk sampling algorithm with improved duplicate checking
     const { gridSize } = this.settings;
@@ -339,6 +455,10 @@ export class VoronoiGenerator {
     }
   }
 
+  /**
+   * Generate grid-distributed sites
+   * @param {number} spacing - Grid spacing
+   */
   generateGridSites(spacing) {
     const { gridSize } = this.settings;
     
@@ -356,6 +476,10 @@ export class VoronoiGenerator {
     }
   }
 
+  /**
+   * Generate hexagonal-distributed sites
+   * @param {number} spacing - Hexagonal spacing
+   */
   generateHexagonalSites(spacing) {
     const { gridSize } = this.settings;
     const hexHeight = spacing * Math.sqrt(3) / 2;
@@ -378,6 +502,9 @@ export class VoronoiGenerator {
     }
   }
 
+  /**
+   * Clean and validate generated points
+   */
   cleanAndValidatePoints() {
     // Remove duplicate points and ensure minimum separation
     const epsilon = 0.001; // Very small epsilon for exact duplicates
@@ -417,6 +544,9 @@ export class VoronoiGenerator {
     }
   }
 
+  /**
+   * Add boundary points for proper Voronoi cell generation
+   */
   addBoundaryPoints() {
     const { gridSize } = this.settings;
     const margin = gridSize * 0.1;
@@ -441,6 +571,9 @@ export class VoronoiGenerator {
     this.sites.push(...boundaryPoints);
   }
 
+  /**
+   * Calculate Voronoi diagram using Delaunay triangulation
+   */
   calculateVoronoiDiagram() {
     try {
       // Use delaunator for proper Delaunay triangulation and Voronoi generation
@@ -523,6 +656,9 @@ export class VoronoiGenerator {
     }
   }
 
+  /**
+   * Fallback to simple centroidal Voronoi if triangulation fails
+   */
   fallbackToCentroidalVoronoi() {
     console.warn('Falling back to simple centroidal Voronoi');
     this.cells.clear();
@@ -545,6 +681,12 @@ export class VoronoiGenerator {
     });
   }
 
+  /**
+   * Find the closest site to a given point
+   * @param {number} x - X coordinate
+   * @param {number} z - Z coordinate
+   * @returns {number} Index of closest cell, or -1 if none found
+   */
   findClosestSite(x, z) {
     let minDistance = Infinity;
     let closestIndex = -1;
@@ -564,6 +706,9 @@ export class VoronoiGenerator {
     return closestIndex;
   }
 
+  /**
+   * Create terrain features for each cell
+   */
   createCellFeatures() {
     this.cells.forEach((cell, cellId) => {
       const feature = this.terrainData.createFeature('voronoi_cell');
@@ -586,6 +731,9 @@ export class VoronoiGenerator {
     });
   }
 
+  /**
+   * Assign tiles to cells based on closest site
+   */
   assignTilesToCells() {
     const { gridSize } = this.settings;
     
@@ -611,34 +759,65 @@ export class VoronoiGenerator {
     }
   }
 
+  /**
+   * Get all cells
+   * @returns {Map<number, VoronoiCell>} Map of cells
+   */
   getCells() {
     return this.cells;
   }
 
+  /**
+   * Get a specific cell by ID
+   * @param {number} id - Cell ID
+   * @returns {VoronoiCell|undefined} Cell or undefined if not found
+   */
   getCell(id) {
     return this.cells.get(id);
   }
 
+  /**
+   * Get cell at specific coordinates
+   * @param {number} x - X coordinate
+   * @param {number} z - Z coordinate
+   * @returns {VoronoiCell|undefined} Cell at coordinates or undefined
+   */
   getCellAt(x, z) {
     const closestCellId = this.findClosestSite(x, z);
     return this.cells.get(closestCellId);
   }
 
+  /**
+   * Get triangulation data
+   * @returns {DelaunatorWrapper|null} Triangulation wrapper
+   */
   getTriangulation() {
     return this.delaunatorWrapper;
   }
 
+  /**
+   * Get Voronoi diagram data
+   * @returns {DelaunatorWrapper|null} Voronoi diagram wrapper
+   */
   getVoronoiDiagram() {
     return this.delaunatorWrapper;
   }
 
+  /**
+   * Get raw Delaunator instance
+   * @returns {Object|null} Delaunator instance or null
+   */
   getDelaunator() {
     return this.delaunatorWrapper ? this.delaunatorWrapper.getDelaunator() : null;
   }
 
+  /**
+   * Find vertices connected to a given vertex
+   * @param {number} vertexIndex - Vertex index
+   * @returns {Array<number>} Array of connected vertex indices
+   */
   findConnectedVertices(vertexIndex) {
- 
-    if (!this.delaunatorWrapper.delaunayCircumcenters) {
+    if (!this.delaunatorWrapper || !this.delaunatorWrapper.delaunayCircumcenters) {
         return [];
     }
     
@@ -651,5 +830,5 @@ export class VoronoiGenerator {
     
     
     return Array.from(connectedVertices).sort((a, b) => a - b);
-}
+  }
 }
