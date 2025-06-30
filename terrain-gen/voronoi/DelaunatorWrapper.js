@@ -30,7 +30,7 @@ export class DelaunatorWrapper {
       
       coords.push(x, y); 
     }
-    
+
     // Check if we have enough valid points
     if (coords.length < 6) { // Need at least 3 points (6 coordinates)
       console.warn('DelaunatorWrapper: Not enough valid points for triangulation');
@@ -307,70 +307,70 @@ export class DelaunatorWrapper {
   }
 
   // Generate Voronoi edges with adjacent cell information for pathfinding
-  getVoronoiEdgesWithCells(validCellIndices = null, indexMapping = null) {
-    const voronoiEdges = [];
-    const halfedges = this.delaunay.halfedges;
-    const triangles = this.delaunay.triangles;
+  // getVoronoiEdgesWithCells(validCellIndices = null, indexMapping = null) {
+  //   const voronoiEdges = [];
+  //   const halfedges = this.delaunay.halfedges;
+  //   const triangles = this.delaunay.triangles;
     
-    // Use stored mapping if available and no explicit parameters provided
-    const useValidCells = validCellIndices || this.validCellIndices;
-    const useMapping = indexMapping || this.indexMapping;
+  //   // Use stored mapping if available and no explicit parameters provided
+  //   const useValidCells = validCellIndices || this.validCellIndices;
+  //   const useMapping = indexMapping || this.indexMapping;
     
-    for (let e = 0; e < halfedges.length; e++) {
-      const opposite = halfedges[e];
-      if (opposite < 0 || opposite <= e) continue; // Skip boundary edges and avoid duplicates
+  //   for (let e = 0; e < halfedges.length; e++) {
+  //     const opposite = halfedges[e];
+  //     if (opposite < 0 || opposite <= e) continue; // Skip boundary edges and avoid duplicates
       
-      // Get the two cells that share this edge
-      const cellA = triangles[e];
-      const cellB = triangles[opposite];
+  //     // Get the two cells that share this edge
+  //     const cellA = triangles[e];
+  //     const cellB = triangles[opposite];
       
-      // If we have valid cell filtering, skip edges that involve boundary cells
-      if (useValidCells && useMapping) {
-        if (!useValidCells.has(cellA) || !useValidCells.has(cellB)) {
-          continue; // Skip edges involving boundary cells
-        }
+  //     // If we have valid cell filtering, skip edges that involve boundary cells
+  //     if (useValidCells && useMapping) {
+  //       if (!useValidCells.has(cellA) || !useValidCells.has(cellB)) {
+  //         continue; // Skip edges involving boundary cells
+  //       }
         
-        // Map to new indices
-        const newCellA = useMapping.get(cellA);
-        const newCellB = useMapping.get(cellB);
+  //       // Map to new indices
+  //       const newCellA = useMapping.get(cellA);
+  //       const newCellB = useMapping.get(cellB);
         
-        const triangleA = Math.floor(e / 3);
-        const triangleB = Math.floor(opposite / 3);
+  //       const triangleA = Math.floor(e / 3);
+  //       const triangleB = Math.floor(opposite / 3);
         
-        const circumcenterA = this.getCircumcenter(this.triangles[triangleA]);
-        const circumcenterB = this.getCircumcenter(this.triangles[triangleB]);
+  //       const circumcenterA = this.getCircumcenter(this.triangles[triangleA]);
+  //       const circumcenterB = this.getCircumcenter(this.triangles[triangleB]);
         
-        if (circumcenterA && circumcenterB && newCellA !== newCellB) {
-          voronoiEdges.push({
-            edgeStart: circumcenterA,
-            edgeEnd: circumcenterB,
-            cellA: newCellA,
-            cellB: newCellB,
-            edgeId: `${Math.min(newCellA, newCellB)}-${Math.max(newCellA, newCellB)}`
-          });
-        }
-      } else {
-        // Original behavior for backward compatibility
-        const triangleA = Math.floor(e / 3);
-        const triangleB = Math.floor(opposite / 3);
+  //       if (circumcenterA && circumcenterB && newCellA !== newCellB) {
+  //         voronoiEdges.push({
+  //           edgeStart: circumcenterA,
+  //           edgeEnd: circumcenterB,
+  //           cellA: newCellA,
+  //           cellB: newCellB,
+  //           edgeId: `${Math.min(newCellA, newCellB)}-${Math.max(newCellA, newCellB)}`
+  //         });
+  //       }
+  //     } else {
+  //       // Original behavior for backward compatibility
+  //       const triangleA = Math.floor(e / 3);
+  //       const triangleB = Math.floor(opposite / 3);
         
-        const circumcenterA = this.getCircumcenter(this.triangles[triangleA]);
-        const circumcenterB = this.getCircumcenter(this.triangles[triangleB]);
+  //       const circumcenterA = this.getCircumcenter(this.triangles[triangleA]);
+  //       const circumcenterB = this.getCircumcenter(this.triangles[triangleB]);
         
-        if (circumcenterA && circumcenterB && cellA !== cellB) {
-          voronoiEdges.push({
-            edgeStart: circumcenterA,
-            edgeEnd: circumcenterB,
-            cellA: cellA,
-            cellB: cellB,
-            edgeId: `${Math.min(cellA, cellB)}-${Math.max(cellA, cellB)}`
-          });
-        }
-      }
-    }
+  //       if (circumcenterA && circumcenterB && cellA !== cellB) {
+  //         voronoiEdges.push({
+  //           edgeStart: circumcenterA,
+  //           edgeEnd: circumcenterB,
+  //           cellA: cellA,
+  //           cellB: cellB,
+  //           edgeId: `${Math.min(cellA, cellB)}-${Math.max(cellA, cellB)}`
+  //         });
+  //       }
+  //     }
+  //   }
     
-    return voronoiEdges;
-  }
+  //   return voronoiEdges;
+  // }
 
   // Get the delaunator instance for advanced operations
   getDelaunator() {

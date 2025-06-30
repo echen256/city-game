@@ -1,3 +1,11 @@
+export class Edge {
+  constructor(pointA, pointB) {
+    this.pointA = pointA;
+    this.pointB = pointB;
+    this.key = `${pointA}-${pointB}`;
+  }
+}
+
 export class RiverPathfinder {
   constructor(voronoiGenerator, settings) {
     this.voronoiGenerator = voronoiGenerator;
@@ -34,23 +42,13 @@ export class RiverPathfinder {
   buildVoronoiPointGraph() {
     console.log('Building Voronoi point graph for pathfinding...');
     
-    const voronoiDiagram = this.voronoiGenerator.getVoronoiDiagram();
-    console.log(voronoiDiagram)
-    if (!voronoiDiagram || !voronoiDiagram.getVoronoiEdgesWithCells) {
-      console.error('Cannot get Voronoi edges with cell information');
-      return;
+    const voronoiDiagram = this.voronoiGenerator.getVoronoiDiagram()
+    const voronoiAdjacentCells = this.voronoiGenerator.delaunatorWrapper.voronoiAdjacentCells;
+    for (const cell of voronoiAdjacentCells) {
+      const neighbors = voronoiAdjacentCells[cell];
+      const e1 = new Edge(cell, neighbors[0]);
     }
-
-    const voronoiEdges = voronoiDiagram.getVoronoiEdgesWithCells();
-    console.log(voronoiEdges)
-    
-    // Build adjacency list representation
-    this.voronoiEdgeGraph = new Map();
-    
-    // Initialize adjacency lists for all cells
-    this.voronoiGenerator.cells.forEach((cell, cellId) => {
-      this.voronoiEdgeGraph.set(cellId, new Map());
-    });
+  
     
     // Add edges and calculate edge heights
     voronoiEdges.forEach(edge => {
