@@ -58,11 +58,11 @@
  */
 export class VoronoiImageExporter {
   /**
-   * @param {Object} voronoiGenerator - The Voronoi generator instance
+   * @param {VoronoiGenerator} voronoiGenerator - The Voronoi generator instance
    * @param {Object} settings - Generator settings
    */
   constructor(voronoiGenerator, settings) {
-    /** @type {Object} */
+    /** @type {VoronoiGenerator} */
     this.voronoiGenerator = voronoiGenerator;
     /** @type {Object} */
     this.settings = settings;
@@ -335,6 +335,7 @@ export class VoronoiImageExporter {
     // Draw Voronoi edges (if enabled)
     if (showVoronoiEdges && this.voronoiGenerator.getVoronoiDiagram()) {
       const delaunatorWrapper = this.voronoiGenerator.getVoronoiDiagram();
+      console.log(delaunatorWrapper)
       const voronoiEdges = delaunatorWrapper.getVoronoiEdges();
       
       this.ctx.strokeStyle = voronoiColor;

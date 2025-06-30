@@ -1051,12 +1051,7 @@
                     marshGenerator = new MarshGenerator(voronoiGenerator, settings);
                     riversGenerator = new RiversGenerator(voronoiGenerator, settings);
 
-                    // Reconstruct DelaunatorWrapper from imported data
-                    reconstructDelaunatorWrapper(importedData);
-
-                    // Reconstruct VoronoiGenerator cells from imported data
-                    reconstructVoronoiCells(importedData);
-
+                    voronoiGenerator.generateVoronoi();
                     updateStats();
                     drawDiagram();
                     enableDependentButtons(true);
@@ -1098,84 +1093,9 @@
             }));
 
             // Create new DelaunatorWrapper instance
-            voronoiGenerator.delaunatorWrapper = new (voronoiGenerator.delaunatorWrapper?.constructor || class {
-                constructor(points) {
-                    this.points = points;
-                    this.triangles = [];
-                    this.edges = [];
-                    this.voronoiCells = new Map();
-                    this.delaunayCircumcenters = [];
-                    this.voronoiAdjacentCells = {};
-                    this.validCellIndices = null;
-                    this.indexMapping = null;
-                }
-            })(points);
-
-            const wrapper = voronoiGenerator.delaunatorWrapper;
-
-            // Reconstruct triangles
-            wrapper.triangles = importedData.triangles.map(triangleData => ({
-                a: triangleData.vertices.a,
-                b: triangleData.vertices.b,
-                c: triangleData.vertices.c,
-                indices: triangleData.indices,
-                getCircumcenter: function() {
-                    return triangleData.circumcenter;
-                },
-                getArea: function() {
-                    return triangleData.area;
-                }
-            }));
-
-            // Reconstruct edges
-            wrapper.edges = importedData.edges.map(edgeData => ({
-                a: edgeData.pointA,
-                b: edgeData.pointB,
-                id: edgeData.id,
-                length: function() {
-                    return edgeData.length;
-                }
-            }));
-
-            // Reconstruct voronoi cells
-            wrapper.voronoiCells.clear();
-            importedData.voronoiCells.forEach(cellData => {
-                wrapper.voronoiCells.set(cellData.index, {
-                    site: cellData.site,
-                    siteIndex: cellData.site.index,
-                    vertices: cellData.vertices,
-                    neighbors: new Set(cellData.neighbors)
-                });
-            });
-
-            // Reconstruct circumcenters
-            wrapper.delaunayCircumcenters = importedData.delaunayCircumcenters.map(centerData => 
-                centerData.x !== null ? { x: centerData.x, z: centerData.z } : null
-            );
-
-            // Reconstruct adjacent cells
-            wrapper.voronoiAdjacentCells = {};
-            Object.entries(importedData.voronoiAdjacentCells).forEach(([key, value]) => {
-                wrapper.voronoiAdjacentCells[key] = new Set(value);
-            });
-
-            // Reconstruct index mapping
-            if (importedData.indexMapping.validCellIndices) {
-                wrapper.validCellIndices = new Set(importedData.indexMapping.validCellIndices);
-            }
-            if (importedData.indexMapping.indexMapping) {
-                wrapper.indexMapping = new Map(Object.entries(importedData.indexMapping.indexMapping).map(([k, v]) => [parseInt(k), v]));
-            }
-
-            // Reconstruct raw Delaunay data if available
-            if (importedData.delaunayRawData) {
-                wrapper.delaunay = {
-                    triangles: new Uint32Array(importedData.delaunayRawData.triangles),
-                    halfedges: new Int32Array(importedData.delaunayRawData.halfedges),
-                    hull: new Uint32Array(importedData.delaunayRawData.hull)
-                };
-            }
-
+            voronoiGenerator.delaunatorWrapper = new DelaunatorWrapper(points);
+            voronoiGenerator.delaunatorWrapper.triangulate()
+ 
             log('DelaunatorWrapper reconstruction complete');
         }
 
