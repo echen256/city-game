@@ -7,6 +7,9 @@ export class RiversGenerator {
     this.coastlineGenerator = null;
     this.lakesGenerator = null;
     this.marshGenerator = null;
+    this.usedStartPoints = new Set(); // Track used start points
+    this.usedEndPoints = new Set();   // Track used end points
+    this.minSeparationDistance = 50; // Minimum distance between start/end points
   }
 
   generateRivers(numRivers = 2) {
@@ -41,11 +44,12 @@ export class RiversGenerator {
       return [];
     }
 
-    // Mark start point immediately
+    // Mark start point immediately and add to used points
     const startCellObj = this.voronoiGenerator.cells.get(startCell);
     if (startCellObj) {
       startCellObj.setMetadata('riverStartPoint', true);
       startCellObj.setMetadata('riverIndex', riverIndex);
+      this.usedStartPoints.add(startCell);
       console.log(`Marked start point: ${startCell}`);
     }
 
@@ -61,24 +65,36 @@ export class RiversGenerator {
       }
     }
 
-    // Mark end point immediately (choose closest target)
+    // Mark end point immediately (choose closest valid target)
     if (targets.length > 0) {
-      let endPointId = targets[0]; // Default to first target
+      let endPointId = null;
       
-      // If multiple targets, find the closest one
-      if (targets.length > 1 && startCellObj?.site) {
-        let minDistance = Infinity;
-        const startSite = startCellObj.site;
+      // Filter targets to exclude those too close to used end points
+      const validTargets = targets.filter(targetId => 
+        !this.isTooCloseToUsedPoints(targetId, this.usedEndPoints)
+      );
+      
+      if (validTargets.length === 0) {
+        console.log(`No valid end targets (all too close to existing end points), using closest anyway`);
+        endPointId = targets[0]; // Fallback to first target
+      } else {
+        endPointId = validTargets[0]; // Default to first valid target
         
-        for (const targetId of targets) {
-          const targetCell = this.voronoiGenerator.cells.get(targetId);
-          if (targetCell && targetCell.site) {
-            const dx = startSite.x - targetCell.site.x;
-            const dy = (startSite.z || startSite.y || 0) - (targetCell.site.z || targetCell.site.y || 0);
-            const distance = Math.sqrt(dx * dx + dy * dy);
-            if (distance < minDistance) {
-              minDistance = distance;
-              endPointId = targetId;
+        // If multiple valid targets, find the closest one to start point
+        if (validTargets.length > 1 && startCellObj?.site) {
+          let minDistance = Infinity;
+          const startSite = startCellObj.site;
+          
+          for (const targetId of validTargets) {
+            const targetCell = this.voronoiGenerator.cells.get(targetId);
+            if (targetCell && targetCell.site) {
+              const dx = startSite.x - targetCell.site.x;
+              const dy = (startSite.z || startSite.y || 0) - (targetCell.site.z || targetCell.site.y || 0);
+              const distance = Math.sqrt(dx * dx + dy * dy);
+              if (distance < minDistance) {
+                minDistance = distance;
+                endPointId = targetId;
+              }
             }
           }
         }
@@ -88,6 +104,7 @@ export class RiversGenerator {
       if (endCellObj) {
         endCellObj.setMetadata('riverEndPoint', true);
         endCellObj.setMetadata('riverIndex', riverIndex);
+        this.usedEndPoints.add(endPointId);
         console.log(`Marked end point: ${endPointId}`);
       }
     }
@@ -177,6 +194,12 @@ export class RiversGenerator {
         y >= (gridSize - edgeTolerance);         // South edge
 
       if (isNearEdge) {
+        // Check if this cell is too close to previously used start points
+        if (this.isTooCloseToUsedPoints(cellId, this.usedStartPoints)) {
+          console.log(`Skipping edge cell ${cellId} at (${x.toFixed(1)}, ${y.toFixed(1)}) - too close to existing start point`);
+          return;
+        }
+        
         console.log(`Found edge cell ${cellId} at (${x.toFixed(1)}, ${y.toFixed(1)})`);
         edgeCells.push(cellId);
       }
@@ -628,6 +651,8 @@ export class RiversGenerator {
     
     this.riverCells.clear();
     this.riverPaths = [];
+    this.usedStartPoints.clear();
+    this.usedEndPoints.clear();
   }
 
   // Set references to other generators
@@ -720,6 +745,30 @@ export class RiversGenerator {
 
     console.log(`Found ${targetCells.length} target cells on ${targetEdge} edge`);
     return targetCells;
+  }
+
+  // Helper method to calculate distance between two cells
+  getDistanceBetweenCells(cellId1, cellId2) {
+    const cell1 = this.voronoiGenerator.cells.get(cellId1);
+    const cell2 = this.voronoiGenerator.cells.get(cellId2);
+    
+    if (!cell1 || !cell2 || !cell1.site || !cell2.site) {
+      return Infinity;
+    }
+    
+    const dx = cell1.site.x - cell2.site.x;
+    const dy = (cell1.site.z || cell1.site.y || 0) - (cell2.site.z || cell2.site.y || 0);
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  // Check if a cell is too close to any used points
+  isTooCloseToUsedPoints(cellId, usedPoints) {
+    for (const usedCellId of usedPoints) {
+      if (this.getDistanceBetweenCells(cellId, usedCellId) < this.minSeparationDistance) {
+        return true;
+      }
+    }
+    return false;
   }
 
   // Seeded random number generator

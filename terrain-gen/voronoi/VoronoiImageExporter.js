@@ -308,9 +308,9 @@ export class VoronoiImageExporter {
       });
     }
 
-    // Draw river start and end points as large red dots
+    // Draw river start and end points as small red dots
     if (showRivers) {
-      const riverStartEndRadius = 100; // Large radius for start/end points
+      const riverStartEndRadius = 10; // Small radius for start/end points
       
       // Draw all marked start and end points
       cells.forEach((cell, cellId) => {
@@ -336,7 +336,7 @@ export class VoronoiImageExporter {
           
           // Add text label to distinguish start vs end
           this.ctx.fillStyle = '#ffffff';
-          this.ctx.font = 'bold 30px Arial';
+          this.ctx.font = 'bold 8px Arial';
           this.ctx.textAlign = 'center';
           this.ctx.textBaseline = 'middle';
           const label = isStartPoint ? 'S' : 'E';
