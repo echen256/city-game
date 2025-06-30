@@ -190,6 +190,48 @@
             padding: 8px;
             border-radius: 3px;
         }
+        
+        .canvas-wrapper {
+            position: relative;
+            display: inline-block;
+        }
+        
+        .voronoi-cell-hover {
+            position: absolute;
+            border-radius: 50%;
+            background-color: transparent;
+            cursor: pointer;
+            pointer-events: auto;
+        }
+        
+        .voronoi-cell-hover:hover {
+            background-color: rgba(255, 255, 0, 0.3);
+        }
+        
+        .cell-info-widget {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background-color: #2a2a2a;
+            border: 1px solid #666;
+            border-radius: 5px;
+            padding: 15px;
+            color: white;
+            font-family: monospace;
+            font-size: 12px;
+            display: none;
+            z-index: 1000;
+            min-width: 200px;
+        }
+        
+        .cell-info-widget h4 {
+            margin: 0 0 10px 0;
+            color: #00ff88;
+        }
+        
+        .cell-info-line {
+            margin: 5px 0;
+        }
     </style>
 </head>
 <body>
@@ -384,7 +426,17 @@
         
         <div class="canvas-container">
             <h3>Current Diagram</h3>
-            <canvas id="canvas" width="800" height="600"></canvas>
+            <div class="canvas-wrapper">
+                <canvas id="canvas" width="800" height="600"></canvas>
+                <div id="cellHoverElements"></div>
+            </div>
+        </div>
+        
+        <div id="cellInfoWidget" class="cell-info-widget">
+            <h4>Cell Information</h4>
+            <div class="cell-info-line">ID: <span id="cellId">-</span></div>
+            <div class="cell-info-line">Position: <span id="cellPosition">-</span></div>
+            <div class="cell-info-line">Neighbors: <span id="cellNeighbors">-</span></div>
         </div>
     </div>
 
@@ -520,6 +572,70 @@
             });
         }
 
+        function createCellHoverElements() {
+            const hoverContainer = document.getElementById('cellHoverElements');
+            const canvas = document.getElementById('canvas');
+            
+            // Clear existing hover elements
+            hoverContainer.innerHTML = '';
+            
+            if (!voronoiGenerator || !voronoiGenerator.cells) {
+                return;
+            }
+            
+            const scaleX = canvas.width / voronoiGenerator.settings.gridSize;
+            const scaleZ = canvas.height / voronoiGenerator.settings.gridSize;
+            const hoverRadius = 10; // 10px radius as requested
+            
+            voronoiGenerator.cells.forEach((cell, cellId) => {
+                if (!cell.site) return;
+                
+                const hoverElement = document.createElement('div');
+                hoverElement.className = 'voronoi-cell-hover';
+                hoverElement.style.left = `${(cell.site.x * scaleX) - hoverRadius}px`;
+                hoverElement.style.top = `${((cell.site.z || cell.site.y || 0) * scaleZ) - hoverRadius}px`;
+                hoverElement.style.width = `${hoverRadius * 2}px`;
+                hoverElement.style.height = `${hoverRadius * 2}px`;
+                
+                // Add hover event listeners
+                hoverElement.addEventListener('mouseenter', () => {
+                    showCellInfo(cellId, cell);
+                });
+                
+                hoverElement.addEventListener('mouseleave', () => {
+                    hideCellInfo();
+                });
+                
+                hoverContainer.appendChild(hoverElement);
+            });
+        }
+
+        function showCellInfo(cellId, cell) {
+            const widget = document.getElementById('cellInfoWidget');
+            const cellIdSpan = document.getElementById('cellId');
+            const cellPositionSpan = document.getElementById('cellPosition');
+            const cellNeighborsSpan = document.getElementById('cellNeighbors');
+            
+            // Update widget content
+            cellIdSpan.textContent = cellId;
+            
+            const x = cell.site.x.toFixed(1);
+            const y = (cell.site.z || cell.site.y || 0).toFixed(1);
+            cellPositionSpan.textContent = `(${x}, ${y})`;
+            
+            // Get neighbors array
+            const neighbors = cell.neighbors ? Array.from(cell.neighbors).sort((a, b) => a - b) : [];
+            cellNeighborsSpan.textContent = `[${neighbors.join(', ')}]`;
+            
+            // Show widget
+            widget.style.display = 'block';
+        }
+
+        function hideCellInfo() {
+            const widget = document.getElementById('cellInfoWidget');
+            widget.style.display = 'none';
+        }
+
         function drawDiagram() {
             if (!voronoiGenerator || !imageExporter) return;
 
@@ -583,6 +699,9 @@
                 const ctx = displayCanvas.getContext('2d');
                 ctx.clearRect(0, 0, displayCanvas.width, displayCanvas.height);
                 ctx.drawImage(canvas, 0, 0);
+
+                // Create hover elements for cell interaction
+                createCellHoverElements();
 
             } catch (error) {
                 log(`Error drawing diagram: ${error.message}`);
@@ -824,6 +943,13 @@
             const canvas = document.getElementById('canvas');
             const ctx = canvas.getContext('2d');
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Clear hover elements
+            const hoverContainer = document.getElementById('cellHoverElements');
+            hoverContainer.innerHTML = '';
+            
+            // Hide info widget
+            hideCellInfo();
             
             updateStats();
             enableDependentButtons(false);

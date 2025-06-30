@@ -10,6 +10,8 @@ export class RiversGenerator {
     this.usedStartPoints = new Set(); // Track used start points
     this.usedEndPoints = new Set();   // Track used end points
     this.minSeparationDistance = 50; // Minimum distance between start/end points
+    this.voronoiEdgeGraph = null; // Graph of Voronoi edges for pathfinding
+    this.edgeHeights = new Map(); // Cache of edge heights (minimum of bordering cells)
   }
 
   generateRivers(numRivers = 2) {
@@ -19,6 +21,9 @@ export class RiversGenerator {
     }
 
     this.clearRivers();
+    
+    // Build Voronoi edge graph for pathfinding
+    this.buildVoronoiEdgeGraph();
     
     console.log(`Generating ${numRivers} rivers...`);
 
@@ -335,41 +340,42 @@ export class RiversGenerator {
       }
 
       openSet.delete(current);
-      const currentCell = this.voronoiGenerator.cells.get(current);
       
-      if (!currentCell) {
-        console.log(`ERROR: Current cell ${current} not found in Voronoi cells!`);
-        continue;
-      }
-      
-      if (!currentCell.neighbors) {
-        console.log(`ERROR: Current cell ${current} has no neighbors!`);
+      // Check if current cell exists in our edge graph
+      if (!this.voronoiEdgeGraph.has(current)) {
+        console.log(`ERROR: Current cell ${current} not found in Voronoi edge graph!`);
         continue;
       }
 
-      console.log(`Current cell neighbors: [${Array.from(currentCell.neighbors)}]`);
       console.log(`Current cell elevation: ${this.getCellElevation(current)}`);
 
-      // Check all neighbors
+      // Check all neighbors using Voronoi edge graph
       let validNeighbors = 0;
       let addedToOpenSet = 0;
       
-      for (const neighborId of currentCell.neighbors) {
-        console.log(`\n  Evaluating neighbor: ${neighborId}`);
+      const neighbors = this.voronoiEdgeGraph.get(current);
+      if (!neighbors) {
+        console.log(`ERROR: No neighbors found in Voronoi edge graph for cell ${current}`);
+        continue;
+      }
+      
+      for (const [neighborId, edgeInfo] of neighbors) {
+        console.log(`\n  Evaluating neighbor: ${neighborId} via edge ${edgeInfo.edgeId}`);
         
-        // Skip if neighbor is already a river, coast, lake, or hill
+        // Skip if neighbor is already a river
         if (this.isObstacle(neighborId)) {
           console.log(`    SKIP: Neighbor ${neighborId} is an obstacle`);
           continue;
         }
 
         const neighborElevation = this.getCellElevation(neighborId);
-        const movementCost = this.getMovementCost(current, neighborId);
-        const currentG = gScore.get(current) || 0; // Use 0 if not set (shouldn't happen)
+        const movementCost = this.getEdgeMovementCost(current, neighborId);
+        const currentG = gScore.get(current) || 0;
         const tentativeG = currentG + movementCost;
         const existingG = gScore.get(neighborId);
 
         console.log(`    Neighbor elevation: ${neighborElevation}`);
+        console.log(`    Edge height: ${edgeInfo.edgeHeight}`);
         console.log(`    Movement cost: ${movementCost}`);
         console.log(`    Current gScore: ${currentG}`);
         console.log(`    Tentative gScore: ${tentativeG} (existing: ${existingG || 'undefined'})`);
@@ -651,6 +657,8 @@ export class RiversGenerator {
     this.riverPaths = [];
     this.usedStartPoints.clear();
     this.usedEndPoints.clear();
+    this.voronoiEdgeGraph = null;
+    this.edgeHeights.clear();
   }
 
   // Set references to other generators
@@ -743,6 +751,101 @@ export class RiversGenerator {
 
     console.log(`Found ${targetCells.length} target cells on ${targetEdge} edge`);
     return targetCells;
+  }
+
+  // Build graph of Voronoi edges for pathfinding
+  buildVoronoiEdgeGraph() {
+    console.log('Building Voronoi edge graph for pathfinding...');
+    
+    const voronoiDiagram = this.voronoiGenerator.getVoronoiDiagram();
+    if (!voronoiDiagram || !voronoiDiagram.getVoronoiEdgesWithCells) {
+      console.error('Cannot get Voronoi edges with cell information');
+      return;
+    }
+
+    const voronoiEdges = voronoiDiagram.getVoronoiEdgesWithCells();
+    
+    // Build adjacency list representation
+    this.voronoiEdgeGraph = new Map();
+    this.edgeHeights.clear();
+    
+    // Initialize adjacency lists for all cells
+    this.voronoiGenerator.cells.forEach((cell, cellId) => {
+      this.voronoiEdgeGraph.set(cellId, new Map());
+    });
+    
+    // Add edges and calculate edge heights
+    voronoiEdges.forEach(edge => {
+      const { cellA, cellB, edgeId } = edge;
+      
+      // Get heights of both cells
+      const heightA = this.getCellElevation(cellA);
+      const heightB = this.getCellElevation(cellB);
+      
+      // Edge height is minimum of bordering cell heights
+      const edgeHeight = Math.min(heightA, heightB);
+      this.edgeHeights.set(edgeId, edgeHeight);
+      
+      // Add bidirectional edges in adjacency list
+      this.voronoiEdgeGraph.get(cellA).set(cellB, {
+        edgeId: edgeId,
+        edgeHeight: edgeHeight,
+        neighborHeight: heightB
+      });
+      
+      this.voronoiEdgeGraph.get(cellB).set(cellA, {
+        edgeId: edgeId,
+        edgeHeight: edgeHeight,
+        neighborHeight: heightA
+      });
+    });
+    
+    console.log(`Built Voronoi edge graph with ${voronoiEdges.length} edges`);
+  }
+
+  // Get edge-based movement cost using Voronoi edge heights
+  getEdgeMovementCost(fromCellId, toCellId) {
+    const edgeInfo = this.voronoiEdgeGraph.get(fromCellId)?.get(toCellId);
+    if (!edgeInfo) {
+      return Infinity; // No edge exists
+    }
+    
+    const fromHeight = this.getCellElevation(fromCellId);
+    const toHeight = this.getCellElevation(toCellId);
+    const edgeHeight = edgeInfo.edgeHeight;
+    
+    // Base cost
+    let cost = 1;
+    
+    // Calculate elevation change: water flows from edge height
+    const elevationChange = toHeight - edgeHeight;
+    
+    // Strongly prefer flowing downhill from the edge
+    if (elevationChange <= 0) {
+      // Flowing downhill from edge - strongly preferred
+      const downhillBonus = Math.abs(elevationChange) * 0.3;
+      cost = Math.max(0.01, 1 - downhillBonus);
+    } else {
+      // Flowing uphill from edge - penalized but passable
+      const uphillPenalty = elevationChange * 0.8;
+      cost = 1 + uphillPenalty;
+    }
+    
+    // Additional terrain modifiers
+    if (this.marshGenerator && this.marshGenerator.isMarshCell(toCellId)) {
+      cost *= 0.3; // Strong preference for marshes
+    }
+    
+    // Prefer lower edges (valleys)
+    if (edgeHeight < 20) {
+      cost *= 0.5; // Strong preference for low elevation edges
+    }
+    
+    const finalCost = Math.max(0.01, cost);
+    
+    console.log(`    Edge cost ${fromCellId} -> ${toCellId}: edgeHeight=${edgeHeight.toFixed(1)}, toHeight=${toHeight.toFixed(1)}, elevationChange=${elevationChange.toFixed(1)}, finalCost=${finalCost.toFixed(2)}`);
+    
+    return finalCost;
   }
 
   // Helper method to calculate distance between two cells

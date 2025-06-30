@@ -252,6 +252,40 @@ export class DelaunatorWrapper {
     return voronoiEdges;
   }
 
+  // Generate Voronoi edges with adjacent cell information for pathfinding
+  getVoronoiEdgesWithCells() {
+    const voronoiEdges = [];
+    const halfedges = this.delaunay.halfedges;
+    const triangles = this.delaunay.triangles;
+    
+    for (let e = 0; e < halfedges.length; e++) {
+      const opposite = halfedges[e];
+      if (opposite < 0 || opposite <= e) continue; // Skip boundary edges and avoid duplicates
+      
+      // Get the two cells that share this edge
+      const cellA = triangles[e];
+      const cellB = triangles[opposite];
+      
+      const triangleA = Math.floor(e / 3);
+      const triangleB = Math.floor(opposite / 3);
+      
+      const circumcenterA = this.getCircumcenter(this.triangles[triangleA]);
+      const circumcenterB = this.getCircumcenter(this.triangles[triangleB]);
+      
+      if (circumcenterA && circumcenterB && cellA !== cellB) {
+        voronoiEdges.push({
+          edgeStart: circumcenterA,
+          edgeEnd: circumcenterB,
+          cellA: cellA,
+          cellB: cellB,
+          edgeId: `${Math.min(cellA, cellB)}-${Math.max(cellA, cellB)}`
+        });
+      }
+    }
+    
+    return voronoiEdges;
+  }
+
   // Get the delaunator instance for advanced operations
   getDelaunator() {
     return this.delaunay;

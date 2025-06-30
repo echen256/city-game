@@ -271,13 +271,6 @@ export class VoronoiImageExporter {
         }
         this.ctx.fill();
 
-        // Draw cell border
-        if (showCellBorders) {
-          this.ctx.strokeStyle = cellStrokeColor;
-          this.ctx.lineWidth = lineWidth * 0.8;
-          this.ctx.stroke();
-        }
-
         // Draw cell ID
         if (showCellIds) {
           this.ctx.fillStyle = '#ffffff';
