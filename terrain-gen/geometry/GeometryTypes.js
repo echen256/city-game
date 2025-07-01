@@ -358,6 +358,18 @@ export class GeometryUtils {
   }
 }
 
+export const BoundaryType = {
+  North: 'north',
+  South: 'south',
+  East: 'east',
+  West: 'west',
+  NorthEast: 'northEast',
+  NorthWest: 'northWest',
+  SouthEast: 'southEast',
+  SouthWest: 'southWest',
+  None: 'none'
+}
+
 /**
  * Represents a Voronoi cell with metadata management
  */
@@ -383,6 +395,7 @@ export class VoronoiCell {
     this.area = 0;
     /** @type {number} */
     this.perimeter = 0;
+    this.boundaryType = BoundaryType.None;
   }
 
   /**

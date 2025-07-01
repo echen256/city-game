@@ -18,19 +18,11 @@ import { Point, Edge, Triangle, HalfEdge, VoronoiEdge, GeometryUtils } from '../
  * A* pathfinding for rivers using Voronoi edges
  */
 export class PathFinder {
-  /**
-   * @param {Object} voronoiGenerator - Voronoi diagram generator
-   * @param {PathfindingSettings} settings - Pathfinding settings
-   */
-  constructor(voronoiGenerator, settings) {
-    /** @type {Object} */
-    this.voronoiGenerator = voronoiGenerator;
-    /** @type {PathfindingSettings} */
-    this.settings = settings; 
+  constructor(delaunatorWrapper ) {
+    /** @type {DelaunatorWrapper} */
+    this.delaunatorWrapper = delaunatorWrapper; 
     /** @type {Set<number>} */
     this.riverCells = new Set();
-    /** @type {Map<number, Map<number, EdgeInfo>>|null} */
-    this.voronoiEdgeGraph = null; 
   }
 
   /**
@@ -39,12 +31,12 @@ export class PathFinder {
    * @param {Array<number>} targetCells - Target cell IDs
    * @returns {Array<number>} Path as array of cell IDs
    */
-  findPath(startCellId, targetCells, delaunatorWrapper) {
+  findPath(startCellId, targetCells, ) {
     console.log('A* pathfinding with typed geometry classes...');
 
-    const graph = delaunatorWrapper.voronoiAdjacentCells;
-    const circumcenters = delaunatorWrapper.delaunayCircumcenters;
-
+    const edgeWeights = this.delaunatorWrapper.voronoiVertextEdges;
+    const graph = this.delaunatorWrapper.voronoiAdjacentCells;
+    
     if (!Object.keys(graph).includes(startCellId)) {
       console.log(`ERROR: Start cell ${startCellId} not found in Voronoi cells!`);
       return [];
@@ -99,9 +91,9 @@ export class PathFinder {
       const neighbors = graph[current];
       for (const neighborId of neighbors) {
 
-        const movementCost = this.getEdgeMovementCost(current, neighborId);
+        const edgeWeight  = edgeWeights.get(`${current}-${neighborId}`).weight;
         const currentG = gScore.get(current) || 0;
-        const tentativeG = currentG + movementCost;
+        const tentativeG = currentG + edgeWeight;
         const existingG = gScore.get(neighborId);
 
         // Check if this is a better path OR if neighbor hasn't been visited yet
@@ -124,134 +116,33 @@ export class PathFinder {
 
   /**
    * Calculate heuristic distance to targets
-   * @param {number} cellId - Current cell ID
-   * @param {Array<number>} targetCells - Target cell IDs
+   * @param {number} circumcenterId - Current circumcenter ID
+   * @param {Array<number>} targetCircumcenters - Target circumcenters
    * @returns {number} Heuristic cost
    */
-  heuristic(cellId, targetCells) {
-    const cell = this.voronoiGenerator.cells.get(cellId);
-    if (!cell || !cell.site) {
+  heuristic(circumcenterId, targetCircumcenters) {
+    const circumcenter = this.delaunatorWrapper.circumcenters[circumcenterId];
+    if (!circumcenter) {
       return Infinity;
     }
-
-    const currentElevation = this.getCellElevation(cellId);
     let minCost = Infinity;
     
-    if (targetCells.length === 0) {
+    if (targetCircumcenters.length === 0) {
       return 0;
     }
     
-    for (const targetId of targetCells) {
-      const targetCell = this.voronoiGenerator.cells.get(targetId);
-      if (targetCell && targetCell.site) {
+    for (const targetCircumcenter of targetCircumcenters) {
+      if (targetCircumcenter) {
         // Calculate straight-line distance using Point methods if available
-        let distance;
-        if (cell.site.distanceTo && targetCell.site.distanceTo) {
-          distance = cell.site.distanceTo(targetCell.site);
-        } else {
-          // Fallback calculation
-          const dx = cell.site.x - targetCell.site.x;
-          const dy = (cell.site.z || cell.site.y || 0) - (targetCell.site.z || targetCell.site.y || 0);
-          distance = Math.sqrt(dx * dx + dy * dy);
-        }
-        
-        // Factor in elevation difference
-        const targetElevation = this.getCellElevation(targetId);
-        const elevationDiff = currentElevation - targetElevation;
-        
-        let elevationCost = 0;
-        if (elevationDiff < 0) {
-          elevationCost = Math.abs(elevationDiff) * 0.1;
-        } else {
-          elevationCost = -elevationDiff * 0.3;
-        }
-        
-        const totalCost = distance + elevationCost;
-        minCost = Math.min(minCost, totalCost);
+        const dx = circumcenter.x - targetCircumcenter.x;
+        const dy = (circumcenter.z || circumcenter.y || 0) - (targetCircumcenter.z || targetCircumcenter.y || 0);
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        minCost = Math.min(minCost, distance);
       }
     }
 
     return minCost === Infinity ? 100 : minCost;
   }
-
-  /**
-   * Get edge-based movement cost
-   * @param {number} fromCellId - Source cell ID
-   * @param {number} toCellId - Target cell ID
-   * @returns {number} Movement cost
-   */
-  getEdgeMovementCost(fromCellId, toCellId) {
-    const fromHeight = this.getCellElevation(fromCellId);
-    const toHeight = this.getCellElevation(toCellId);
-    
-    // Base cost
-    let cost = 1;
-    
-    // Calculate elevation change
-    const elevationChange = toHeight - fromHeight;
-    
-    // Prefer flowing downhill
-    if (elevationChange <= 0) {
-      const downhillBonus = Math.abs(elevationChange) * 0.3;
-      cost = Math.max(0.01, 1 - downhillBonus);
-    } else {
-      const uphillPenalty = elevationChange * 0.8;
-      cost = 1 + uphillPenalty;
-    }
-    
-    return Math.max(0.01, cost);
-  }
-
-  /**
-   * Get cell elevation from various sources
-   * @param {number} cellId - Cell ID
-   * @returns {number} Cell elevation
-   */
-  getCellElevation(cellId) {
-    // Try to get gradient height from cell metadata
-    const cell = this.voronoiGenerator.cells.get(cellId);
-    if (cell) {
-      const gradientHeight = cell.getMetadata('height');
-      if (gradientHeight !== undefined && gradientHeight !== null) {
-        return gradientHeight;
-      }
-    }
-
-    // Default elevation based on distance from center
-    const site = cell?.site;
-    if (site) {
-      const gridSize = this.settings.gridSize;
-      const centerX = gridSize / 2;
-      const centerY = gridSize / 2;
-      const x = site.x;
-      const y = site.z || site.y || 0;
-      
-      const distFromCenter = Math.sqrt(
-        Math.pow(x - centerX, 2) + Math.pow(y - centerY, 2)
-      );
-      const maxDist = Math.sqrt(2) * gridSize / 2;
-      return (distFromCenter / maxDist) * 30;
-    }
-
-    return 0;
-  }
-
-  /**
-   * Set river cells reference
-   * @param {Set<number>} riverCells - Set of river cell IDs
-   */
-  setRiverCells(riverCells) {
-    this.riverCells = riverCells;
-  }
-
-  /**
-   * Build Voronoi edge graph for pathfinding
-   */
-  buildVoronoiPointGraph() {
-    // Implementation can be added if needed
-    console.log('Building Voronoi point graph...');
-  }
-
   /**
    * Reconstruct path from A* search
    * @param {Map<number, number>} cameFrom - Parent map from A* search

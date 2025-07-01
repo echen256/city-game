@@ -226,6 +226,7 @@
             <div class="cell-info-line">Type: <span id="infoType">Cell</span></div>
             <div class="cell-info-line" id="vertexInfo" style="display: none;">Connected Cells: <span
                     id="connectedCells">-</span></div>
+            <div class="cell-info-line">Boundary Type: <span id="boundaryType">-</span></div>
         </div>
     </div>
 
@@ -485,9 +486,11 @@
             const cellNeighborsSpan = document.getElementById('cellNeighbors');
             const infoTypeSpan = document.getElementById('infoType');
             const vertexInfoDiv = document.getElementById('vertexInfo');
+            const boundaryTypeSpan = document.getElementById('boundaryType');
 
             // Update widget content
             cellIdSpan.textContent = cellId;
+
 
             const x = cell.site.x.toFixed(1);
             const y = (cell.site.z || cell.site.y || 0).toFixed(1);
@@ -500,7 +503,7 @@
             // Set type to Cell
             infoTypeSpan.textContent = 'Cell';
             vertexInfoDiv.style.display = 'none';
-
+            boundaryTypeSpan.textContent = cell.boundaryType;
             // Show widget
             widget.style.display = 'block';
         }
@@ -792,11 +795,7 @@
                     // Create new generators with imported settings
                     const settings = importedData.metadata.settings || getSettings();
                     voronoiGenerator = new VoronoiGenerator(mockTerrainData, settings);
-                    imageExporter = new VoronoiImageExporter(voronoiGenerator, settings);
-                    coastlineGenerator = new CoastlineGenerator(voronoiGenerator, settings);
-                    hillsGenerator = new HillsGenerator(voronoiGenerator, settings);
-                    lakesGenerator = new LakesGenerator(voronoiGenerator, settings);
-                    marshGenerator = new MarshGenerator(voronoiGenerator, settings);
+                    imageExporter = new VoronoiImageExporter(voronoiGenerator, settings); 
                     riversGenerator = new RiversGenerator(voronoiGenerator, settings);
 
                     voronoiGenerator.generateVoronoi();
@@ -1017,36 +1016,31 @@
         });
 
         document.getElementById('generateRiversBtn').addEventListener('click', function () {
-            // if (!riversGenerator) return;
+            if (!riversGenerator) return;
 
-            // try {
-            //     const numRivers = parseInt(document.getElementById('riversCount').value);
+            try {
+                const numRivers = parseInt(document.getElementById('riversCount').value);
 
-            //     // Set references to other generators for pathfinding
-            //     riversGenerator.setCoastlineGenerator(coastlineGenerator);
-            //     riversGenerator.setLakesGenerator(lakesGenerator);
-            //     riversGenerator.setMarshGenerator(marshGenerator);
-            //     riversGenerator.setHillsGenerator(hillsGenerator);
 
-            //     updateStatus(`Generating ${numRivers} rivers...`);
+                updateStatus(`Generating ${numRivers} rivers...`);
 
-            //     const riverPaths = riversGenerator.generateRivers(numRivers);
-            //     const riverStats = riversGenerator.getRiverStats();
+                const riverPaths = riversGenerator.generateRivers(numRivers);
+                const riverStats = riversGenerator.getRiverStats();
 
-            //     updateStats();
-            //     drawDiagram();
+                updateStats();
+                drawDiagram();
 
-            //     updateStatus(`Generated ${riverPaths.length} rivers (avg length: ${Math.round(riverStats.averageRiverLength)})`);
-            //     log(`Generated rivers: ${riverPaths.length} paths, ${riverStats.totalRiverCells} total cells`);
-            //     if (riverStats.longestRiver > 0) {
-            //         log(`Longest river: ${riverStats.longestRiver} cells`);
-            //     }
+                updateStatus(`Generated ${riverPaths.length} rivers (avg length: ${Math.round(riverStats.averageRiverLength)})`);
+                log(`Generated rivers: ${riverPaths.length} paths, ${riverStats.totalRiverCells} total cells`);
+                if (riverStats.longestRiver > 0) {
+                    log(`Longest river: ${riverStats.longestRiver} cells`);
+                }
 
-            // } catch (error) {
-            //     updateStatus(`Error: ${error.message}`);
-            //     log(`Error generating rivers: ${error.message}`);
-            //     console.error(error);
-            // }
+            } catch (error) {
+                updateStatus(`Error: ${error.message}`);
+                log(`Error generating rivers: ${error.message}`);
+                console.error(error);
+            }
         });
 
         document.getElementById('clearRiversBtn').addEventListener('click', function () {

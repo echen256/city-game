@@ -1,4 +1,5 @@
 import Delaunator from 'delaunator';
+import { Edge, Point, GeometryUtils } from '../GeometryTypes.js';
 
 export class DelaunatorWrapper {
   constructor(points) {
@@ -6,6 +7,7 @@ export class DelaunatorWrapper {
     this.delaunay = null;
     this.circumcenters = [];
     this.voronoiCells = new Map();
+    this.voronoiEdges = new Map();
   }
 
   triangulate() {
@@ -29,9 +31,11 @@ export class DelaunatorWrapper {
 
     // Calculate circumcenters (Delaunator doesn't provide these)
     this.calculateCircumcenters();
-    
+     
     // Generate Voronoi cells
     this.generateVoronoiCells();
+
+    this.getVoronoiEdges();
     
     return {
       voronoiCells: this.voronoiCells,
@@ -67,7 +71,7 @@ export class DelaunatorWrapper {
       const x = cx + (ey * bl - dy * cl) * d;
       const y = cy + (dx * cl - ex * bl) * d;
 
-      this.circumcenters.push({x, z: y});
+      this.circumcenters.push(new Point(x, y));
     }
   }
 
@@ -160,7 +164,7 @@ export class DelaunatorWrapper {
   // Get Voronoi edges more efficiently using halfedges
   getVoronoiEdges() {
     const {halfedges} = this.delaunay;
-    const edges = [];
+    const edges = new Map();
     
     for (let e = 0; e < halfedges.length; e++) {
       const opposite = halfedges[e];
@@ -168,15 +172,28 @@ export class DelaunatorWrapper {
       
       const t1 = Math.floor(e / 3);
       const t2 = Math.floor(opposite / 3);
-      
-      if (t2 !== -1) { // Not a hull edge
-        edges.push({
-          a: this.circumcenters[t1],
-          b: this.circumcenters[t2]
-        });
+      const p1 = this.circumcenters[t1];
+      const p2 = this.circumcenters[t2];
+      const d = p1.distanceTo(p2);
+      if (t2 !== -1) { 
+        const e1 = new Edge(
+          p1,
+          p2,
+          `${t1}-${t2}`,
+          d
+        );
+        const e2 = new Edge(
+          p2,
+          p1,
+          `${t2}-${t1}`,
+          d
+        );
+
+        edges.set(`${t1}-${t2}`, e1); 
+        edges.set(`${t2}-${t1}`, e2);
       }
     }
-    
-    return edges;
+    console.log(edges);
+    this.voronoiEdges = edges;
   }
 }

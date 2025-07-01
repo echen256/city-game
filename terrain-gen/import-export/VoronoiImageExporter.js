@@ -318,7 +318,7 @@ export class VoronoiImageExporter {
     // Draw Voronoi edges (if enabled)
     if (showVoronoiEdges && this.voronoiGenerator.delaunatorWrapper) {
       const delaunatorWrapper = this.voronoiGenerator.delaunatorWrapper;
-      const voronoiEdges = delaunatorWrapper.getVoronoiEdges();
+      const voronoiEdges = delaunatorWrapper.voronoiEdges;
       
       this.ctx.strokeStyle = voronoiColor;
       this.ctx.lineWidth = lineWidth;
@@ -328,14 +328,6 @@ export class VoronoiImageExporter {
         const startY = edge.a.z * scaleZ;
         const endX = edge.b.x * scaleX;
         const endY = edge.b.z * scaleZ;
-        
-        // // Debug logging for zero or negative coordinates
-        // if (startX <= 0 || startY <= 0 || endX <= 0 || endY <= 0) {
-        //   console.warn(`VoronoiImageExporter: Edge ${index} has zero/negative coordinates:`);
-        //   console.warn(`  Start: (${edge.a.x}, ${edge.a.z}) -> Scaled: (${startX}, ${startY})`);
-        //   console.warn(`  End: (${edge.b.x}, ${edge.b.z}) -> Scaled: (${endX}, ${endY})`);
-        //   console.warn(`  Scale factors: scaleX=${scaleX}, scaleZ=${scaleZ}`);
-        // }
         
         this.ctx.beginPath();
         this.ctx.moveTo(startX, startY);
@@ -407,7 +399,6 @@ export class VoronoiImageExporter {
         const vertexRadius = 1; // 5px radius for 10px diameter
         
         triangulationData.circumcenters.forEach(circumcenter => {
-          console.log(circumcenter, circumcenter.x < 0 || circumcenter.z < 0)
           if(circumcenter.x < 0 || circumcenter.z < 0) return;
           if(circumcenter.x > this.settings.gridSize || circumcenter.z > this.settings.gridSize) return;
           if (circumcenter) {

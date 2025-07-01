@@ -1,5 +1,5 @@
 import { DelaunatorWrapper } from './DelaunatorWrapper.js';
-import { VoronoiCell } from '../GeometryTypes.js';
+import { VoronoiCell ,BoundaryType} from '../GeometryTypes.js';
 
 /**
  * Simplified Voronoi diagram generator
@@ -256,16 +256,31 @@ export class VoronoiGenerator {
       
       result.voronoiCells.forEach((cellData, index) => {
         // Skip boundary cells
-        if (cellData.site?.isBoundary) return;
+       if (cellData.site?.isBoundary) return;
         
         const cell = new VoronoiCell(cellData.site, cellId);
         
         // Add vertices (clip to bounds)
         cellData.vertices.forEach(v => {
+          if (v.x  >= this.settings.gridSize  || v.z >= this.settings.gridSize ) {
+            console.log(v);
+          }
           cell.addVertex({
             x: Math.max(0, Math.min(this.settings.gridSize, v.x)),
-            z: Math.max(0, Math.min(this.settings.gridSize, v.z))
+            z: Math.max(0, Math.min(this.settings.gridSize, v.z)),
+
           });
+          if (cell.boundaryType === BoundaryType.None) {
+            if (v.x < 0 ) {
+              cell.boundaryType = BoundaryType.West;
+            } else if (v.x > this.settings.gridSize) {
+              cell.boundaryType = BoundaryType.East;
+            } else if (v.z < 0) {
+              cell.boundaryType = BoundaryType.North;
+            } else if (v.z > this.settings.gridSize) {
+              cell.boundaryType = BoundaryType.South;
+            }
+          }
         });
         
         // Add neighbors (excluding boundary cells)
@@ -273,7 +288,7 @@ export class VoronoiGenerator {
           const neighbor = result.voronoiCells.get(neighborIndex);
           if (neighbor && !neighbor.site?.isBoundary) {
             cell.addNeighbor(neighborIndex);
-          }
+          } 
         });
         
         cell.calculateArea();
@@ -323,20 +338,20 @@ export class VoronoiGenerator {
         let closestCell = null;
         
         // Find closest cell
-        this.cells.forEach(cell => {
-          const dx = x - cell.site.x;
-          const dz = z - cell.site.z;
-          const dist = dx * dx + dz * dz; // No need for sqrt
+        // this.delaunatorWrapper.voronoiCells.forEach(cell => {
+        //   const dx = x - cell.site.x;
+        //   const dz = z - cell.site.z;
+        //   const dist = dx * dx + dz * dz; // No need for sqrt
           
-          if (dist < minDist) {
-            minDist = dist;
-            closestCell = cell;
-          }
-        });
+        //   if (dist < minDist) {
+        //     minDist = dist;
+        //     closestCell = cell;
+        //   }
+        // });
         
-        if (closestCell) {
-          closestCell.affectedTiles.push({ x, z });
-        }
+        // if (closestCell) {
+        //   closestCell.affectedTiles.push({ x, z });
+        // }
       }
     }
   }
