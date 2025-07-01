@@ -357,3 +357,113 @@ export class GeometryUtils {
     return new Point(x, yz, isBoundary);
   }
 }
+
+/**
+ * Represents a Voronoi cell with metadata management
+ */
+export class VoronoiCell {
+  /**
+   * @param {Point|IPoint} site - The site point for this cell
+   * @param {number} cellId - Unique cell identifier
+   */
+  constructor(site, cellId) {
+    /** @type {Point|IPoint} */
+    this.site = site;
+    /** @type {number} */
+    this.cellId = cellId;
+    /** @type {Array<Point|IPoint>} */
+    this.vertices = [];
+    /** @type {Set<number>} */
+    this.neighbors = new Set();
+    /** @type {Array<{x: number, z: number}>} */
+    this.affectedTiles = [];
+    /** @type {Object<string, any>} */
+    this.metadata = {};
+    /** @type {number} */
+    this.area = 0;
+    /** @type {number} */
+    this.perimeter = 0;
+  }
+
+  /**
+   * Add a vertex to this cell
+   * @param {Point|IPoint} vertex - Vertex to add
+   */
+  addVertex(vertex) {
+    this.vertices.push(vertex);
+  }
+
+  /**
+   * Add a neighbor cell
+   * @param {number} neighborId - Neighbor cell ID
+   */
+  addNeighbor(neighborId) {
+    this.neighbors.add(neighborId);
+  }
+
+  /**
+   * Set metadata value
+   * @param {string} key - Metadata key
+   * @param {any} value - Metadata value
+   */
+  setMetadata(key, value) {
+    this.metadata[key] = value;
+  }
+
+  /**
+   * Get metadata value
+   * @param {string} key - Metadata key
+   * @returns {any} Metadata value
+   */
+  getMetadata(key) {
+    return this.metadata[key];
+  }
+
+  /**
+   * Calculate cell area using shoelace formula
+   */
+  calculateArea() {
+    if (this.vertices.length < 3) {
+      this.area = 0;
+      return;
+    }
+
+    let area = 0;
+    for (let i = 0; i < this.vertices.length; i++) {
+      const j = (i + 1) % this.vertices.length;
+      const vi = this.vertices[i];
+      const vj = this.vertices[j];
+      area += vi.x * (vj.z || vj.y || 0) - vj.x * (vi.z || vi.y || 0);
+    }
+    this.area = Math.abs(area) / 2;
+  }
+
+  /**
+   * Calculate cell perimeter
+   */
+  calculatePerimeter() {
+    if (this.vertices.length < 2) {
+      this.perimeter = 0;
+      return;
+    }
+
+    let perimeter = 0;
+    for (let i = 0; i < this.vertices.length; i++) {
+      const j = (i + 1) % this.vertices.length;
+      const vi = this.vertices[i];
+      const vj = this.vertices[j];
+      const dx = vj.x - vi.x;
+      const dz = (vj.z || vj.y || 0) - (vi.z || vi.y || 0);
+      perimeter += Math.sqrt(dx * dx + dz * dz);
+    }
+    this.perimeter = perimeter;
+  }
+
+  /**
+   * Convert to string representation
+   * @returns {string} String representation
+   */
+  toString() {
+    return `VoronoiCell(id: ${this.cellId}, site: ${this.site.toString()}, vertices: ${this.vertices.length})`;
+  }
+}

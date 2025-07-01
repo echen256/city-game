@@ -1,0 +1,182 @@
+import Delaunator from 'delaunator';
+
+export class DelaunatorWrapper {
+  constructor(points) {
+    this.points = points;
+    this.delaunay = null;
+    this.circumcenters = [];
+    this.voronoiCells = new Map();
+  }
+
+  triangulate() {
+    if (this.points.length < 3) {
+      console.warn('Not enough points for triangulation');
+      return { voronoiCells: new Map() };
+    }
+
+    // Convert to flat array for Delaunator
+    const coords = [];
+    for (const point of this.points) {
+      coords.push(point.x, point.z || point.y || 0);
+    }
+
+    try {
+      this.delaunay = new Delaunator(coords);
+    } catch (error) {
+      console.error('Triangulation error:', error);
+      return { voronoiCells: new Map() };
+    }
+
+    // Calculate circumcenters (Delaunator doesn't provide these)
+    this.calculateCircumcenters();
+    
+    // Generate Voronoi cells
+    this.generateVoronoiCells();
+    
+    return {
+      voronoiCells: this.voronoiCells,
+      delaunay: this.delaunay
+    };
+  }
+
+  calculateCircumcenters() {
+    const {triangles, coords} = this.delaunay;
+    this.circumcenters = [];
+
+    for (let t = 0; t < triangles.length; t += 3) {
+      const i = triangles[t] * 2;
+      const j = triangles[t + 1] * 2;
+      const k = triangles[t + 2] * 2;
+
+      const ax = coords[i];
+      const ay = coords[i + 1];
+      const bx = coords[j];
+      const by = coords[j + 1];
+      const cx = coords[k];
+      const cy = coords[k + 1];
+
+      const dx = ax - cx;
+      const dy = ay - cy;
+      const ex = bx - cx;
+      const ey = by - cy;
+
+      const bl = dx * dx + dy * dy;
+      const cl = ex * ex + ey * ey;
+      const d = 0.5 / (dx * ey - dy * ex);
+
+      const x = cx + (ey * bl - dy * cl) * d;
+      const y = cy + (dx * cl - ex * bl) * d;
+
+      this.circumcenters.push({x, z: y});
+    }
+  }
+
+  generateVoronoiCells() {
+    const {triangles, halfedges} = this.delaunay;
+    
+    // Initialize cells
+    for (let i = 0; i < this.points.length; i++) {
+      this.voronoiCells.set(i, {
+        site: this.points[i],
+        siteIndex: i,
+        vertices: [],
+        neighbors: new Set()
+      });
+    }
+
+    // For each point, find surrounding triangles to get Voronoi vertices
+    for (let p = 0; p < this.points.length; p++) {
+      const circum = this.getVoronoiCellVertices(p);
+      const cell = this.voronoiCells.get(p);
+      
+      if (circum.length > 0) {
+        // Sort vertices counterclockwise
+        cell.vertices = this.sortCounterclockwise(cell.site, circum);
+      }
+      
+      // Find neighbors using edges
+      this.findNeighborsForPoint(p, cell);
+    }
+  }
+
+  getVoronoiCellVertices(pointIndex) {
+    const {triangles, halfedges} = this.delaunay;
+    const vertices = [];
+    const seen = new Set();
+
+    // Find a triangle that has this point
+    let incoming = -1;
+    for (let e = 0; e < triangles.length; e++) {
+      if (triangles[e] === pointIndex) {
+        incoming = e;
+        break;
+      }
+    }
+
+    if (incoming === -1) return vertices;
+
+    // Walk around the point to find all triangles
+    const start = incoming;
+    do {
+      const t = Math.floor(incoming / 3);
+      if (!seen.has(t)) {
+        seen.add(t);
+        vertices.push(this.circumcenters[t]);
+      }
+
+      const outgoing = incoming % 3 === 2 ? incoming - 2 : incoming + 1;
+      incoming = halfedges[outgoing];
+    } while (incoming !== -1 && incoming !== start);
+
+    return vertices;
+  }
+
+  findNeighborsForPoint(pointIndex, cell) {
+    const {triangles, halfedges} = this.delaunay;
+    
+    // Find all edges connected to this point
+    for (let e = 0; e < triangles.length; e++) {
+      if (triangles[e] === pointIndex) {
+        // Check the other two vertices of the triangle
+        const t = Math.floor(e / 3) * 3;
+        for (let i = 0; i < 3; i++) {
+          const neighbor = triangles[t + i];
+          if (neighbor !== pointIndex) {
+            cell.neighbors.add(neighbor);
+          }
+        }
+      }
+    }
+  }
+
+  sortCounterclockwise(center, vertices) {
+    return vertices.sort((a, b) => {
+      const angleA = Math.atan2(a.z - center.z, a.x - center.x);
+      const angleB = Math.atan2(b.z - center.z, b.x - center.x);
+      return angleA - angleB;
+    });
+  }
+
+  // Get Voronoi edges more efficiently using halfedges
+  getVoronoiEdges() {
+    const {halfedges} = this.delaunay;
+    const edges = [];
+    
+    for (let e = 0; e < halfedges.length; e++) {
+      const opposite = halfedges[e];
+      if (opposite < e) continue; // Avoid duplicates
+      
+      const t1 = Math.floor(e / 3);
+      const t2 = Math.floor(opposite / 3);
+      
+      if (t2 !== -1) { // Not a hull edge
+        edges.push({
+          a: this.circumcenters[t1],
+          b: this.circumcenters[t2]
+        });
+      }
+    }
+    
+    return edges;
+  }
+}

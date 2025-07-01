@@ -8,8 +8,8 @@
  * @property {string} [siteColor='#ff0000'] - Site point color
  * @property {string} [triangulationColor='#888888'] - Triangulation line color
  * @property {string} [voronoiColor='#00ff88'] - Voronoi edge color
- * @property {string} [coastalColor='#0088ff'] - Coastal cell color
- * @property {string} [marshColor='#2d5016'] - Marsh cell color
+ * @property {string} [coastalColor='#0088ff'] - Coastal cell color (legacy - not used)
+ * @property {string} [marshColor='#2d5016'] - Marsh cell color (legacy - not used)
  * @property {string} [riverColor='#4da6ff'] - River cell color
  * @property {boolean} [showSites=true] - Whether to show site points
  * @property {boolean} [showCellBorders=true] - Whether to show cell borders
@@ -17,10 +17,10 @@
  * @property {boolean} [showTriangulation=true] - Whether to show triangulation
  * @property {boolean} [showVoronoiEdges=true] - Whether to show Voronoi edges
  * @property {boolean} [showVertices=false] - Whether to show Voronoi vertices
- * @property {boolean} [showCoastalCells=true] - Whether to show coastal cells
- * @property {boolean} [showHeightGradient=true] - Whether to show height gradient
- * @property {boolean} [showLakes=true] - Whether to show lakes
- * @property {boolean} [showMarshes=true] - Whether to show marshes
+ * @property {boolean} [showCoastalCells=true] - Whether to show coastal cells (legacy - not used)
+ * @property {boolean} [showHeightGradient=true] - Whether to show height gradient (legacy - not used)
+ * @property {boolean} [showLakes=true] - Whether to show lakes (legacy - not used)
+ * @property {boolean} [showMarshes=true] - Whether to show marshes (legacy - not used)
  * @property {boolean} [showRivers=true] - Whether to show rivers
  * @property {number} [lineWidth=1] - Line width for edges
  * @property {number} [siteRadius=3] - Radius for site points
@@ -70,45 +70,24 @@ export class VoronoiImageExporter {
     this.canvas = null;
     /** @type {CanvasRenderingContext2D|null} */
     this.ctx = null;
-    /** @type {Object|null} */
-    this.coastlineGenerator = null;
-    /** @type {Object|null} */
-    this.hillsGenerator = null;
-    /** @type {Object|null} */
-    this.lakesGenerator = null;
-    /** @type {Object|null} */
-    this.marshGenerator = null;
+    // Removed generator references - no longer using coastline, hills, lakes, marshes
+    // /** @type {Object|null} */
+    // this.coastlineGenerator = null;
+    // /** @type {Object|null} */
+    // this.hillsGenerator = null;
+    // /** @type {Object|null} */
+    // this.lakesGenerator = null;
+    // /** @type {Object|null} */
+    // this.marshGenerator = null;
     /** @type {Object|null} */
     this.riversGenerator = null;
   }
 
-  /**
-   * @param {Object} coastlineGenerator - Coastline generator instance
-   */
-  setCoastlineGenerator(coastlineGenerator) {
-    this.coastlineGenerator = coastlineGenerator;
-  }
-
-  /**
-   * @param {Object} hillsGenerator - Hills generator instance
-   */
-  setHillsGenerator(hillsGenerator) {
-    this.hillsGenerator = hillsGenerator;
-  }
-
-  /**
-   * @param {Object} lakesGenerator - Lakes generator instance
-   */
-  setLakesGenerator(lakesGenerator) {
-    this.lakesGenerator = lakesGenerator;
-  }
-
-  /**
-   * @param {Object} marshGenerator - Marsh generator instance
-   */
-  setMarshGenerator(marshGenerator) {
-    this.marshGenerator = marshGenerator;
-  }
+  // Generator setter methods removed - no longer using these generators
+  // setCoastlineGenerator(coastlineGenerator) { this.coastlineGenerator = coastlineGenerator; }
+  // setHillsGenerator(hillsGenerator) { this.hillsGenerator = hillsGenerator; }
+  // setLakesGenerator(lakesGenerator) { this.lakesGenerator = lakesGenerator; }
+  // setMarshGenerator(marshGenerator) { this.marshGenerator = marshGenerator; }
 
   /**
    * @param {Object} riversGenerator - Rivers generator instance
@@ -313,29 +292,32 @@ export class VoronoiImageExporter {
     const scaleZ = height / this.settings.gridSize;
 
     // Draw triangulation first (if enabled)
-    if (showTriangulation && triangulationData) {
+    if (showTriangulation && triangulationData && triangulationData.delaunay) {
       this.ctx.strokeStyle = triangulationColor;
       this.ctx.lineWidth = lineWidth * 0.5;
       this.ctx.setLineDash([2, 2]); // Dashed lines for triangulation
       
-      if (triangulationData.triangles) {
-        triangulationData.triangles.forEach(triangle => {
-          this.ctx.beginPath();
-          this.ctx.moveTo(triangle.a.x * scaleX, (triangle.a.z || triangle.a.y || 0) * scaleZ);
-          this.ctx.lineTo(triangle.b.x * scaleX, (triangle.b.z || triangle.b.y || 0) * scaleZ);
-          this.ctx.lineTo(triangle.c.x * scaleX, (triangle.c.z || triangle.c.y || 0) * scaleZ);
-          this.ctx.closePath();
-          this.ctx.stroke();
-        });
+      const { triangles, coords } = triangulationData.delaunay;
+      
+      for (let i = 0; i < triangles.length; i += 3) {
+        const aIndex = triangles[i] * 2;
+        const bIndex = triangles[i + 1] * 2;
+        const cIndex = triangles[i + 2] * 2;
+        
+        this.ctx.beginPath();
+        this.ctx.moveTo(coords[aIndex] * scaleX, coords[aIndex + 1] * scaleZ);
+        this.ctx.lineTo(coords[bIndex] * scaleX, coords[bIndex + 1] * scaleZ);
+        this.ctx.lineTo(coords[cIndex] * scaleX, coords[cIndex + 1] * scaleZ);
+        this.ctx.closePath();
+        this.ctx.stroke();
       }
       
       this.ctx.setLineDash([]); // Reset line dash
     }
 
     // Draw Voronoi edges (if enabled)
-    if (showVoronoiEdges && this.voronoiGenerator.getVoronoiDiagram()) {
-      const delaunatorWrapper = this.voronoiGenerator.getVoronoiDiagram();
-      console.log(delaunatorWrapper)
+    if (showVoronoiEdges && this.voronoiGenerator.delaunatorWrapper) {
+      const delaunatorWrapper = this.voronoiGenerator.delaunatorWrapper;
       const voronoiEdges = delaunatorWrapper.getVoronoiEdges();
       
       this.ctx.strokeStyle = voronoiColor;
@@ -374,36 +356,13 @@ export class VoronoiImageExporter {
         }
         this.ctx.closePath();
 
-        // Determine cell color based on features (priority order: lakes > rivers > coastal > marshes > height > default)
-        const isLake = this.lakesGenerator && this.lakesGenerator.isLakeCell(cellId);
+        // Determine cell color based on features (simplified - only rivers and default)
         const isRiver = this.riversGenerator && this.riversGenerator.isRiverCell(cellId);
-        const isCoastal = this.coastlineGenerator && this.coastlineGenerator.isCoastal(cellId);
-        const isMarsh = this.marshGenerator && this.marshGenerator.isMarshCell(cellId);
-        const hasHeight = this.hillsGenerator && this.hillsGenerator.getCellHeight(cellId) > 0;
         
-        if (isLake && showLakes) {
-          // Lake cells - blue with depth variation (highest priority)
-          const depth = this.lakesGenerator.getLakeDepth(cellId);
-          const lakeColor = this.getLakeColor(depth);
-          this.ctx.fillStyle = lakeColor;
-        } else if (isRiver && showRivers) {
-          // River cells - light blue (second priority)
+        if (isRiver && showRivers) {
+          // River cells - light blue
           const riverColorWithAlpha = this.getRiverColor(riverColor);
           this.ctx.fillStyle = riverColorWithAlpha;
-        } else if (isCoastal && showCoastalCells) {
-          // Coastal cells - blue with depth variation
-          const depth = this.coastlineGenerator.getCoastalDepth(cellId);
-          const coastalColorWithDepth = this.getCoastalColorByDepth(coastalColor, depth);
-          this.ctx.fillStyle = coastalColorWithDepth;
-        } else if (isMarsh && showMarshes) {
-          // Marsh cells - dark green
-          const marshColorWithAlpha = this.getMarshColor(marshColor);
-          this.ctx.fillStyle = marshColorWithAlpha;
-        } else if (hasHeight && showHeightGradient) {
-          // Height-based cells - gray gradient
-          const height = this.hillsGenerator.getCellHeight(cellId);
-          const heightColor = this.getHeightColor(height);
-          this.ctx.fillStyle = heightColor;
         } else {
           // Default cells - use standard color scheme
           const colorIndex = cellId % cellFillColors.length;
@@ -443,11 +402,14 @@ export class VoronoiImageExporter {
 
     // Draw Voronoi vertices (circumcenters) as red dots
     if (showVertices && triangulationData) {
-      if (triangulationData.delaunayCircumcenters) {
+      if (triangulationData.circumcenters) {
         this.ctx.fillStyle = '#ff0000'; // Red color for vertices
         const vertexRadius = 1; // 5px radius for 10px diameter
         
-        triangulationData.delaunayCircumcenters.forEach(circumcenter => {
+        triangulationData.circumcenters.forEach(circumcenter => {
+          console.log(circumcenter, circumcenter.x < 0 || circumcenter.z < 0)
+          if(circumcenter.x < 0 || circumcenter.z < 0) return;
+          if(circumcenter.x > this.settings.gridSize || circumcenter.z > this.settings.gridSize) return;
           if (circumcenter) {
             this.ctx.beginPath();
             this.ctx.arc(
@@ -762,7 +724,7 @@ export class VoronoiImageExporter {
       const canvas = this.generateDiagramImage(
         tempGenerator.getCells(),
         tempGenerator.sites,
-        tempGenerator.getTriangulation(),
+        tempGenerator.delaunatorWrapper,
         {
           width: 800,
           height: 800,
