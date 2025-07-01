@@ -89,24 +89,25 @@ export class RiversGenerator {
   generateSingleRiver(riverIndex) {
     console.log(`\n=== GENERATING SINGLE RIVER ${riverIndex + 1} ===`);
     
-    // Step 1: Select a random edge as starting point (non-coastal edge)
-    let startPoint =  419
-    let endPoint = undefined
+    // Step 1: Select random start point on north edge
+    let startPoint = this.selectNorthEdgePoint();
     if (!startPoint) {
       console.log(`FAILURE: No valid start point found for river ${riverIndex + 1}`);
       return [];
     }
 
-    let targets = [548]
-
-
-    // Mark end point immediately (choose closest valid target)
-    if (targets.length > 0) {
-      endPoint = targets[0]
+    // Step 2: Select random end point on south edge
+    let endPoint = this.selectSouthEdgePoint();
+    if (!endPoint) {
+      console.log(`FAILURE: No valid end point found for river ${riverIndex + 1}`);
+      return [];
     }
 
-    // Step 3: Use A* pathfinding to find path to nearest water target
-    console.log(`Starting A* pathfinding from ${startPoint} to ${targets.length} targets...`);
+    console.log(`Selected start point: ${startPoint} (north edge)`);
+    console.log(`Selected end point: ${endPoint} (south edge)`);
+
+    // Step 3: Use A* pathfinding to find path from north to south edge
+    console.log(`Starting A* pathfinding from ${startPoint} to ${endPoint}...`);
     const path = this.pathfinder.findPath(startPoint, endPoint,
        this.voronoiGenerator.delaunatorWrapper.voronoiVertexVertexMap,
         this.voronoiGenerator.delaunatorWrapper.voronoiEdges,
@@ -116,75 +117,12 @@ export class RiversGenerator {
     if (path.length > 0) {   
       console.log(`SUCCESS: River ${riverIndex + 1} generated with ${path.length} cells`);
     } else {
-      console.log(`FAILURE: No path found from elevation ${Math.round(startElevation)}`);
+      console.log(`FAILURE: No path found from start point ${startPoint} to end point ${endPoint}`);
     }
 
     console.log(`=== SINGLE RIVER ${riverIndex + 1} COMPLETE ===\n`);
     return path;
   }
-
-  /**
-   * Select a start point on the edge of the grid
-   * @returns {number|null} Selected cell ID or null if none found
-   */
-  selectEdgeStartPoint() {
-    console.log(`=== SELECTING EDGE START POINT ===`);
-    const gridSize = this.settings.gridSize;
-    const edgeTolerance = 100; // Distance from edge to consider "edge cell"
-    const edgeCells = [];
-
-    console.log(`Grid size: ${gridSize}, Edge tolerance: ${edgeTolerance}`);
-
-    this.voronoiGenerator.cells.forEach((cell, cellId) => {
-      const site = cell.site;
-      if (!site) {
-        console.log(`Skipping cell ${cellId} - no site`);
-        return;
-      }
-
-      const x = site.x;
-      const y = site.z || site.y || 0;
-
-      // Check if cell is near any edge
-      const isNearEdge = 
-        x <= edgeTolerance ||                    // West edge
-        x >= (gridSize - edgeTolerance) ||       // East edge
-        y <= edgeTolerance ||                    // North edge
-        y >= (gridSize - edgeTolerance);         // South edge
-      
-      if (isNearEdge) {
-        // Check if this cell is too close to previously used start points
-        if (this.isTooCloseToUsedPoints(cellId, this.usedStartPoints)) {
-          console.log(`Skipping edge cell ${cellId} at (${x.toFixed(1)}, ${y.toFixed(1)}) - too close to existing start point`);
-          return;
-        }
-        
-        console.log(`Found edge cell ${cellId} at (${x.toFixed(1)}, ${y.toFixed(1)})`);
-        edgeCells.push(cellId);
-      }
-    });
-
-    console.log(`Total edge cells found: ${edgeCells.length}`);
-    console.log(`Edge cells: [${edgeCells}]`);
-
-    if (edgeCells.length === 0) {
-      console.log(`ERROR: No valid edge cells found!`);
-      return null;
-    }
-
-    // Use seeded random for reproducibility
-    const seed = this.settings.voronoi?.seed || Date.now();
-    this.seedRandom(seed + 2000); // Offset seed for rivers
-    
-    const randomIndex = Math.floor(this.random() * edgeCells.length);
-    const selectedCell = edgeCells[randomIndex];
-    
-    console.log(`Selected start cell: ${selectedCell} (random index: ${randomIndex})`);
-    console.log(`=== EDGE START POINT SELECTED ===`);
-    
-    return selectedCell;
-  }
-
 
   /**
    * Get cell elevation from various sources
@@ -452,5 +390,79 @@ export class RiversGenerator {
     riversFeature.setMetadata('stats', this.getRiverStats());
     
     return riversFeature;
+  }
+
+  /**
+   * Select a random vertex point on the north edge of the map
+   * @returns {number|null} Vertex index on north edge or null if none found
+   */
+  selectNorthEdgePoint() {
+    console.log('=== SELECTING NORTH EDGE START POINT ===');
+    const gridSize = this.voronoiGenerator.settings.gridSize;
+    const edgeTolerance = 50; // Distance from edge to consider "edge vertex"
+    const northEdgeVertices = [];
+
+    // Check circumcenters (Voronoi vertices) for those near the north edge
+    this.voronoiGenerator.delaunatorWrapper.circumcenters.forEach((vertex, index) => {
+      if (!vertex) return;
+      
+      const x = vertex.x;
+      const z = vertex.z || vertex.y || 0;
+      
+      // Check if vertex is near north edge (z coordinate close to 0)
+      if (z <= edgeTolerance && x >= edgeTolerance && x <= (gridSize - edgeTolerance)) {
+        northEdgeVertices.push(index);
+        console.log(`Found north edge vertex ${index} at (${x.toFixed(1)}, ${z.toFixed(1)})`);
+      }
+    });
+
+    if (northEdgeVertices.length === 0) {
+      console.log('FAILURE: No vertices found on north edge');
+      return null;
+    }
+
+    // Select random vertex from north edge
+    const selectedIndex = Math.floor(this.random() * northEdgeVertices.length);
+    const selectedVertex = northEdgeVertices[selectedIndex];
+    
+    console.log(`SUCCESS: Selected north edge vertex ${selectedVertex} (${selectedIndex + 1}/${northEdgeVertices.length})`);
+    return selectedVertex;
+  }
+
+  /**
+   * Select a random vertex point on the south edge of the map
+   * @returns {number|null} Vertex index on south edge or null if none found
+   */
+  selectSouthEdgePoint() {
+    console.log('=== SELECTING SOUTH EDGE END POINT ===');
+    const gridSize = this.voronoiGenerator.settings.gridSize;
+    const edgeTolerance = 50; // Distance from edge to consider "edge vertex"
+    const southEdgeVertices = [];
+
+    // Check circumcenters (Voronoi vertices) for those near the south edge
+    this.voronoiGenerator.delaunatorWrapper.circumcenters.forEach((vertex, index) => {
+      if (!vertex) return;
+      
+      const x = vertex.x;
+      const z = vertex.z || vertex.y || 0;
+      
+      // Check if vertex is near south edge (z coordinate close to gridSize)
+      if (z >= (gridSize - edgeTolerance) && x >= edgeTolerance && x <= (gridSize - edgeTolerance)) {
+        southEdgeVertices.push(index);
+        console.log(`Found south edge vertex ${index} at (${x.toFixed(1)}, ${z.toFixed(1)})`);
+      }
+    });
+
+    if (southEdgeVertices.length === 0) {
+      console.log('FAILURE: No vertices found on south edge');
+      return null;
+    }
+
+    // Select random vertex from south edge
+    const selectedIndex = Math.floor(this.random() * southEdgeVertices.length);
+    const selectedVertex = southEdgeVertices[selectedIndex];
+    
+    console.log(`SUCCESS: Selected south edge vertex ${selectedVertex} (${selectedIndex + 1}/${southEdgeVertices.length})`);
+    return selectedVertex;
   }
 }
