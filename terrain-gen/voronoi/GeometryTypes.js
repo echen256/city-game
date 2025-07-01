@@ -64,14 +64,17 @@ export class Edge {
    * @param {Point|IPoint} pointA - First point
    * @param {Point|IPoint} pointB - Second point
    * @param {string} [id] - Optional edge identifier
+   * @param {number} [weight] - Optional edge weight
    */
-  constructor(pointA, pointB, id = null) {
+  constructor(pointA, pointB, id = null, weight = 1.0) {
     /** @type {Point|IPoint} */
     this.a = pointA;
     /** @type {Point|IPoint} */
     this.b = pointB;
     /** @type {string|null} */
     this.id = id || `${Math.min(pointA.x, pointB.x)}-${Math.min(pointA.z || pointA.y || 0, pointB.z || pointB.y || 0)}`;
+    /** @type {number} */
+    this.weight = weight;
   }
 
   /**

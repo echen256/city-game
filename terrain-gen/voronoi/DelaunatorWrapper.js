@@ -44,20 +44,53 @@ export class DelaunatorWrapper {
     this.points = points;
     /** @type {Delaunator|null} */
     this.delaunay = null;
-    /** @type {Array<Triangle>} */
-    this.triangles = [];
     /** @type {Array<Edge>} */
     this.edges = [];
     /** @type {Map<number, VoronoiCellData>} */
     this.voronoiCells = new Map();
-    /** @type {Map<number, Set<number>>} */
-    this.voronoiAdjacentCells = new Map();
-    /** @type {Array<Point>} */
-    this.delaunayCircumcenters = [];
     /** @type {Set<number>|null} */
     this.validCellIndices = null;
     /** @type {Map<number, number>|null} */
     this.indexMapping = null;
+
+    /** @type {Map<string, Edge>} */
+    this.voronoiVertextEdges = new Map()
+    /** @type {Array<Point>} */
+    this.delaunayCircumcenters = [];
+    /** @type {Map<number, Set<number>>} */
+    this.voronoiAdjacentCells = new Map();
+    /** @type {Array<Triangle>} */
+    this.triangles = [];
+  }
+
+  restoreFromJson(json){
+    this.points = json.points;
+    this.triangulate()
+    this.edges = json.edges;
+    this.voronoiCells = json.voronoiCells;
+    this.validCellIndices = json.validCellIndices;
+    this.indexMapping = json.indexMapping;
+    this.voronoiAdjacentCells = json.voronoiAdjacentCells;
+    this.delaunayCircumcenters = json.delaunayCircumcenters;
+    this.voronoiCells = json.voronoiCells;
+    this.voronoiVertextEdges = json.voronoiVertextEdges;
+  }
+
+  constructVoronoiEdgeGraph(){
+    for (const vertext of this.voronoiAdjacentCells){
+      for (const neighbor of vertext){
+        
+        const circumcenterA = this.getCircumcenter(this.triangles[vertext]);
+        const circumcenterB = this.getCircumcenter(this.triangles[neighbor]);
+
+        const distance = circumcenterA.distance(circumcenterB);
+
+        const e1 = new Edge(vertext, neighbor, null, distance);
+        const e2 = new Edge(neighbor, vertext, null, distance);
+        this.voronoiVertextEdges.set(e1.key, e1);
+        this.voronoiVertextEdges.set(e2.key, e2);
+      }
+    }
   }
 
   /**
@@ -240,6 +273,8 @@ export class DelaunatorWrapper {
       // Find neighbors using delaunator's halfedge structure
       this.findCellNeighbors(pointIndex, cell);
     }
+    this.getVoronoiEdges()
+    this.constructVoronoiEdgeGraph();
   }
 
   /**

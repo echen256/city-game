@@ -1,5 +1,5 @@
 import { Point, Edge, Triangle, HalfEdge, VoronoiEdge, GeometryUtils } from '../voronoi/GeometryTypes.js';
-import { RiverPathfinder } from './RiverPathfinder.js';
+import { PathFinder } from './PathFinder.js';
 
 /**
  * @typedef {Object} RiverSettings
@@ -58,8 +58,8 @@ export class RiversGenerator {
     /** @type {number} */
     this._seed = undefined;
     
-    /** @type {RiverPathfinder} */
-    this.pathfinder = new RiverPathfinder(voronoiGenerator, settings);
+    /** @type {PathFinder} */
+    this.pathfinder = new PathFinder(voronoiGenerator, settings);
   }
 
   /**
