@@ -87,9 +87,19 @@ export class PathFinder {
       }
 
       const neighbors = vertexMap[current];
-      for (const neighborId of neighbors) {
+      console.log(current);
+      console.log(neighbors);
+      for (const neighbor of neighbors) {
+        const edgeId = `${current}-${neighbor}`;
+        console.log(edgeId);
+        const edge = edgeMap.get(edgeId);
+        if (!edge) {
+          console.log(`ERROR: Edge ${edgeId} not found in edge map!`);
+          continue;
+        } 
+        const edgeWeight  = edge.weight;
+        const neighborId = neighbor;
 
-        const edgeWeight  = edgeMap.get(`${current}-${neighborId}`).weight;
         const currentG = gScore.get(current) || 0;
         const tentativeG = currentG + edgeWeight;
         const existingG = gScore.get(neighborId);

@@ -527,12 +527,13 @@
 
             // Find connected cells (cells that share this vertex)
             const triangulationData = voronoiGenerator.delaunatorWrapper;
-            const connectedCells = [...triangulationData.voronoiVertexMap[vertexIndex]];
+            const connectedCells = [...triangulationData.voronoiCellVertexMap[vertexIndex]];
             cellNeighborsSpan.textContent = `[${connectedCells.join(', ')}]`;
 
             // Set type to Vertex and show connected cells info
             infoTypeSpan.textContent = 'Vertex';
-            connectedCellsSpan.textContent = `[${connectedCells.join(', ')}]`;
+            const connectedVertices = [...triangulationData.voronoiVertexVertexMap[vertexIndex]];
+            connectedCellsSpan.textContent = `[${connectedVertices.join(', ')}]`;
             vertexInfoDiv.style.display = 'block';
 
             // Show widget
@@ -606,7 +607,7 @@
             // Set new selection
             selectedVertexIndex = vertexIndex;
 
-            const connectedVertices = voronoiGenerator.findConnectedVertices(vertexIndex);
+            const connectedVertices = voronoiGenerator.delaunatorWrapper.voronoiVertexVertexMap[vertexIndex];
 
             // Get vertex container for finding vertex elements
             const vertexContainer = document.getElementById('vertexHoverElements');

@@ -111,46 +111,12 @@ export class RiversGenerator {
     // Step 3: Use A* pathfinding to find path to nearest water target
     console.log(`Starting A* pathfinding from ${startPoint} to ${targets.length} targets...`);
     const path = this.pathfinder.findPath(startPoint, endPoint,
-       this.voronoiGenerator.delaunatorWrapper.voronoiVertexMap,
+       this.voronoiGenerator.delaunatorWrapper.voronoiVertexVertexMap,
         this.voronoiGenerator.delaunatorWrapper.voronoiEdges,
         this.voronoiGenerator.delaunatorWrapper.circumcenters);
     console.log(`A* pathfinding result: ${path.length > 0 ? 'SUCCESS' : 'FAILED'}`);
     
-    if (path.length > 0) {
-      // Analyze elevation profile of the path
-      const elevations = path.map(cellId => this.getCellElevation(cellId));
-      const startElev = elevations[0];
-      const endElev = elevations[elevations.length - 1];
-      const maxElev = Math.max(...elevations);
-      const minElev = Math.min(...elevations);
-      
-      console.log(`River ${riverIndex + 1}: Path found - ${path.length} cells`);
-      console.log(`  Elevation: ${Math.round(startElev)} -> ${Math.round(endElev)} (Δ${Math.round(endElev - startElev)})`);
-      console.log(`  Range: ${Math.round(minElev)} to ${Math.round(maxElev)}`);
-      
-      // Check for uphill segments
-      let uphillSegments = 0;
-      for (let i = 1; i < elevations.length; i++) {
-        if (elevations[i] > elevations[i - 1]) {
-          uphillSegments++;
-        }
-      }
-      if (uphillSegments > 0) {
-        console.log(`  Warning: ${uphillSegments} uphill segments found`);
-      }
-
-      // Mark all cells in path as river cells
-      path.forEach((cellId, index) => {
-        const cell = this.voronoiGenerator.cells.get(cellId);
-        if (cell) {
-          this.riverCells.add(cellId);
-          cell.setMetadata('river', true);
-          cell.setMetadata('riverIndex', riverIndex);
-          cell.setMetadata('riverPosition', index);
-          cell.setMetadata('riverElevation', elevations[index]);
-        }
-      });
-      
+    if (path.length > 0) {   
       console.log(`SUCCESS: River ${riverIndex + 1} generated with ${path.length} cells`);
     } else {
       console.log(`FAILURE: No path found from elevation ${Math.round(startElevation)}`);

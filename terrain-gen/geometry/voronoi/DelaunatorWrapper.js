@@ -8,7 +8,9 @@ export class DelaunatorWrapper {
     this.circumcenters = [];
     this.voronoiCells = new Map();
     this.voronoiEdges = new Map();
-    this.voronoiVertexMap = new Map();
+    this.voronoiCellVertexMap = new Map();
+    this.voronoiVertexVertexMap = new Map();
+    this.voronoiVertextEdges = new Map();
   }
 
   triangulate() {
@@ -39,6 +41,7 @@ export class DelaunatorWrapper {
     this.getVoronoiEdges();
 
     this.findCellsConnectedToVertex();
+    this.findConnectedVertices();
     
     return {
       voronoiCells: this.voronoiCells,
@@ -216,7 +219,30 @@ export class DelaunatorWrapper {
           }
       }
     
-      this.voronoiVertexMap[i] = Array.from(connectedCells).sort((a, b) => a - b);
+      this.voronoiCellVertexMap[i] = Array.from(connectedCells).sort((a, b) => a - b);
     }
+  }
+
+  findConnectedVertices() {
+    for (let vertexIndex = 0; vertexIndex < this.circumcenters.length; vertexIndex++) {
+      const { halfedges } = this.delaunay;
+      const connected = new Set();
+      
+      // Find all halfedges that share circumcenters with this vertex
+      for (let e = 0; e < halfedges.length; e++) {
+        const triangleIndex = Math.floor(e / 3);
+        if (triangleIndex === vertexIndex) {
+          // Find adjacent triangles through halfedges
+          const opposite = halfedges[e];
+          if (opposite !== -1) {
+            const oppositeTriangle = Math.floor(opposite / 3);
+            connected.add(oppositeTriangle);
+          }
+        }
+      }
+      this.voronoiVertexVertexMap[vertexIndex] = Array.from(connected);
+    }
+  
+
   }
 }
