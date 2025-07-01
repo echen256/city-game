@@ -67,10 +67,7 @@ export class RiversGenerator {
       console.error('RiversGenerator: No Voronoi diagram available');
       return [];
     }
-
     this.clearRivers();
-    
-    
     console.log(`Generating ${numRivers} rivers...`);
 
     for (let i = 0; i < numRivers; i++) {

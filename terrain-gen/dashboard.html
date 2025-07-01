@@ -234,6 +234,7 @@
         import { VoronoiGenerator } from './geometry/voronoi/VoronoiGenerator.js';
         import { VoronoiImageExporter } from './import-export/VoronoiImageExporter.js';
         import { RiversGenerator } from './rivers/RiversGenerator.js';
+        import { FeatureDrawer } from './drawer/FeatureDrawer.js';
 
         // State
         let voronoiGenerator = null;
@@ -243,6 +244,7 @@
         // let lakesGenerator = null;
         // let marshGenerator = null;
         let riversGenerator = null;
+        let featureDrawer = null;
         let showTriangulation = true;
         let showVoronoi = true;
         let showSites = true;
@@ -718,6 +720,16 @@
                 // lakesGenerator = new LakesGenerator(voronoiGenerator, settings);
                 // marshGenerator = new MarshGenerator(voronoiGenerator, settings);
                 riversGenerator = new RiversGenerator(voronoiGenerator);
+                
+                // Initialize FeatureDrawer with the canvas and grid size
+                const canvas = document.getElementById('canvas');
+                featureDrawer = new FeatureDrawer(canvas, settings.gridSize);
+                
+                // Test the drawing mechanism
+                setTimeout(() => {
+                    featureDrawer.drawTestLine();
+                    log('Drew test line for debugging');
+                }, 1000);
 
                
 
@@ -993,11 +1005,10 @@
         });
 
         document.getElementById('generateRiversBtn').addEventListener('click', function () {
-            if (!riversGenerator) return;
+            if (!riversGenerator || !featureDrawer) return;
 
             try {
                 const numRivers = parseInt(document.getElementById('riversCount').value);
-
 
                 updateStatus(`Generating ${numRivers} rivers...`);
 
@@ -1006,6 +1017,28 @@
 
                 updateStats();
                 drawDiagram();
+
+                // Draw blue rivers using FeatureDrawer (after drawDiagram to ensure they appear on top)
+                if (riverPaths && riverPaths.length > 0) {
+                    riverPaths.forEach((path, index) => {
+                        if (path && path.length > 1) {
+                            // Convert vertex indices to coordinates
+                            const coordinates = path.map(vertexIndex => {
+                                const vertex = voronoiGenerator.delaunatorWrapper.circumcenters[vertexIndex];
+                                return vertex ? { x: vertex.x, z: vertex.z || vertex.y || 0 } : null;
+                            }).filter(coord => coord !== null);
+                            
+                            if (coordinates.length > 1) {
+                                featureDrawer.drawPath(coordinates, {
+                                    color: 'blue',
+                                    width: 3
+                                });
+                                log(`Drew river ${index + 1} with ${coordinates.length} coordinate points`);
+                            }
+                        }
+                    });
+                    log(`Drew ${riverPaths.length} blue river paths on canvas`);
+                }
 
                 updateStatus(`Generated ${riverPaths.length} rivers (avg length: ${Math.round(riverStats.averageRiverLength)})`);
                 log(`Generated rivers: ${riverPaths.length} paths, ${riverStats.totalRiverCells} total cells`);
@@ -1074,6 +1107,7 @@
             // lakesGenerator = null;
             // marshGenerator = null;
             riversGenerator = null;
+            featureDrawer = null;
 
             const canvas = document.getElementById('canvas');
             const ctx = canvas.getContext('2d');
