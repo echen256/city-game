@@ -1,10 +1,10 @@
-import { BaseTerrainGenerator } from './BaseTerrainGenerator.js';
-import { RiverGenerator } from './rivers/RiverGenerator.js';
+import { BaseTerrainGenerator } from './terrain/BaseTerrainGenerator.js';
+import { RiversGenerator } from './rivers/RiversGenerator.js';
 
 export class TerrainGenerator extends BaseTerrainGenerator {
   constructor(settings) {
     super(settings);
-    this.riverGenerator = new RiverGenerator(this.terrainData, this.settings);
+    this.riverGenerator = new RiversGenerator(this.terrainData, this.settings);
   }
 
   generateTerrain() {

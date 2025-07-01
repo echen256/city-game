@@ -1,9 +1,8 @@
-import { Point, Edge, Triangle, HalfEdge, VoronoiEdge, GeometryUtils } from '../voronoi/GeometryTypes.js';
+import { Point, Edge, Triangle, HalfEdge, VoronoiEdge, GeometryUtils } from '../geometry/GeometryTypes.js';
 
 /**
  * @typedef {Object} PathfindingSettings
  * @property {number} gridSize - Size of the grid
- * @property {Object} [hillsGenerator] - Hills generator for elevation data
  */
 
 /**
@@ -19,19 +18,11 @@ import { Point, Edge, Triangle, HalfEdge, VoronoiEdge, GeometryUtils } from '../
  * A* pathfinding for rivers using Voronoi edges
  */
 export class PathFinder {
-  /**
-   * @param {Object} voronoiGenerator - Voronoi diagram generator
-   * @param {PathfindingSettings} settings - Pathfinding settings
-   */
-  constructor(voronoiGenerator, settings) {
-    /** @type {Object} */
-    this.voronoiGenerator = voronoiGenerator;
-    /** @type {PathfindingSettings} */
-    this.settings = settings; 
+  constructor(delaunatorWrapper ) {
+    /** @type {DelaunatorWrapper} */
+    this.delaunatorWrapper = delaunatorWrapper; 
     /** @type {Set<number>} */
     this.riverCells = new Set();
-    /** @type {Map<number, Map<number, EdgeInfo>>|null} */
-    this.voronoiEdgeGraph = null; 
   }
 
   /**
@@ -40,25 +31,23 @@ export class PathFinder {
    * @param {Array<number>} targetCells - Target cell IDs
    * @returns {Array<number>} Path as array of cell IDs
    */
-  findPath(startCellId, targetCells, delaunatorWrapper) {
+  findPath(startPointIndex, endPointIndex, vertexMap, edgeMap, realCoordinates) {
     console.log('A* pathfinding with typed geometry classes...');
 
-    const graph = delaunatorWrapper.voronoiAdjacentCells;
-    const circumcenters = delaunatorWrapper.delaunayCircumcenters;
-
-    if (!Object.keys(graph).includes(startCellId)) {
-      console.log(`ERROR: Start cell ${startCellId} not found in Voronoi cells!`);
-      return [];
-    }
+    console.log(vertexMap);
+    console.log(edgeMap);
+    console.log(startPointIndex);
+    console.log(endPointIndex);
+    
     
     // A* pathfinding algorithm
-    const openSet = new Set([startCellId]);
+    const openSet = new Set([startPointIndex]);
     const cameFrom = new Map();
     const gScore = new Map();
     const fScore = new Map();
 
-    gScore.set(startCellId, 0);
-    fScore.set(startCellId, this.heuristic(startCellId, targetCells));
+    gScore.set(startPointIndex, 0);
+    fScore.set(startPointIndex, this.heuristic(startPointIndex, endPointIndex, realCoordinates));
 
     let iterationCount = 0;
     const maxIterations = 1000;
@@ -84,7 +73,7 @@ export class PathFinder {
       }
 
       // Check if we reached a target
-      if (targetCells.includes(current)) {
+      if (endPointIndex === current) {
         console.log(`SUCCESS: Reached target cell ${current}!`);
         return this.reconstructPath(cameFrom, current);
       }
@@ -92,24 +81,34 @@ export class PathFinder {
       openSet.delete(current);
       
       // Check neighbors using Voronoi edge graph
-      if (!graph[current]) {
+      if (!vertexMap[current]) {
         console.log(`ERROR: Current cell ${current} not found in Voronoi edge graph!`);
         continue;
       }
 
-      const neighbors = graph[current];
-      for (const neighborId of neighbors) {
+      const neighbors = vertexMap[current];
+      console.log(current);
+      console.log(neighbors);
+      for (const neighbor of neighbors) {
+        const edgeId = `${current}-${neighbor}`;
+        console.log(edgeId);
+        const edge = edgeMap.get(edgeId);
+        if (!edge) {
+          console.log(`ERROR: Edge ${edgeId} not found in edge map!`);
+          continue;
+        } 
+        const edgeWeight  = edge.weight;
+        const neighborId = neighbor;
 
-        const movementCost = this.getEdgeMovementCost(current, neighborId);
         const currentG = gScore.get(current) || 0;
-        const tentativeG = currentG + movementCost;
+        const tentativeG = currentG + edgeWeight;
         const existingG = gScore.get(neighborId);
 
         // Check if this is a better path OR if neighbor hasn't been visited yet
         if (existingG === undefined || tentativeG < existingG) {
           cameFrom.set(neighborId, current);
           gScore.set(neighborId, tentativeG);
-          const heuristic = this.heuristic(neighborId, targetCells);
+          const heuristic = this.heuristic(neighborId, endPointIndex, realCoordinates);
           fScore.set(neighborId, tentativeG + heuristic);
           
           if (!openSet.has(neighborId)) {
@@ -125,52 +124,29 @@ export class PathFinder {
 
   /**
    * Calculate heuristic distance to targets
-   * @param {number} cellId - Current cell ID
-   * @param {Array<number>} targetCells - Target cell IDs
+   * @param {number} circumcenterId - Current circumcenter ID
+   * @param {Array<number>} targetCircumcenters - Target circumcenters
    * @returns {number} Heuristic cost
    */
-  heuristic(cellId, targetCells) {
-    const cell = this.voronoiGenerator.cells.get(cellId);
-    if (!cell || !cell.site) {
+  heuristic(circumcenterId, endPointIndex, realCoordinates) {
+    const circumcenter = realCoordinates[circumcenterId];
+    const endPoint = realCoordinates[endPointIndex];
+    if (!circumcenter) {
       return Infinity;
     }
-
-    const currentElevation = this.getCellElevation(cellId);
     let minCost = Infinity;
     
-    if (targetCells.length === 0) {
+    if (endPoint === undefined) {
       return 0;
     }
-    
-    for (const targetId of targetCells) {
-      const targetCell = this.voronoiGenerator.cells.get(targetId);
-      if (targetCell && targetCell.site) {
+
         // Calculate straight-line distance using Point methods if available
-        let distance;
-        if (cell.site.distanceTo && targetCell.site.distanceTo) {
-          distance = cell.site.distanceTo(targetCell.site);
-        } else {
-          // Fallback calculation
-          const dx = cell.site.x - targetCell.site.x;
-          const dy = (cell.site.z || cell.site.y || 0) - (targetCell.site.z || targetCell.site.y || 0);
-          distance = Math.sqrt(dx * dx + dy * dy);
-        }
-        
-        // Factor in elevation difference
-        const targetElevation = this.getCellElevation(targetId);
-        const elevationDiff = currentElevation - targetElevation;
-        
-        let elevationCost = 0;
-        if (elevationDiff < 0) {
-          elevationCost = Math.abs(elevationDiff) * 0.1;
-        } else {
-          elevationCost = -elevationDiff * 0.3;
-        }
-        
-        const totalCost = distance + elevationCost;
-        minCost = Math.min(minCost, totalCost);
-      }
-    }
+        const dx = circumcenter.x - endPoint.x;
+        const dy = (circumcenter.z || circumcenter.y || 0) - (endPoint.z || endPoint.y || 0);
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        minCost = Math.min(minCost, distance);
+      
+
 
     return minCost === Infinity ? 100 : minCost;
   }

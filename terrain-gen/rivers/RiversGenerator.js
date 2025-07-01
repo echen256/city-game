@@ -1,10 +1,9 @@
-import { Point, Edge, Triangle, HalfEdge, VoronoiEdge, GeometryUtils } from '../voronoi/GeometryTypes.js';
-import { PathFinder } from './PathFinder.js';
+import { Point, Edge, Triangle, HalfEdge, VoronoiEdge, GeometryUtils } from '../geometry/GeometryTypes.js';
+import { PathFinder } from './Pathfinder.js';
 
 /**
  * @typedef {Object} RiverSettings
  * @property {number} [minSeparationDistance=50] - Minimum separation between river start/end points
- * @property {Object} [hillsGenerator] - Hills generator for elevation data
  */
 
 /**
@@ -43,12 +42,6 @@ export class RiversGenerator {
     this.riverCells = new Set();
     /** @type {Array<Array<number>>} */
     this.riverPaths = [];
-    /** @type {Object|null} */
-    this.coastlineGenerator = null;
-    /** @type {Object|null} */
-    this.lakesGenerator = null;
-    /** @type {Object|null} */
-    this.marshGenerator = null;
     /** @type {Set<number>} */
     this.usedStartPoints = new Set();
     /** @type {Set<number>} */
@@ -59,7 +52,9 @@ export class RiversGenerator {
     this._seed = undefined;
     
     /** @type {PathFinder} */
-    this.pathfinder = new PathFinder(voronoiGenerator, settings);
+    this.pathfinder = new PathFinder(voronoiGenerator.delaunatorWrapper);
+    console.log('RiversGenerator constructor');
+    console.log(voronoiGenerator.delaunatorWrapper);
   }
 
   /**
@@ -75,38 +70,20 @@ export class RiversGenerator {
 
     this.clearRivers();
     
-    // Setup pathfinder with current state
-    this.setupPathfinder();
     
-    // console.log(`Generating ${numRivers} rivers...`);
+    console.log(`Generating ${numRivers} rivers...`);
 
-    // for (let i = 0; i < numRivers; i++) {
-    //   const river = this.generateSingleRiver(i);
-    //   if (river.length > 0) {
-    //     this.riverPaths.push(river);
-    //     console.log(`Generated river ${i + 1} with ${river.length} cells`);
-    //   }
-    // }
+    for (let i = 0; i < numRivers; i++) {
+      const river = this.generateSingleRiver(i);
+      if (river.length > 0) {
+        this.riverPaths.push(river);
+        console.log(`Generated river ${i + 1} with ${river.length} cells`);
+      }
+    }
 
-    // console.log(`Rivers generation complete. Total paths: ${this.riverPaths.length}, total cells: ${this.riverCells.size}`);
-    // return this.riverPaths;
+    console.log(`Rivers generation complete. Total paths: ${this.riverPaths.length}, total cells: ${this.riverCells.size}`);
+    return this.riverPaths;
   }
-
-  /**
-   * Setup pathfinder with current generator state
-   */
-  setupPathfinder() {
-    // Set references to other generators
-    this.pathfinder.setCoastlineGenerator(this.coastlineGenerator);
-    this.pathfinder.setLakesGenerator(this.lakesGenerator);
-    this.pathfinder.setMarshGenerator(this.marshGenerator);
-    this.pathfinder.setHillsGenerator(this.settings.hillsGenerator);
-    this.pathfinder.setRiverCells(this.riverCells);
-    
-    // Build Voronoi edge graph for pathfinding
-    this.pathfinder.buildVoronoiPointGraph();
-  }
-
   /**
    * Generate a single river path
    * @param {number} riverIndex - Index of the river to generate
@@ -116,121 +93,30 @@ export class RiversGenerator {
     console.log(`\n=== GENERATING SINGLE RIVER ${riverIndex + 1} ===`);
     
     // Step 1: Select a random edge as starting point (non-coastal edge)
-    const startCell = this.selectEdgeStartPoint();
-    if (!startCell) {
+    let startPoint =  419
+    let endPoint = undefined
+    if (!startPoint) {
       console.log(`FAILURE: No valid start point found for river ${riverIndex + 1}`);
       return [];
     }
 
-    // Mark start point immediately and add to used points
-    const startCellObj = this.voronoiGenerator.cells.get(startCell);
-    if (startCellObj) {
-      startCellObj.setMetadata('riverStartPoint', true);
-      startCellObj.setMetadata('riverIndex', riverIndex);
-      this.usedStartPoints.add(startCell);
-      console.log(`Marked start point: ${startCell}`);
-    }
+    let targets = [548]
 
-    // Step 2: Find target (water features: lakes, coasts, marshes, or opposite edge)
-    let targets = this.findWaterTargets();
-    if (targets.length === 0) {
-      console.log(`No water targets found for river ${riverIndex + 1}, using parallel edge targets`);
-      targets = this.selectParallelEdgeTargets(startCell);
-      
-      if (targets.length === 0) {
-        console.log(`FAILURE: No parallel edge targets found for river ${riverIndex + 1}`);
-        return [];
-      }
-    }
 
     // Mark end point immediately (choose closest valid target)
     if (targets.length > 0) {
-      let endPointId = null;
-      
-      // Filter targets to exclude those too close to used end points
-      const validTargets = targets.filter(targetId => 
-        !this.isTooCloseToUsedPoints(targetId, this.usedEndPoints)
-      );
-      
-      if (validTargets.length === 0) {
-        console.log(`No valid end targets (all too close to existing end points), using closest anyway`);
-        endPointId = targets[0]; // Fallback to first target
-      } else {
-        endPointId = validTargets[0]; // Default to first valid target
-        
-        // If multiple valid targets, find the closest one to start point
-        if (validTargets.length > 1 && startCellObj?.site) {
-          let minDistance = Infinity;
-          const startSite = startCellObj.site;
-          
-          for (const targetId of validTargets) {
-            const targetCell = this.voronoiGenerator.cells.get(targetId);
-            if (targetCell && targetCell.site) {
-              const dx = startSite.x - targetCell.site.x;
-              const dy = (startSite.z || startSite.y || 0) - (targetCell.site.z || targetCell.site.y || 0);
-              const distance = Math.sqrt(dx * dx + dy * dy);
-              if (distance < minDistance) {
-                minDistance = distance;
-                endPointId = targetId;
-              }
-            }
-          }
-        }
-      }
-      
-      const endCellObj = this.voronoiGenerator.cells.get(endPointId);
-      if (endCellObj) {
-        endCellObj.setMetadata('riverEndPoint', true);
-        endCellObj.setMetadata('riverIndex', riverIndex);
-        this.usedEndPoints.add(endPointId);
-        console.log(`Marked end point: ${endPointId}`);
-      }
+      endPoint = targets[0]
     }
 
-    // Log elevation info for debugging
-    const startElevation = this.getCellElevation(startCell);
-    console.log(`River ${riverIndex + 1}: Starting at cell ${startCell}, elevation ${Math.round(startElevation)}`);
-
     // Step 3: Use A* pathfinding to find path to nearest water target
-    console.log(`Starting A* pathfinding from ${startCell} to ${targets.length} targets...`);
-    const path = this.pathfinder.findPathToWater(startCell, targets);
+    console.log(`Starting A* pathfinding from ${startPoint} to ${targets.length} targets...`);
+    const path = this.pathfinder.findPath(startPoint, endPoint,
+       this.voronoiGenerator.delaunatorWrapper.voronoiVertexVertexMap,
+        this.voronoiGenerator.delaunatorWrapper.voronoiEdges,
+        this.voronoiGenerator.delaunatorWrapper.circumcenters);
     console.log(`A* pathfinding result: ${path.length > 0 ? 'SUCCESS' : 'FAILED'}`);
     
-    if (path.length > 0) {
-      // Analyze elevation profile of the path
-      const elevations = path.map(cellId => this.getCellElevation(cellId));
-      const startElev = elevations[0];
-      const endElev = elevations[elevations.length - 1];
-      const maxElev = Math.max(...elevations);
-      const minElev = Math.min(...elevations);
-      
-      console.log(`River ${riverIndex + 1}: Path found - ${path.length} cells`);
-      console.log(`  Elevation: ${Math.round(startElev)} -> ${Math.round(endElev)} (Δ${Math.round(endElev - startElev)})`);
-      console.log(`  Range: ${Math.round(minElev)} to ${Math.round(maxElev)}`);
-      
-      // Check for uphill segments
-      let uphillSegments = 0;
-      for (let i = 1; i < elevations.length; i++) {
-        if (elevations[i] > elevations[i - 1]) {
-          uphillSegments++;
-        }
-      }
-      if (uphillSegments > 0) {
-        console.log(`  Warning: ${uphillSegments} uphill segments found`);
-      }
-
-      // Mark all cells in path as river cells
-      path.forEach((cellId, index) => {
-        const cell = this.voronoiGenerator.cells.get(cellId);
-        if (cell) {
-          this.riverCells.add(cellId);
-          cell.setMetadata('river', true);
-          cell.setMetadata('riverIndex', riverIndex);
-          cell.setMetadata('riverPosition', index);
-          cell.setMetadata('riverElevation', elevations[index]);
-        }
-      });
-      
+    if (path.length > 0) {   
       console.log(`SUCCESS: River ${riverIndex + 1} generated with ${path.length} cells`);
     } else {
       console.log(`FAILURE: No path found from elevation ${Math.round(startElevation)}`);
@@ -253,12 +139,6 @@ export class RiversGenerator {
     console.log(`Grid size: ${gridSize}, Edge tolerance: ${edgeTolerance}`);
 
     this.voronoiGenerator.cells.forEach((cell, cellId) => {
-      // Skip coastal cells
-      if (this.coastlineGenerator && this.coastlineGenerator.isCoastal(cellId)) {
-        console.log(`Skipping coastal cell ${cellId}`);
-        return;
-      }
-
       const site = cell.site;
       if (!site) {
         console.log(`Skipping cell ${cellId} - no site`);
@@ -275,8 +155,6 @@ export class RiversGenerator {
         y <= edgeTolerance ||                    // North edge
         y >= (gridSize - edgeTolerance);         // South edge
       
-      console.log(isNearEdge, x, y, gridSize, edgeTolerance)
-
       if (isNearEdge) {
         // Check if this cell is too close to previously used start points
         if (this.isTooCloseToUsedPoints(cellId, this.usedStartPoints)) {
@@ -310,47 +188,6 @@ export class RiversGenerator {
     return selectedCell;
   }
 
-  /**
-   * Find water targets (coastal cells, lakes, marshes)
-   * @returns {Array<number>} Array of target cell IDs
-   */
-  findWaterTargets() {
-    console.log(`=== FINDING WATER TARGETS ===`);
-    const targets = [];
-
-    // Add coastal cells as targets
-    if (this.coastlineGenerator) {
-      const coastalCells = this.coastlineGenerator.getCoastalCells();
-      console.log(`Found ${coastalCells.length} coastal cells: [${coastalCells}]`);
-      targets.push(...coastalCells);
-    } else {
-      console.log(`No coastline generator available`);
-    }
-
-    // Add lake cells as targets
-    if (this.lakesGenerator) {
-      const lakeCells = this.lakesGenerator.getLakeCells();
-      console.log(`Found ${lakeCells.length} lake cells: [${lakeCells}]`);
-      targets.push(...lakeCells);
-    } else {
-      console.log(`No lakes generator available`);
-    }
-
-    // Add marsh cells as targets (lower priority)
-    if (this.marshGenerator) {
-      const marshCells = this.marshGenerator.getMarshCells();
-      console.log(`Found ${marshCells.length} marsh cells: [${marshCells}]`);
-      targets.push(...marshCells);
-    } else {
-      console.log(`No marsh generator available`);
-    }
-
-    console.log(`Total water targets found: ${targets.length}`);
-    console.log(`All targets: [${targets}]`);
-    console.log(`=== WATER TARGETS FOUND ===`);
-
-    return targets;
-  }
 
   /**
    * Get cell elevation from various sources
@@ -358,15 +195,7 @@ export class RiversGenerator {
    * @returns {number} Cell elevation
    */
   getCellElevation(cellId) {
-    // Get elevation from hills generator, or use gradient height, or default to 0
-    if (this.settings.hillsGenerator) {
-      const height = this.settings.hillsGenerator.getCellHeight(cellId);
-      if (height > 0) {
-        return height;
-      }
-    }
-
-    // If no hills generator, try to get gradient height from cell metadata
+    // Try to get gradient height from cell metadata
     const cell = this.voronoiGenerator.cells.get(cellId);
     if (cell) {
       const gradientHeight = cell.getMetadata('height');
@@ -454,37 +283,6 @@ export class RiversGenerator {
     this.usedEndPoints.clear();
   }
 
-  /**
-   * Set coastline generator reference
-   * @param {Object} coastlineGenerator - Coastline generator
-   */
-  setCoastlineGenerator(coastlineGenerator) {
-    this.coastlineGenerator = coastlineGenerator;
-  }
-
-  /**
-   * Set lakes generator reference
-   * @param {Object} lakesGenerator - Lakes generator
-   */
-  setLakesGenerator(lakesGenerator) {
-    this.lakesGenerator = lakesGenerator;
-  }
-
-  /**
-   * Set marsh generator reference
-   * @param {Object} marshGenerator - Marsh generator
-   */
-  setMarshGenerator(marshGenerator) {
-    this.marshGenerator = marshGenerator;
-  }
-
-  /**
-   * Set hills generator reference
-   * @param {Object} hillsGenerator - Hills generator
-   */
-  setHillsGenerator(hillsGenerator) {
-    this.settings.hillsGenerator = hillsGenerator;
-  }
 
   /**
    * Select parallel edge targets for rivers

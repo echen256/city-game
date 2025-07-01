@@ -1,7 +1,9 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { VoronoiGenerator } from '../../terrain-gen/voronoi/VoronoiGenerator';
+import { VoronoiGenerator } from '../../terrain-gen/geometry/voronoi/VoronoiGenerator.js';
+import { DelaunatorWrapper } from '../../terrain-gen/geometry/voronoi/DelaunatorWrapper.js';
+import { PathFinder } from '../../terrain-gen/rivers/Pathfinder.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -13,7 +15,7 @@ function runPathfindingTests() {
   // Load source map data
   const sourceMapPath = path.join(__dirname, '../pathfinding/source_map.json');
   console.log(`Loading source map from: ${sourceMapPath}`);
-  const delaunatorWrapper = new DelaunatorWrapper(sourceMapData.points);
+    const delaunatorWrapper = new DelaunatorWrapper(sourceMapData.points);
   try {
     const sourceMapData = JSON.parse(fs.readFileSync(sourceMapPath, 'utf8'));
     console.log(`Loaded source map with ${sourceMapData.points.length} points`);
