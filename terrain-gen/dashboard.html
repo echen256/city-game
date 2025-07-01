@@ -340,6 +340,7 @@
         function getSettings() {
             return {
                 gridSize: 600,
+                margin: 60,
                 voronoi: {
                     enabled: true,
                     numSites: parseInt(document.getElementById('numSites').value),
@@ -526,7 +527,7 @@
 
             // Find connected cells (cells that share this vertex)
             const triangulationData = voronoiGenerator.delaunatorWrapper;
-            const connectedCells = findCellsConnectedToVertex(vertexIndex, triangulationData);
+            const connectedCells = [...triangulationData.voronoiVertexMap[vertexIndex]];
             cellNeighborsSpan.textContent = `[${connectedCells.join(', ')}]`;
 
             // Set type to Vertex and show connected cells info
@@ -536,32 +537,6 @@
 
             // Show widget
             widget.style.display = 'block';
-        }
-
-        function findCellsConnectedToVertex(vertexIndex, triangulationData) {
-            if (!voronoiGenerator || !triangulationData) {
-                return [];
-            }
-
-            if (!triangulationData || !triangulationData.delaunay || !triangulationData.delaunay.triangles) {
-                return [];
-            }
-
-            const connectedCells = new Set();
-            const { triangles } = triangulationData.delaunay;
-
-            // Find triangles that use this circumcenter
-            for (let i = 0; i < triangles.length; i += 3) {
-                const triangleIndex = Math.floor(i / 3);
-                if (triangleIndex === vertexIndex) {
-                    // This triangle corresponds to our vertex
-                    connectedCells.add(triangles[i]);
-                    connectedCells.add(triangles[i + 1]);
-                    connectedCells.add(triangles[i + 2]);
-                }
-            }
-
-            return Array.from(connectedCells).sort((a, b) => a - b);
         }
 
         function hideCellInfo() {
@@ -735,14 +710,15 @@
 
                 const settings = getSettings();
                 voronoiGenerator = new VoronoiGenerator(mockTerrainData, settings);
+                voronoiGenerator.generateVoronoi();
                 imageExporter = new VoronoiImageExporter(voronoiGenerator, settings);
                 // coastlineGenerator = new CoastlineGenerator(voronoiGenerator, settings);
                 // hillsGenerator = new HillsGenerator(voronoiGenerator, settings);
                 // lakesGenerator = new LakesGenerator(voronoiGenerator, settings);
                 // marshGenerator = new MarshGenerator(voronoiGenerator, settings);
-                riversGenerator = new RiversGenerator(voronoiGenerator, settings);
+                riversGenerator = new RiversGenerator(voronoiGenerator);
 
-                voronoiGenerator.generateVoronoi();
+               
 
                 updateStats();
                 drawDiagram();

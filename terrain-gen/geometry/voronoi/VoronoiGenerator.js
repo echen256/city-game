@@ -256,38 +256,33 @@ export class VoronoiGenerator {
       
       result.voronoiCells.forEach((cellData, index) => {
         // Skip boundary cells
-       if (cellData.site?.isBoundary) return;
+        if (cellData.site?.isBoundary) return;
         
         const cell = new VoronoiCell(cellData.site, cellId);
         
+        // Track if any vertex extends beyond boundaries
+ 
+        
         // Add vertices (clip to bounds)
         cellData.vertices.forEach(v => {
-          if (v.x  >= this.settings.gridSize  || v.z >= this.settings.gridSize ) {
-            console.log(v);
-          }
+          // Check original coordinates for boundary detection
+          
+ 
+          // Add clipped vertex to cell
           cell.addVertex({
             x: Math.max(0, Math.min(this.settings.gridSize, v.x)),
             z: Math.max(0, Math.min(this.settings.gridSize, v.z)),
-
           });
-          if (cell.boundaryType === BoundaryType.None) {
-            if (v.x < 0 ) {
-              cell.boundaryType = BoundaryType.West;
-            } else if (v.x > this.settings.gridSize) {
-              cell.boundaryType = BoundaryType.East;
-            } else if (v.z < 0) {
-              cell.boundaryType = BoundaryType.North;
-            } else if (v.z > this.settings.gridSize) {
-              cell.boundaryType = BoundaryType.South;
-            }
-          }
         });
         
+        // Set boundary type based on which boundaries the cell touches
+   
         // Add neighbors (excluding boundary cells)
         cellData.neighbors.forEach(neighborIndex => {
           const neighbor = result.voronoiCells.get(neighborIndex);
           if (neighbor && !neighbor.site?.isBoundary) {
             cell.addNeighbor(neighborIndex);
+            
           } 
         });
         
@@ -299,6 +294,8 @@ export class VoronoiGenerator {
       
       // Remove boundary sites from sites array
       this.sites = this.sites.filter(site => !site.isBoundary);
+      
+      console.log(`Generated ${this.cells.size} Voronoi cells`);
       
     } catch (error) {
       console.error('Error during triangulation:', error);

@@ -31,25 +31,23 @@ export class PathFinder {
    * @param {Array<number>} targetCells - Target cell IDs
    * @returns {Array<number>} Path as array of cell IDs
    */
-  findPath(startCellId, targetCells, ) {
+  findPath(startPointIndex, endPointIndex, vertexMap, edgeMap, realCoordinates) {
     console.log('A* pathfinding with typed geometry classes...');
 
-    const edgeWeights = this.delaunatorWrapper.voronoiVertextEdges;
-    const graph = this.delaunatorWrapper.voronoiAdjacentCells;
+    console.log(vertexMap);
+    console.log(edgeMap);
+    console.log(startPointIndex);
+    console.log(endPointIndex);
     
-    if (!Object.keys(graph).includes(startCellId)) {
-      console.log(`ERROR: Start cell ${startCellId} not found in Voronoi cells!`);
-      return [];
-    }
     
     // A* pathfinding algorithm
-    const openSet = new Set([startCellId]);
+    const openSet = new Set([startPointIndex]);
     const cameFrom = new Map();
     const gScore = new Map();
     const fScore = new Map();
 
-    gScore.set(startCellId, 0);
-    fScore.set(startCellId, this.heuristic(startCellId, targetCells));
+    gScore.set(startPointIndex, 0);
+    fScore.set(startPointIndex, this.heuristic(startPointIndex, endPointIndex, realCoordinates));
 
     let iterationCount = 0;
     const maxIterations = 1000;
@@ -75,7 +73,7 @@ export class PathFinder {
       }
 
       // Check if we reached a target
-      if (targetCells.includes(current)) {
+      if (endPointIndex === current) {
         console.log(`SUCCESS: Reached target cell ${current}!`);
         return this.reconstructPath(cameFrom, current);
       }
@@ -83,15 +81,15 @@ export class PathFinder {
       openSet.delete(current);
       
       // Check neighbors using Voronoi edge graph
-      if (!graph[current]) {
+      if (!vertexMap[current]) {
         console.log(`ERROR: Current cell ${current} not found in Voronoi edge graph!`);
         continue;
       }
 
-      const neighbors = graph[current];
+      const neighbors = vertexMap[current];
       for (const neighborId of neighbors) {
 
-        const edgeWeight  = edgeWeights.get(`${current}-${neighborId}`).weight;
+        const edgeWeight  = edgeMap.get(`${current}-${neighborId}`).weight;
         const currentG = gScore.get(current) || 0;
         const tentativeG = currentG + edgeWeight;
         const existingG = gScore.get(neighborId);
@@ -100,7 +98,7 @@ export class PathFinder {
         if (existingG === undefined || tentativeG < existingG) {
           cameFrom.set(neighborId, current);
           gScore.set(neighborId, tentativeG);
-          const heuristic = this.heuristic(neighborId, targetCells);
+          const heuristic = this.heuristic(neighborId, endPointIndex, realCoordinates);
           fScore.set(neighborId, tentativeG + heuristic);
           
           if (!openSet.has(neighborId)) {
@@ -120,26 +118,25 @@ export class PathFinder {
    * @param {Array<number>} targetCircumcenters - Target circumcenters
    * @returns {number} Heuristic cost
    */
-  heuristic(circumcenterId, targetCircumcenters) {
-    const circumcenter = this.delaunatorWrapper.circumcenters[circumcenterId];
+  heuristic(circumcenterId, endPointIndex, realCoordinates) {
+    const circumcenter = realCoordinates[circumcenterId];
+    const endPoint = realCoordinates[endPointIndex];
     if (!circumcenter) {
       return Infinity;
     }
     let minCost = Infinity;
     
-    if (targetCircumcenters.length === 0) {
+    if (endPoint === undefined) {
       return 0;
     }
-    
-    for (const targetCircumcenter of targetCircumcenters) {
-      if (targetCircumcenter) {
+
         // Calculate straight-line distance using Point methods if available
-        const dx = circumcenter.x - targetCircumcenter.x;
-        const dy = (circumcenter.z || circumcenter.y || 0) - (targetCircumcenter.z || targetCircumcenter.y || 0);
+        const dx = circumcenter.x - endPoint.x;
+        const dy = (circumcenter.z || circumcenter.y || 0) - (endPoint.z || endPoint.y || 0);
         const distance = Math.sqrt(dx * dx + dy * dy);
         minCost = Math.min(minCost, distance);
-      }
-    }
+      
+
 
     return minCost === Infinity ? 100 : minCost;
   }

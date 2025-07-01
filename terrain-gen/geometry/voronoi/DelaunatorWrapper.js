@@ -8,6 +8,7 @@ export class DelaunatorWrapper {
     this.circumcenters = [];
     this.voronoiCells = new Map();
     this.voronoiEdges = new Map();
+    this.voronoiVertexMap = new Map();
   }
 
   triangulate() {
@@ -36,6 +37,8 @@ export class DelaunatorWrapper {
     this.generateVoronoiCells();
 
     this.getVoronoiEdges();
+
+    this.findCellsConnectedToVertex();
     
     return {
       voronoiCells: this.voronoiCells,
@@ -193,7 +196,27 @@ export class DelaunatorWrapper {
         edges.set(`${t2}-${t1}`, e2);
       }
     }
-    console.log(edges);
+
     this.voronoiEdges = edges;
+  }
+
+  findCellsConnectedToVertex() {  
+    for (let i = 0; i < this.circumcenters.length; i++) {
+      const connectedCells = new Set();
+      const { triangles } = this.delaunay;
+
+      // Find triangles that use this circumcenter
+      for (let t = 0; t < triangles.length; t += 3) {
+          const triangleIndex = Math.floor(t / 3);
+          if (triangleIndex === i) {
+              // This triangle corresponds to our vertex
+              connectedCells.add(triangles[t]);
+              connectedCells.add(triangles[t + 1]);
+              connectedCells.add(triangles[t + 2]);
+          }
+      }
+    
+      this.voronoiVertexMap[i] = Array.from(connectedCells).sort((a, b) => a - b);
+    }
   }
 }

@@ -52,7 +52,9 @@ export class RiversGenerator {
     this._seed = undefined;
     
     /** @type {PathFinder} */
-    this.pathfinder = new PathFinder(voronoiGenerator, settings);
+    this.pathfinder = new PathFinder(voronoiGenerator.delaunatorWrapper);
+    console.log('RiversGenerator constructor');
+    console.log(voronoiGenerator.delaunatorWrapper);
   }
 
   /**
@@ -91,79 +93,27 @@ export class RiversGenerator {
     console.log(`\n=== GENERATING SINGLE RIVER ${riverIndex + 1} ===`);
     
     // Step 1: Select a random edge as starting point (non-coastal edge)
-    const startCell = this.selectEdgeStartPoint();
-    if (!startCell) {
+    let startPoint =  419
+    let endPoint = undefined
+    if (!startPoint) {
       console.log(`FAILURE: No valid start point found for river ${riverIndex + 1}`);
       return [];
     }
 
-    // Mark start point immediately and add to used points
-    const startCellObj = this.voronoiGenerator.cells.get(startCell);
-    if (startCellObj) {
-      startCellObj.setMetadata('riverStartPoint', true);
-      startCellObj.setMetadata('riverIndex', riverIndex);
-      this.usedStartPoints.add(startCell);
-      console.log(`Marked start point: ${startCell}`);
-    }
+    let targets = [548]
 
-    // Step 2: Find target (opposite edge)
-    let targets = this.selectParallelEdgeTargets(startCell);
-    if (targets.length === 0) {
-      console.log(`FAILURE: No parallel edge targets found for river ${riverIndex + 1}`);
-      return [];
-    }
 
     // Mark end point immediately (choose closest valid target)
     if (targets.length > 0) {
-      let endPointId = null;
-      
-      // Filter targets to exclude those too close to used end points
-      const validTargets = targets.filter(targetId => 
-        !this.isTooCloseToUsedPoints(targetId, this.usedEndPoints)
-      );
-      
-      if (validTargets.length === 0) {
-        console.log(`No valid end targets (all too close to existing end points), using closest anyway`);
-        endPointId = targets[0]; // Fallback to first target
-      } else {
-        endPointId = validTargets[0]; // Default to first valid target
-        
-        // If multiple valid targets, find the closest one to start point
-        if (validTargets.length > 1 && startCellObj?.site) {
-          let minDistance = Infinity;
-          const startSite = startCellObj.site;
-          
-          for (const targetId of validTargets) {
-            const targetCell = this.voronoiGenerator.cells.get(targetId);
-            if (targetCell && targetCell.site) {
-              const dx = startSite.x - targetCell.site.x;
-              const dy = (startSite.z || startSite.y || 0) - (targetCell.site.z || targetCell.site.y || 0);
-              const distance = Math.sqrt(dx * dx + dy * dy);
-              if (distance < minDistance) {
-                minDistance = distance;
-                endPointId = targetId;
-              }
-            }
-          }
-        }
-      }
-      
-      const endCellObj = this.voronoiGenerator.cells.get(endPointId);
-      if (endCellObj) {
-        endCellObj.setMetadata('riverEndPoint', true);
-        endCellObj.setMetadata('riverIndex', riverIndex);
-        this.usedEndPoints.add(endPointId);
-        console.log(`Marked end point: ${endPointId}`);
-      }
+      endPoint = targets[0]
     }
 
-    // Log elevation info for debugging
-    const startElevation = this.getCellElevation(startCell);
-    console.log(`River ${riverIndex + 1}: Starting at cell ${startCell}, elevation ${Math.round(startElevation)}`);
-
     // Step 3: Use A* pathfinding to find path to nearest water target
-    console.log(`Starting A* pathfinding from ${startCell} to ${targets.length} targets...`);
-    const path = this.pathfinder.findPathToWater(startCell, targets);
+    console.log(`Starting A* pathfinding from ${startPoint} to ${targets.length} targets...`);
+    const path = this.pathfinder.findPath(startPoint, endPoint,
+       this.voronoiGenerator.delaunatorWrapper.voronoiVertexMap,
+        this.voronoiGenerator.delaunatorWrapper.voronoiEdges,
+        this.voronoiGenerator.delaunatorWrapper.circumcenters);
     console.log(`A* pathfinding result: ${path.length > 0 ? 'SUCCESS' : 'FAILED'}`);
     
     if (path.length > 0) {
@@ -239,8 +189,6 @@ export class RiversGenerator {
         y <= edgeTolerance ||                    // North edge
         y >= (gridSize - edgeTolerance);         // South edge
       
-      console.log(isNearEdge, x, y, gridSize, edgeTolerance)
-
       if (isNearEdge) {
         // Check if this cell is too close to previously used start points
         if (this.isTooCloseToUsedPoints(cellId, this.usedStartPoints)) {
