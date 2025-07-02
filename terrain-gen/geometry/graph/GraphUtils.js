@@ -223,6 +223,129 @@ export class GraphUtils {
   }
 
   /**
+   * Determine the most central point (centroid) of a Delaunay triangulation
+   * @param {Object} graphData - Graph data containing circumcenters
+   * @param {string} [method='geometric'] - Method to use: 'geometric', 'weighted', or 'medoid'
+   * @returns {Object} Centroid information with coordinates and method used
+   */
+  static determineCentroid(graphData, method = 'geometric') {
+    const validVertices = graphData.circumcenters.filter(vertex => vertex !== null);
+    
+    if (validVertices.length === 0) {
+      console.warn('GraphUtils: No valid vertices found for centroid calculation');
+      return null;
+    }
+
+    let centroid = { x: 0, z: 0 };
+    
+    switch (method) {
+      case 'geometric':
+        // Simple arithmetic mean of all vertex positions
+        centroid = GraphUtils._calculateGeometricCentroid(validVertices);
+        break;
+        
+      case 'weighted':
+        // Centroid weighted by vertex connectivity (more connected = more weight)
+        centroid = GraphUtils._calculateWeightedCentroid(validVertices, graphData);
+        break;
+        
+      case 'medoid':
+        // Find the actual vertex that minimizes distance to all other vertices
+        centroid = GraphUtils._calculateMedoidCentroid(validVertices);
+        break;
+        
+      default:
+        console.warn(`GraphUtils: Unknown centroid method '${method}', using geometric`);
+        centroid = GraphUtils._calculateGeometricCentroid(validVertices);
+    }
+
+    console.log(`GraphUtils: Calculated ${method} centroid at (${centroid.x.toFixed(2)}, ${centroid.z.toFixed(2)}) from ${validVertices.length} vertices`);
+    
+    return {
+      ...centroid,
+      method,
+      vertexCount: validVertices.length,
+      isActualVertex: method === 'medoid'
+    };
+  }
+
+  /**
+   * Calculate geometric centroid (arithmetic mean)
+   * @private
+   */
+  static _calculateGeometricCentroid(vertices) {
+    const sum = vertices.reduce((acc, vertex) => ({
+      x: acc.x + vertex.x,
+      z: acc.z + (vertex.z || vertex.y || 0)
+    }), { x: 0, z: 0 });
+
+    return {
+      x: sum.x / vertices.length,
+      z: sum.z / vertices.length
+    };
+  }
+
+  /**
+   * Calculate weighted centroid based on vertex connectivity
+   * @private
+   */
+  static _calculateWeightedCentroid(vertices, graphData) {
+    let totalWeight = 0;
+    const weightedSum = { x: 0, z: 0 };
+
+    // Find vertex indices for weighting
+    const vertexIndices = new Map();
+    graphData.circumcenters.forEach((vertex, index) => {
+      if (vertex !== null) {
+        vertexIndices.set(vertex, index);
+      }
+    });
+
+    vertices.forEach(vertex => {
+      const index = vertexIndices.get(vertex);
+      const connections = graphData.voronoiVertexVertexMap[index] || [];
+      const weight = Math.max(1, connections.length); // More connections = higher weight
+
+      weightedSum.x += vertex.x * weight;
+      weightedSum.z += (vertex.z || vertex.y || 0) * weight;
+      totalWeight += weight;
+    });
+
+    return {
+      x: weightedSum.x / totalWeight,
+      z: weightedSum.z / totalWeight
+    };
+  }
+
+  /**
+   * Calculate medoid (actual vertex closest to all others)
+   * @private
+   */
+  static _calculateMedoidCentroid(vertices) {
+    let bestVertex = vertices[0];
+    let minTotalDistance = Infinity;
+
+    vertices.forEach(candidate => {
+      const totalDistance = vertices.reduce((sum, other) => {
+        const dx = candidate.x - other.x;
+        const dz = (candidate.z || candidate.y || 0) - (other.z || other.y || 0);
+        return sum + Math.sqrt(dx * dx + dz * dz);
+      }, 0);
+
+      if (totalDistance < minTotalDistance) {
+        minTotalDistance = totalDistance;
+        bestVertex = candidate;
+      }
+    });
+
+    return {
+      x: bestVertex.x,
+      z: bestVertex.z || bestVertex.y || 0,
+      totalDistance: minTotalDistance
+    };
+  }
+
+  /**
    * Validate graph data structure integrity
    * @param {Object} graphData - Graph data to validate
    * @returns {Object} Validation results with statistics and any issues found

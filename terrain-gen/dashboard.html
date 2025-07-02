@@ -165,6 +165,22 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Graph Debugging -->
+            <div class="control-section">
+                <h3>7. Graph Debugging</h3>
+                <div class="button-group">
+                    <button id="refreshGraphStateBtn" disabled>Refresh Graph State</button>
+                    <button id="clearGraphHighlightBtn" disabled>Clear Graph Highlight</button>
+                    <button id="showGraphStatsBtn" disabled>Show Statistics</button>
+                </div>
+                <div class="graph-partitions-container">
+                    <h4>Graph Partitions</h4>
+                    <div id="graphPartitionsList" class="partitions-list">
+                        <p class="no-partitions">No graph partitions available. Generate Voronoi diagram first.</p>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <div class="status">
@@ -243,6 +259,8 @@
         import { VoronoiImageExporter } from './import-export/VoronoiImageExporter.js';
         import { RiversGenerator } from './rivers/RiversGenerator.js';
         import { FeatureDrawer } from './drawer/FeatureDrawer.js';
+        import { GraphState } from './geometry/graph/GraphState.js';
+        import { GraphUtils } from './geometry/graph/GraphUtils.js';
 
         // State
         let voronoiGenerator = null;
@@ -253,6 +271,8 @@
         // let marshGenerator = null;
         let riversGenerator = null;
         let featureDrawer = null;
+        let graphState = null;
+        let highlightedPartitionElements = [];
         let showTriangulation = true;
         let showVoronoi = true;
         let showSites = true;
@@ -716,6 +736,15 @@
                 const canvas = document.getElementById('canvas');
                 featureDrawer = new FeatureDrawer(canvas, settings.gridSize);
                 
+                // Initialize GraphState for debugging
+                initializeGraphState();
+                graphState.initialize(voronoiGenerator.delaunatorWrapper, settings);
+                
+                // Enable debugging buttons
+                document.getElementById('refreshGraphStateBtn').disabled = false;
+                document.getElementById('clearGraphHighlightBtn').disabled = false;
+                document.getElementById('showGraphStatsBtn').disabled = false;
+                
                 // Test the drawing mechanism
                 setTimeout(() => {
                     featureDrawer.drawTestLine();
@@ -1003,39 +1032,8 @@
 
                 updateStatus(`Generating ${numRivers} rivers...`);
 
-                const riverPaths = riversGenerator.generateRivers(numRivers);
-                const riverStats = riversGenerator.getRiverStats();
-
-                updateStats();
-                drawDiagram();
-
-                // Draw blue rivers using FeatureDrawer (after drawDiagram to ensure they appear on top)
-                if (riverPaths && riverPaths.length > 0) {
-                    riverPaths.forEach((path, index) => {
-                        if (path && path.length > 1) {
-                            // Convert vertex indices to coordinates
-                            const coordinates = path.map(vertexIndex => {
-                                const vertex = voronoiGenerator.delaunatorWrapper.circumcenters[vertexIndex];
-                                return vertex ? { x: vertex.x, z: vertex.z || vertex.y || 0 } : null;
-                            }).filter(coord => coord !== null);
-                            
-                            if (coordinates.length > 1) {
-                                featureDrawer.drawPath(coordinates, {
-                                    color: 'blue',
-                                    width: 3
-                                });
-                                log(`Drew river ${index + 1} with ${coordinates.length} coordinate points`);
-                            }
-                        }
-                    });
-                    log(`Drew ${riverPaths.length} blue river paths on canvas`);
-                }
-
-                updateStatus(`Generated ${riverPaths.length} rivers (avg length: ${Math.round(riverStats.averageRiverLength)})`);
-                log(`Generated rivers: ${riverPaths.length} paths, ${riverStats.totalRiverCells} total cells`);
-                if (riverStats.longestRiver > 0) {
-                    log(`Longest river: ${riverStats.longestRiver} cells`);
-                }
+                // Custom river generation with GraphState tracking
+                generateRiversWithTracking(numRivers);
 
             } catch (error) {
                 updateStatus(`Error: ${error.message}`);
@@ -1043,6 +1041,99 @@
                 console.error(error);
             }
         });
+
+        async function generateRiversWithTracking(numRivers) {
+            if (!voronoiGenerator || !voronoiGenerator.cells || voronoiGenerator.cells.size === 0) {
+                console.error('RiversGenerator: No Voronoi diagram available');
+                return;
+            }
+
+            riversGenerator.clearRivers();
+            console.log(`Generating ${numRivers} rivers using GraphState workflow...`);
+
+            // Initialize GraphState with initial graph
+            if (graphState) {
+                graphState.reset();
+                graphState.initialize(voronoiGenerator.delaunatorWrapper, getSettings());
+            }
+
+            const riverPaths = [];
+
+            for (let i = 0; i < numRivers; i++) {
+                // Get the largest available partition from GraphState
+                const largestPartition = graphState.getLargestPartition();
+                if (!largestPartition) {
+                    console.log(`No more available partitions for river ${i + 1}. Stopping generation.`);
+                    break;
+                }
+                
+                console.log(`River ${i + 1}: Using partition ${largestPartition.id} with ${largestPartition.graph.circumcenters.filter(v => v !== null).length} vertices`);
+
+                // Generate river path on the selected partition
+                const river = riversGenerator.generateSingleRiver(i, largestPartition.graph);
+                if (river.length > 0) {
+                    riverPaths.push(river);
+                    console.log(`Generated river ${i + 1} with ${river.length} vertices`);
+
+                    // Split the partition using GraphState
+                    const splitMetadata = {
+                        featureType: 'river',
+                        featureIndex: i,
+                        description: `River ${i + 1}`,
+                        additionalData: {
+                            riverLength: river.length,
+                            startVertex: river[0],
+                            endVertex: river[river.length - 1]
+                        }
+                    };
+                    
+                    const newPartitions = graphState.splitGraphByPath(largestPartition.id, river, splitMetadata);
+                    
+                    console.log(`After river ${i + 1}: Split into ${newPartitions.length} new partitions`);
+                    newPartitions.forEach((partition, idx) => {
+                        console.log(`  Partition ${partition.id}: ${partition.graph.circumcenters.filter(v => v !== null).length} vertices`);
+                    });
+                }
+            }
+
+            // Store results in riversGenerator for compatibility
+            riversGenerator.riverPaths = riverPaths;
+
+            const riverStats = riversGenerator.getRiverStats();
+
+            updateStats();
+            drawDiagram();
+
+            // Draw blue rivers using FeatureDrawer (after drawDiagram to ensure they appear on top)
+            if (riverPaths && riverPaths.length > 0) {
+                riverPaths.forEach((path, index) => {
+                    if (path && path.length > 1) {
+                        // Convert vertex indices to coordinates
+                        const coordinates = path.map(vertexIndex => {
+                            const vertex = voronoiGenerator.delaunatorWrapper.circumcenters[vertexIndex];
+                            return vertex ? { x: vertex.x, z: vertex.z || vertex.y || 0 } : null;
+                        }).filter(coord => coord !== null);
+                        
+                        if (coordinates.length > 1) {
+                            featureDrawer.drawPath(coordinates, {
+                                color: 'blue',
+                                width: 3
+                            });
+                            log(`Drew river ${index + 1} with ${coordinates.length} coordinate points`);
+                        }
+                    }
+                });
+                log(`Drew ${riverPaths.length} blue river paths on canvas`);
+            }
+
+            updateStatus(`Generated ${riverPaths.length} rivers (avg length: ${Math.round(riverStats.averageRiverLength)})`);
+            log(`Generated rivers: ${riverPaths.length} paths, ${riverStats.totalRiverCells} total cells`);
+            if (riverStats.longestRiver > 0) {
+                log(`Longest river: ${riverStats.longestRiver} cells`);
+            }
+
+            console.log(`Rivers generation complete. Total paths: ${riverPaths.length}`);
+        }
 
         document.getElementById('clearRiversBtn').addEventListener('click', function () {
             // if (!riversGenerator) return;
@@ -1099,6 +1190,16 @@
             // marshGenerator = null;
             riversGenerator = null;
             featureDrawer = null;
+            
+            // Reset graph state
+            if (graphState) {
+                graphState.reset();
+            }
+            
+            // Disable debugging buttons
+            document.getElementById('refreshGraphStateBtn').disabled = true;
+            document.getElementById('clearGraphHighlightBtn').disabled = true;
+            document.getElementById('showGraphStatsBtn').disabled = true;
 
             const canvas = document.getElementById('canvas');
             const ctx = canvas.getContext('2d');
@@ -1383,6 +1484,236 @@
                 }
             }
         }
+
+        // Graph debugging functionality
+        function initializeGraphState() {
+            if (!graphState) {
+                graphState = new GraphState();
+                
+                // Listen for graph state changes
+                graphState.addEventListener((eventType, data, state) => {
+                    console.log(`GraphState Event: ${eventType}`, data);
+                    updateGraphPartitionsList();
+                    
+                    if (eventType === 'partition_highlighted') {
+                        highlightGraphPartition(data.partition);
+                    } else if (eventType === 'highlight_cleared') {
+                        clearGraphPartitionHighlight();
+                    }
+                });
+                
+                log('Graph state initialized');
+            }
+        }
+
+        function updateGraphPartitionsList() {
+            const partitionsList = document.getElementById('graphPartitionsList');
+            
+            if (!graphState || graphState.getCurrentPartitions().length === 0) {
+                partitionsList.innerHTML = '<p class="no-partitions">No graph partitions available. Generate Voronoi diagram first.</p>';
+                return;
+            }
+
+            const partitions = graphState.getCurrentPartitions();
+            const stats = graphState.getStatistics();
+            
+            // Clear existing content
+            partitionsList.innerHTML = '';
+
+            // Create and add summary
+            const summaryDiv = document.createElement('div');
+            summaryDiv.className = 'partition-summary';
+            summaryDiv.innerHTML = `<small>Total: ${stats.totalPartitions} partitions, ${stats.totalVertices} vertices</small>`;
+            partitionsList.appendChild(summaryDiv);
+
+            partitions.forEach((partition, index) => {
+                const isHighlighted = graphState.highlightedPartition?.id === partition.id;
+                const centroid = partition.centroid;
+                
+                // Create partition item element
+                const partitionItem = document.createElement('div');
+                partitionItem.className = `partition-item ${isHighlighted ? 'highlighted' : ''}`;
+                partitionItem.dataset.partitionId = partition.id;
+
+                // Create partition info section
+                const partitionInfo = document.createElement('div');
+                partitionInfo.className = 'partition-info';
+
+                const partitionTitle = document.createElement('div');
+                partitionTitle.className = 'partition-title';
+                partitionTitle.textContent = partition.description;
+
+                const partitionDetails = document.createElement('div');
+                partitionDetails.className = 'partition-details';
+                partitionDetails.textContent = `ID: ${partition.id}`;
+
+                const partitionStats = document.createElement('div');
+                partitionStats.className = 'partition-stats';
+                const statsText = `${partition.stats.validVertices} vertices, ${partition.stats.totalEdges} edges`;
+                const centroidText = centroid ? ` | Centroid: (${centroid.x.toFixed(1)}, ${centroid.z.toFixed(1)})` : '';
+                partitionStats.textContent = statsText + centroidText;
+
+                partitionInfo.appendChild(partitionTitle);
+                partitionInfo.appendChild(partitionDetails);
+                partitionInfo.appendChild(partitionStats);
+
+                // Create partition actions section
+                const partitionActions = document.createElement('div');
+                partitionActions.className = 'partition-actions';
+
+                const highlightBtn = document.createElement('button');
+                highlightBtn.className = 'partition-btn highlight-btn';
+                highlightBtn.textContent = isHighlighted ? 'Clear' : 'Highlight';
+                highlightBtn.addEventListener('click', () => highlightPartition(partition.id));
+
+                const centroidBtn = document.createElement('button');
+                centroidBtn.className = 'partition-btn centroid-btn';
+                centroidBtn.textContent = 'Centroid';
+                centroidBtn.addEventListener('click', () => showPartitionCentroid(partition.id));
+
+                partitionActions.appendChild(highlightBtn);
+                partitionActions.appendChild(centroidBtn);
+
+                // Assemble the partition item
+                partitionItem.appendChild(partitionInfo);
+                partitionItem.appendChild(partitionActions);
+
+                // Add to container
+                partitionsList.appendChild(partitionItem);
+            });
+        }
+
+        function highlightPartition(partitionId) {
+            if (!graphState) return;
+            
+            if (graphState.highlightedPartition?.id === partitionId) {
+                graphState.clearHighlight();
+            } else {
+                graphState.highlightPartition(partitionId);
+            }
+        }
+
+        function showPartitionCentroid(partitionId) {
+            if (!graphState) return;
+            
+            const partition = graphState.getPartition(partitionId);
+            if (!partition) return;
+            
+            const centroid = GraphUtils.determineCentroid(partition.graph, 'geometric');
+            if (centroid) {
+                // Clear any existing vertex highlight first
+                clearVertexHighlight();
+                
+                // Create centroid highlight
+                const canvas = document.getElementById('canvas');
+                const scaleX = canvas.width / voronoiGenerator.settings.gridSize;
+                const scaleZ = canvas.height / voronoiGenerator.settings.gridSize;
+
+                const highlightElement = document.createElement('div');
+                highlightElement.className = 'centroid-highlight';
+                highlightElement.style.position = 'absolute';
+                highlightElement.style.left = `${(centroid.x * scaleX) - 10}px`;
+                highlightElement.style.top = `${(centroid.z * scaleZ) - 10}px`;
+                highlightElement.style.width = '20px';
+                highlightElement.style.height = '20px';
+                highlightElement.style.backgroundColor = 'orange';
+                highlightElement.style.border = '2px solid red';
+                highlightElement.style.borderRadius = '50%';
+                highlightElement.style.pointerEvents = 'none';
+                highlightElement.style.zIndex = '1001';
+                highlightElement.style.boxShadow = '0 0 15px rgba(255, 165, 0, 0.8)';
+
+                const canvasContainer = document.querySelector('.canvas-wrapper');
+                canvasContainer.appendChild(highlightElement);
+
+                // Remove after 3 seconds
+                setTimeout(() => {
+                    highlightElement.remove();
+                }, 3000);
+
+                log(`Showing centroid for partition ${partitionId} at (${centroid.x.toFixed(2)}, ${centroid.z.toFixed(2)})`);
+            }
+        }
+
+        function highlightGraphPartition(partition) {
+            clearGraphPartitionHighlight();
+            
+            if (!partition || !voronoiGenerator) return;
+            
+            const canvas = document.getElementById('canvas');
+            const scaleX = canvas.width / voronoiGenerator.settings.gridSize;
+            const scaleZ = canvas.height / voronoiGenerator.settings.gridSize;
+            const canvasContainer = document.querySelector('.canvas-wrapper');
+
+            // Highlight all vertices in this partition
+            partition.graph.circumcenters.forEach((vertex, index) => {
+                if (!vertex) return;
+                
+                const highlightElement = document.createElement('div');
+                highlightElement.className = 'partition-vertex-highlight';
+                highlightElement.style.position = 'absolute';
+                highlightElement.style.left = `${(vertex.x * scaleX) - 3}px`;
+                highlightElement.style.top = `${(vertex.z * scaleZ) - 3}px`;
+                highlightElement.style.width = '6px';
+                highlightElement.style.height = '6px';
+                highlightElement.style.backgroundColor = 'cyan';
+                highlightElement.style.border = '1px solid white';
+                highlightElement.style.borderRadius = '50%';
+                highlightElement.style.pointerEvents = 'none';
+                highlightElement.style.zIndex = '999';
+                highlightElement.style.boxShadow = '0 0 3px rgba(0, 255, 255, 0.8)';
+
+                canvasContainer.appendChild(highlightElement);
+                highlightedPartitionElements.push(highlightElement);
+            });
+
+            log(`Highlighted partition ${partition.id} with ${highlightedPartitionElements.length} vertices`);
+        }
+
+        function clearGraphPartitionHighlight() {
+            highlightedPartitionElements.forEach(element => {
+                element.remove();
+            });
+            highlightedPartitionElements = [];
+        }
+
+        // Graph debugging event listeners
+        document.getElementById('refreshGraphStateBtn').addEventListener('click', function () {
+            if (graphState) {
+                updateGraphPartitionsList();
+                log('Graph state refreshed');
+            }
+        });
+
+        document.getElementById('clearGraphHighlightBtn').addEventListener('click', function () {
+            if (graphState) {
+                graphState.clearHighlight();
+                log('Graph partition highlight cleared');
+            }
+        });
+
+        document.getElementById('showGraphStatsBtn').addEventListener('click', function () {
+            if (graphState) {
+                const stats = graphState.getStatistics();
+                const history = graphState.getOperationHistory();
+                
+                let message = `Graph Statistics:\n`;
+                message += `- Total Partitions: ${stats.totalPartitions}\n`;
+                message += `- Total Vertices: ${stats.totalVertices}\n`;
+                message += `- Largest Partition: ${stats.largestPartition} vertices\n`;
+                message += `- Smallest Partition: ${stats.smallestPartition} vertices\n`;
+                message += `- Average Size: ${stats.averagePartitionSize.toFixed(1)} vertices\n`;
+                message += `- Operations: ${stats.operationsCount}\n`;
+                message += `\nRecent Operations:\n`;
+                
+                history.slice(-3).forEach(op => {
+                    message += `- ${op.type}: ${op.details.description}\n`;
+                });
+                
+                alert(message);
+                log('Displayed graph statistics');
+            }
+        });
 
         // Initialize
         log('Dashboard initialized');

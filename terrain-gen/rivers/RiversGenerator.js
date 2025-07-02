@@ -59,52 +59,33 @@ export class RiversGenerator {
   }
 
   /**
-   * Generate rivers using pathfinding
+   * Generate rivers using pathfinding (legacy method - use GraphState workflow instead)
    * @param {number} [numRivers=2] - Number of rivers to generate
    * @returns {Array<Array<number>>} Array of river paths
+   * @deprecated Use GraphState workflow with generateSingleRiver() instead
    */
   generateRivers(numRivers = 2) {
+    console.warn('RiversGenerator.generateRivers() is deprecated. Use GraphState workflow with generateSingleRiver() instead.');
+    
     if (!this.voronoiGenerator || !this.voronoiGenerator.cells || this.voronoiGenerator.cells.size === 0) {
       console.error('RiversGenerator: No Voronoi diagram available');
       return [];
     }
+    
     this.clearRivers();
-    console.log(`Generating ${numRivers} rivers...`);
+    console.log(`Generating ${numRivers} rivers using legacy method...`);
 
-    // Create initial deep copy of the graph data structures
-    let availableGraphs = [GraphUtils.createDeepCopyOfGraph(this.voronoiGenerator.delaunatorWrapper)];
-    console.log(`Starting with 1 connected graph containing ${availableGraphs[0].circumcenters.length} vertices`);
-
+    // Use the original graph for simple generation
+    const originalGraph = GraphUtils.createDeepCopyOfGraph(this.voronoiGenerator.delaunatorWrapper);
+    
     for (let i = 0; i < numRivers; i++) {
-      if (availableGraphs.length === 0) {
-        console.log(`No more available graphs for river ${i + 1}. Stopping generation.`);
-        break;
-      }
-
-      // Find the largest available graph for this river
-      const largestGraphIndex = GraphUtils.findLargestGraph(availableGraphs);
-      const selectedGraph = availableGraphs[largestGraphIndex];
-      
-      console.log(`River ${i + 1}: Using graph ${largestGraphIndex} with ${selectedGraph.circumcenters.filter(v => v !== null).length} vertices`);
-
-      const river = this.generateSingleRiver(i, selectedGraph);
+      const river = this.generateSingleRiver(i, originalGraph);
       if (river.length > 0) {
         this.riverPaths.push(river);
         console.log(`Generated river ${i + 1} with ${river.length} vertices`);
-
-        // Remove used vertices from the graph
-        GraphUtils.removeUsedVerticesFromGraph(selectedGraph, river);
         
-        // Find connected subgraphs in the remaining graph
-        const newSubgraphs = GraphUtils.findConnectedSubgraphs(selectedGraph);
-        
-        // Replace the used graph with its partitioned subgraphs
-        availableGraphs.splice(largestGraphIndex, 1, ...newSubgraphs);
-        
-        console.log(`After river ${i + 1}: Split into ${newSubgraphs.length} subgraphs`);
-        newSubgraphs.forEach((subgraph, idx) => {
-          console.log(`  Subgraph ${idx}: ${subgraph.circumcenters.filter(v => v !== null).length} vertices`);
-        });
+        // Remove used vertices for subsequent rivers (basic approach)
+        GraphUtils.removeUsedVerticesFromGraph(originalGraph, river);
       }
     }
 
