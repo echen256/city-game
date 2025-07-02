@@ -70,11 +70,40 @@ export class RiversGenerator {
     this.clearRivers();
     console.log(`Generating ${numRivers} rivers...`);
 
+    // Create initial deep copy of the graph data structures
+    let availableGraphs = [this.createDeepCopyOfGraph()];
+    console.log(`Starting with 1 connected graph containing ${availableGraphs[0].circumcenters.length} vertices`);
+
     for (let i = 0; i < numRivers; i++) {
-      const river = this.generateSingleRiver(i);
+      if (availableGraphs.length === 0) {
+        console.log(`No more available graphs for river ${i + 1}. Stopping generation.`);
+        break;
+      }
+
+      // Find the largest available graph for this river
+      const largestGraphIndex = this.findLargestGraph(availableGraphs);
+      const selectedGraph = availableGraphs[largestGraphIndex];
+      
+      console.log(`River ${i + 1}: Using graph ${largestGraphIndex} with ${selectedGraph.circumcenters.length} vertices`);
+
+      const river = this.generateSingleRiver(i, selectedGraph);
       if (river.length > 0) {
         this.riverPaths.push(river);
-        console.log(`Generated river ${i + 1} with ${river.length} cells`);
+        console.log(`Generated river ${i + 1} with ${river.length} vertices`);
+
+        // Remove used vertices from the graph
+        this.removeUsedVerticesFromGraph(selectedGraph, river);
+        
+        // Find connected subgraphs in the remaining graph
+        const newSubgraphs = this.findConnectedSubgraphs(selectedGraph);
+        
+        // Replace the used graph with its partitioned subgraphs
+        availableGraphs.splice(largestGraphIndex, 1, ...newSubgraphs);
+        
+        console.log(`After river ${i + 1}: Split into ${newSubgraphs.length} subgraphs`);
+        newSubgraphs.forEach((subgraph, idx) => {
+          console.log(`  Subgraph ${idx}: ${subgraph.circumcenters.length} vertices`);
+        });
       }
     }
 
@@ -84,21 +113,22 @@ export class RiversGenerator {
   /**
    * Generate a single river path
    * @param {number} riverIndex - Index of the river to generate
-   * @returns {Array<number>} River path as array of cell IDs
+   * @param {Object} graphData - Graph data containing vertices, edges, and circumcenters
+   * @returns {Array<number>} River path as array of vertex indices
    */
-  generateSingleRiver(riverIndex) {
+  generateSingleRiver(riverIndex, graphData) {
     console.log(`\n=== GENERATING SINGLE RIVER ${riverIndex + 1} ===`);
     
     // Step 1: Select random start point on north edge
-    let startPoint = this.selectNorthEdgePoint();
-    if (!startPoint) {
+    let startPoint = this.selectNorthEdgePoint(graphData);
+    if (startPoint === null) {
       console.log(`FAILURE: No valid start point found for river ${riverIndex + 1}`);
       return [];
     }
 
     // Step 2: Select random end point on south edge
-    let endPoint = this.selectSouthEdgePoint();
-    if (!endPoint) {
+    let endPoint = this.selectSouthEdgePoint(graphData);
+    if (endPoint === null) {
       console.log(`FAILURE: No valid end point found for river ${riverIndex + 1}`);
       return [];
     }
@@ -108,10 +138,16 @@ export class RiversGenerator {
 
     // Step 3: Use A* pathfinding to find path from north to south edge
     console.log(`Starting A* pathfinding from ${startPoint} to ${endPoint}...`);
+    console.log(`Pathfinder data check:`);
+    console.log(`- Start vertex in vertexMap: ${!!graphData.voronoiVertexVertexMap[startPoint]}`);
+    console.log(`- End vertex in vertexMap: ${!!graphData.voronoiVertexVertexMap[endPoint]}`);
+    console.log(`- Start vertex connections: ${graphData.voronoiVertexVertexMap[startPoint] ? graphData.voronoiVertexVertexMap[startPoint].length : 'N/A'}`);
+    console.log(`- End vertex connections: ${graphData.voronoiVertexVertexMap[endPoint] ? graphData.voronoiVertexVertexMap[endPoint].length : 'N/A'}`);
+    
     const path = this.pathfinder.findPath(startPoint, endPoint,
-       this.voronoiGenerator.delaunatorWrapper.voronoiVertexVertexMap,
-        this.voronoiGenerator.delaunatorWrapper.voronoiEdges,
-        this.voronoiGenerator.delaunatorWrapper.circumcenters);
+       graphData.voronoiVertexVertexMap,
+       graphData.voronoiEdges,
+       graphData.circumcenters);
     console.log(`A* pathfinding result: ${path.length > 0 ? 'SUCCESS' : 'FAILED'}`);
     
     if (path.length > 0) {   
@@ -393,24 +429,236 @@ export class RiversGenerator {
   }
 
   /**
+   * Create a deep copy of the graph data structures for pathfinding
+   * @returns {Object} Deep copy containing circumcenters, voronoiVertexVertexMap, and voronoiEdges
+   */
+  createDeepCopyOfGraph() {
+    const originalWrapper = this.voronoiGenerator.delaunatorWrapper;
+    
+    // Deep copy circumcenters array
+    const circumcenters = originalWrapper.circumcenters.map(vertex => 
+      vertex ? { x: vertex.x, z: vertex.z || vertex.y || 0 } : null
+    );
+    
+    // Deep copy voronoiVertexVertexMap
+    const voronoiVertexVertexMap = {};
+    for (const [vertexIndex, connectedVertices] of Object.entries(originalWrapper.voronoiVertexVertexMap)) {
+      voronoiVertexVertexMap[vertexIndex] = [...connectedVertices];
+    }
+    
+    // Deep copy voronoiEdges map
+    const voronoiEdges = new Map();
+    for (const [edgeKey, edge] of originalWrapper.voronoiEdges.entries()) {
+      voronoiEdges.set(edgeKey, {
+        a: { x: edge.a.x, z: edge.a.z || edge.a.y || 0 },
+        b: { x: edge.b.x, z: edge.b.z || edge.b.y || 0 },
+        id: edge.id,
+        weight: edge.weight
+      });
+    }
+    
+    console.log(`Created deep copy: ${circumcenters.length} vertices, ${Object.keys(voronoiVertexVertexMap).length} vertex mappings, ${voronoiEdges.size} edges`);
+    
+    return {
+      circumcenters,
+      voronoiVertexVertexMap,
+      voronoiEdges
+    };
+  }
+
+  /**
+   * Find the largest available graph from the list
+   * @param {Array<Object>} graphs - Array of graph objects
+   * @returns {number} Index of the largest graph
+   */
+  findLargestGraph(graphs) {
+    let largestIndex = 0;
+    let largestSize = graphs[0].circumcenters.length;
+    
+    for (let i = 1; i < graphs.length; i++) {
+      if (graphs[i].circumcenters.length > largestSize) {
+        largestSize = graphs[i].circumcenters.length;
+        largestIndex = i;
+      }
+    }
+    
+    return largestIndex;
+  }
+
+  /**
+   * Remove used vertices from the graph data structure
+   * @param {Object} graphData - Graph data to modify
+   * @param {Array<number>} usedVertices - Array of vertex indices to remove
+   */
+  removeUsedVerticesFromGraph(graphData, usedVertices) {
+    console.log(`Removing ${usedVertices.length} used vertices from graph`);
+    
+    const usedSet = new Set(usedVertices);
+    
+    // Remove from circumcenters (set to null to maintain indices)
+    usedVertices.forEach(vertexIndex => {
+      if (graphData.circumcenters[vertexIndex]) {
+        graphData.circumcenters[vertexIndex] = null;
+      }
+    });
+    
+    // Remove from vertex mapping and clean up connections
+    usedVertices.forEach(vertexIndex => {
+      // Remove this vertex's connections
+      delete graphData.voronoiVertexVertexMap[vertexIndex];
+      
+      // Remove references to this vertex from other vertices
+      for (const [otherVertex, connections] of Object.entries(graphData.voronoiVertexVertexMap)) {
+        graphData.voronoiVertexVertexMap[otherVertex] = connections.filter(connectedVertex => 
+          !usedSet.has(connectedVertex)
+        );
+      }
+    });
+    
+    // Remove edges that involve used vertices
+    const edgesToRemove = [];
+    for (const [edgeKey, edge] of graphData.voronoiEdges.entries()) {
+      const [vertex1, vertex2] = edgeKey.split('-').map(Number);
+      if (usedSet.has(vertex1) || usedSet.has(vertex2)) {
+        edgesToRemove.push(edgeKey);
+      }
+    }
+    
+    edgesToRemove.forEach(edgeKey => {
+      graphData.voronoiEdges.delete(edgeKey);
+    });
+    
+    console.log(`Removed ${edgesToRemove.length} edges involving used vertices`);
+  }
+
+  /**
+   * Find connected subgraphs using flood fill algorithm
+   * @param {Object} graphData - Graph data to partition
+   * @returns {Array<Object>} Array of connected subgraph objects
+   */
+  findConnectedSubgraphs(graphData) {
+    console.log('Finding connected subgraphs using flood fill...');
+    
+    const visited = new Set();
+    const subgraphs = [];
+    
+    // Get all valid (non-null) vertex indices
+    const validVertices = [];
+    graphData.circumcenters.forEach((vertex, index) => {
+      if (vertex !== null && graphData.voronoiVertexVertexMap[index]) {
+        validVertices.push(index);
+      }
+    });
+    
+    console.log(`Starting flood fill on ${validVertices.length} valid vertices`);
+    
+    // Flood fill from each unvisited vertex
+    for (const startVertex of validVertices) {
+      if (!visited.has(startVertex)) {
+        const subgraph = this.floodFillSubgraph(graphData, startVertex, visited);
+        if (subgraph.circumcenters.filter(v => v !== null).length > 0) {
+          subgraphs.push(subgraph);
+        }
+      }
+    }
+    
+    console.log(`Found ${subgraphs.length} connected subgraphs`);
+    return subgraphs;
+  }
+
+  /**
+   * Perform flood fill to find a single connected subgraph
+   * @param {Object} graphData - Original graph data
+   * @param {number} startVertex - Starting vertex for flood fill
+   * @param {Set<number>} visited - Global visited set
+   * @returns {Object} Subgraph object
+   */
+  floodFillSubgraph(graphData, startVertex, visited) {
+    const subgraphVertices = new Set();
+    const queue = [startVertex];
+    
+    // Flood fill to find all connected vertices
+    while (queue.length > 0) {
+      const currentVertex = queue.shift();
+      
+      if (visited.has(currentVertex)) continue;
+      
+      visited.add(currentVertex);
+      subgraphVertices.add(currentVertex);
+      
+      // Add connected vertices to queue
+      const connections = graphData.voronoiVertexVertexMap[currentVertex] || [];
+      for (const connectedVertex of connections) {
+        if (!visited.has(connectedVertex) && graphData.circumcenters[connectedVertex] !== null) {
+          queue.push(connectedVertex);
+        }
+      }
+    }
+    
+    // Create new subgraph with only the connected vertices
+    const newCircumcenters = new Array(graphData.circumcenters.length).fill(null);
+    const newVertexMap = {};
+    const newEdges = new Map();
+    
+    // Copy circumcenters for vertices in this subgraph
+    for (const vertexIndex of subgraphVertices) {
+      newCircumcenters[vertexIndex] = { ...graphData.circumcenters[vertexIndex] };
+    }
+    
+    // Copy vertex mappings for vertices in this subgraph
+    for (const vertexIndex of subgraphVertices) {
+      const connections = graphData.voronoiVertexVertexMap[vertexIndex] || [];
+      newVertexMap[vertexIndex] = connections.filter(connectedVertex => 
+        subgraphVertices.has(connectedVertex)
+      );
+    }
+    
+    // Copy edges that connect vertices within this subgraph
+    for (const [edgeKey, edge] of graphData.voronoiEdges.entries()) {
+      const [vertex1, vertex2] = edgeKey.split('-').map(Number);
+      if (subgraphVertices.has(vertex1) && subgraphVertices.has(vertex2)) {
+        newEdges.set(edgeKey, {
+          a: { ...edge.a },
+          b: { ...edge.b },
+          id: edge.id,
+          weight: edge.weight
+        });
+      }
+    }
+    
+    console.log(`Subgraph: ${subgraphVertices.size} vertices, ${Object.keys(newVertexMap).length} mappings, ${newEdges.size} edges`);
+    
+    return {
+      circumcenters: newCircumcenters,
+      voronoiVertexVertexMap: newVertexMap,
+      voronoiEdges: newEdges
+    };
+  }
+
+  /**
    * Select a random vertex point on the north edge of the map
+   * @param {Object} graphData - Graph data to search
    * @returns {number|null} Vertex index on north edge or null if none found
    */
-  selectNorthEdgePoint() {
+  selectNorthEdgePoint(graphData) {
     console.log('=== SELECTING NORTH EDGE START POINT ===');
     const gridSize = this.voronoiGenerator.settings.gridSize;
     const edgeTolerance = 50; // Distance from edge to consider "edge vertex"
     const northEdgeVertices = [];
 
+    console.log(`Graph data has ${graphData.circumcenters.length} total circumcenters`);
+    console.log(`Graph data has ${Object.keys(graphData.voronoiVertexVertexMap).length} vertex mappings`);
+
     // Check circumcenters (Voronoi vertices) for those near the north edge
-    this.voronoiGenerator.delaunatorWrapper.circumcenters.forEach((vertex, index) => {
+    graphData.circumcenters.forEach((vertex, index) => {
       if (!vertex) return;
       
       const x = vertex.x;
       const z = vertex.z || vertex.y || 0;
       
-      // Check if vertex is near north edge (z coordinate close to 0)
-      if (z <= edgeTolerance && x >= edgeTolerance && x <= (gridSize - edgeTolerance)) {
+      // Check if vertex is near north edge (z coordinate close to 0) and available in graph
+      if (z <= edgeTolerance && x >= edgeTolerance && x <= (gridSize - edgeTolerance) && 
+          graphData.voronoiVertexVertexMap[index]) {
         northEdgeVertices.push(index);
         console.log(`Found north edge vertex ${index} at (${x.toFixed(1)}, ${z.toFixed(1)})`);
       }
@@ -431,23 +679,28 @@ export class RiversGenerator {
 
   /**
    * Select a random vertex point on the south edge of the map
+   * @param {Object} graphData - Graph data to search
    * @returns {number|null} Vertex index on south edge or null if none found
    */
-  selectSouthEdgePoint() {
+  selectSouthEdgePoint(graphData) {
     console.log('=== SELECTING SOUTH EDGE END POINT ===');
     const gridSize = this.voronoiGenerator.settings.gridSize;
     const edgeTolerance = 50; // Distance from edge to consider "edge vertex"
     const southEdgeVertices = [];
 
+    console.log(`Graph data has ${graphData.circumcenters.length} total circumcenters`);
+    console.log(`Graph data has ${Object.keys(graphData.voronoiVertexVertexMap).length} vertex mappings`);
+
     // Check circumcenters (Voronoi vertices) for those near the south edge
-    this.voronoiGenerator.delaunatorWrapper.circumcenters.forEach((vertex, index) => {
+    graphData.circumcenters.forEach((vertex, index) => {
       if (!vertex) return;
       
       const x = vertex.x;
       const z = vertex.z || vertex.y || 0;
       
-      // Check if vertex is near south edge (z coordinate close to gridSize)
-      if (z >= (gridSize - edgeTolerance) && x >= edgeTolerance && x <= (gridSize - edgeTolerance)) {
+      // Check if vertex is near south edge (z coordinate close to gridSize) and available in graph
+      if (z >= (gridSize - edgeTolerance) && x >= edgeTolerance && x <= (gridSize - edgeTolerance) && 
+          graphData.voronoiVertexVertexMap[index]) {
         southEdgeVertices.push(index);
         console.log(`Found south edge vertex ${index} at (${x.toFixed(1)}, ${z.toFixed(1)})`);
       }

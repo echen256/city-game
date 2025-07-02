@@ -156,6 +156,14 @@
                     <button id="exportImageBtn" disabled>Export Image</button>
                     <button id="exportDataBtn" disabled>Export Data JSON</button>
                 </div>
+                <div class="settings">
+                    <div class="setting-item">
+                        <label>Highlight Vertex ID</label>
+                        <input type="number" id="highlightVertexId" placeholder="Enter vertex ID" min="0">
+                        <button id="highlightVertexBtn">Highlight Vertex</button>
+                        <button id="clearHighlightBtn">Clear Highlight</button>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -637,26 +645,9 @@
                 // Store reference for image exporter
                 imageExporter.voronoiGenerator = voronoiGenerator;
 
-                // Set generator references if available
-                // if (coastlineGenerator) {
-                //     imageExporter.setCoastlineGenerator(coastlineGenerator);
-                // }
-
-                // if (hillsGenerator) {
-                //     imageExporter.setHillsGenerator(hillsGenerator);
-                // }
-
-                // if (lakesGenerator) {
-                //     imageExporter.setLakesGenerator(lakesGenerator);
-                // }
-
                 if (riversGenerator) {
                     imageExporter.setRiversGenerator(riversGenerator);
                 }
-
-                // if (marshGenerator) {
-                //     imageExporter.setMarshGenerator(marshGenerator);
-                // }
 
                 // Get triangulation data once
                 const triangulationData = voronoiGenerator.delaunatorWrapper;
@@ -1124,6 +1115,9 @@
             // Hide info widget
             hideCellInfo();
 
+            // Clear vertex highlight
+            clearVertexHighlight();
+
             // Reset selection state
             selectedCellId = null;
             selectedVertexIndex = null;
@@ -1303,6 +1297,92 @@
                 clearVertexHighlights();
             }
         });
+
+        // Vertex highlighting functionality
+        let highlightedVertexId = null;
+        let highlightedVertexElement = null;
+
+        document.getElementById('highlightVertexBtn').addEventListener('click', function () {
+            const vertexId = parseInt(document.getElementById('highlightVertexId').value);
+            
+            if (isNaN(vertexId) || vertexId < 0) {
+                log('Error: Please enter a valid vertex ID (non-negative integer)');
+                return;
+            }
+
+            highlightVertex(vertexId);
+        });
+
+        document.getElementById('clearHighlightBtn').addEventListener('click', function () {
+            clearVertexHighlight();
+        });
+
+        // Allow Enter key in the input field
+        document.getElementById('highlightVertexId').addEventListener('keypress', function (event) {
+            if (event.key === 'Enter') {
+                document.getElementById('highlightVertexBtn').click();
+            }
+        });
+
+        function highlightVertex(vertexId) {
+            // Clear any existing highlight
+            clearVertexHighlight();
+
+            if (!voronoiGenerator || !voronoiGenerator.delaunatorWrapper) {
+                log('Error: No Voronoi data available');
+                return;
+            }
+
+            const circumcenters = voronoiGenerator.delaunatorWrapper.circumcenters;
+            
+            if (vertexId >= circumcenters.length || !circumcenters[vertexId]) {
+                log(`Error: Vertex ${vertexId} not found or is null`);
+                return;
+            }
+
+            const vertex = circumcenters[vertexId];
+            const canvas = document.getElementById('canvas');
+            const scaleX = canvas.width / voronoiGenerator.settings.gridSize;
+            const scaleZ = canvas.height / voronoiGenerator.settings.gridSize;
+
+            // Create highlight element
+            const highlightElement = document.createElement('div');
+            highlightElement.className = 'vertex-highlight';
+            highlightElement.style.position = 'absolute';
+            highlightElement.style.left = `${(vertex.x * scaleX) - 8}px`;
+            highlightElement.style.top = `${((vertex.z || vertex.y || 0) * scaleZ) - 8}px`;
+            highlightElement.style.width = '16px';
+            highlightElement.style.height = '16px';
+            highlightElement.style.backgroundColor = 'yellow';
+            highlightElement.style.border = '2px solid red';
+            highlightElement.style.borderRadius = '50%';
+            highlightElement.style.pointerEvents = 'none';
+            highlightElement.style.zIndex = '1000';
+            highlightElement.style.boxShadow = '0 0 10px rgba(255, 255, 0, 0.8)';
+
+            // Add to canvas container
+            const canvasContainer = document.querySelector('.canvas-wrapper');
+            canvasContainer.appendChild(highlightElement);
+
+            highlightedVertexId = vertexId;
+            highlightedVertexElement = highlightElement;
+
+            log(`Highlighted vertex ${vertexId} at (${vertex.x.toFixed(1)}, ${(vertex.z || vertex.y || 0).toFixed(1)})`);
+            updateStatus(`Vertex ${vertexId} highlighted`);
+        }
+
+        function clearVertexHighlight() {
+            if (highlightedVertexElement) {
+                highlightedVertexElement.remove();
+                highlightedVertexElement = null;
+                
+                if (highlightedVertexId !== null) {
+                    log(`Cleared highlight for vertex ${highlightedVertexId}`);
+                    highlightedVertexId = null;
+                    updateStatus('Vertex highlight cleared');
+                }
+            }
+        }
 
         // Initialize
         log('Dashboard initialized');
