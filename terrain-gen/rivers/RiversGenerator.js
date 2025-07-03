@@ -433,7 +433,7 @@ export class RiversGenerator {
       const z = vertex.z || vertex.y || 0;
       
       // Check if vertex is near north edge (z coordinate close to 0) and available in graph
-      if (z <= edgeTolerance && x >= edgeTolerance && x <= (gridSize - edgeTolerance) && 
+      if (z < edgeTolerance && z > 0 && x >= 0 && x <= (gridSize) && 
           graphData.voronoiVertexVertexMap[index]) {
         northEdgeVertices.push(index);
         console.log(`Found north edge vertex ${index} at (${x.toFixed(1)}, ${z.toFixed(1)})`);
@@ -475,7 +475,7 @@ export class RiversGenerator {
       const z = vertex.z || vertex.y || 0;
       
       // Check if vertex is near south edge (z coordinate close to gridSize) and available in graph
-      if (z >= (gridSize - edgeTolerance) && x >= edgeTolerance && x <= (gridSize - edgeTolerance) && 
+      if (z < gridSize && z > (gridSize - edgeTolerance) && x >= 0 && x <= (gridSize ) && 
           graphData.voronoiVertexVertexMap[index]) {
         southEdgeVertices.push(index);
         console.log(`Found south edge vertex ${index} at (${x.toFixed(1)}, ${z.toFixed(1)})`);

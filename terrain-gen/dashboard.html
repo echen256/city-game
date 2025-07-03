@@ -1489,6 +1489,7 @@
         function initializeGraphState() {
             if (!graphState) {
                 graphState = new GraphState();
+                graphState.settings = voronoiGenerator.settings;
                 
                 // Listen for graph state changes
                 graphState.addEventListener((eventType, data, state) => {

@@ -170,6 +170,7 @@ export class GraphUtils {
       if (visited.has(currentVertex)) continue;
       
       visited.add(currentVertex);
+
       subgraphVertices.add(currentVertex);
       
       // Add connected vertices to queue

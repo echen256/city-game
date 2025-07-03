@@ -33,6 +33,7 @@ export class GraphState {
     /** @type {Array<Function>} Event listeners for state changes */
     this.listeners = [];
     
+    this.settings = {};
     console.log('GraphState: Initialized graph state manager');
   }
 
@@ -51,6 +52,7 @@ export class GraphState {
       settings: { ...settings },
       description: 'Original complete graph'
     };
+    console.log(snapshot);
     
     this.snapshots.push(snapshot);
     
