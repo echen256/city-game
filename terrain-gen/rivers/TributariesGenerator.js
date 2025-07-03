@@ -391,16 +391,29 @@ export class TributariesGenerator {
     const startSkip = Math.min(3, Math.floor(riverPath.length * 0.15));
     const endSkip = Math.min(3, Math.floor(riverPath.length * 0.15));
     
+    console.log(`TributariesGenerator: Searching for branching points in river of length ${riverPath.length}`);
+    console.log(`TributariesGenerator: Skipping first ${startSkip} and last ${endSkip} vertices, checking separation of ${minBranchingSeparation}`);
+    
     let lastBranchingIndex = -minBranchingSeparation;
+    let candidatesChecked = 0;
+    let candidatesSkippedForSeparation = 0;
+    let candidatesWithoutConnections = 0;
     
     for (let i = startSkip; i < riverPath.length - endSkip; i++) {
-      if (i - lastBranchingIndex < minBranchingSeparation) continue;
+      candidatesChecked++;
+      
+      if (i - lastBranchingIndex < minBranchingSeparation) {
+        candidatesSkippedForSeparation++;
+        continue;
+      }
       
       const vertex = riverPath[i];
       const connections = graph.voronoiVertexVertexMap[vertex] || [];
       const nonRiverConnections = connections.filter(conn => !this.riverVertices.has(conn));
       
-      if (nonRiverConnections.length >= 2) { // Require multiple options
+      console.log(`TributariesGenerator: Vertex ${vertex} at index ${i}: ${connections.length} total connections, ${nonRiverConnections.length} non-river connections`);
+      
+      if (nonRiverConnections.length >= 1) { // Reduced requirement from 2 to 1
         const direction = this.determineFlowDirection(riverPath, i);
         branchingPoints.push({
           vertex,
@@ -409,8 +422,17 @@ export class TributariesGenerator {
           riverIndex: i
         });
         lastBranchingIndex = i;
+        console.log(`TributariesGenerator: Added branching point at vertex ${vertex} with direction ${direction}`);
+      } else {
+        candidatesWithoutConnections++;
       }
     }
+    
+    console.log(`TributariesGenerator: Branching point search complete:`);
+    console.log(`  - Candidates checked: ${candidatesChecked}`);
+    console.log(`  - Skipped for separation: ${candidatesSkippedForSeparation}`);
+    console.log(`  - Without sufficient connections: ${candidatesWithoutConnections}`);
+    console.log(`  - Branching points found: ${branchingPoints.length}`);
     
     return branchingPoints;
   }
