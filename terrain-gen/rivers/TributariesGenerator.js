@@ -17,7 +17,7 @@ import { PathFinder } from './Pathfinder.js';
  * @property {number} [baseEdgeWeight=1] - Base weight for non-river edges
  * @property {number} [maxDistanceInfluence=50] - Maximum distance for weight influence
  * @property {number} [branchProbability=0.7] - Probability of creating a branch at each step
- * @property {number} [minTributaryLength=3] - Minimum length for a tributary
+ * @property {number} [minTributaryLength=10] - Minimum length for a tributary
  */
 
 /**
@@ -46,9 +46,9 @@ export class TributariesGenerator {
       baseEdgeWeight: 1,
       maxDistanceInfluence: 50,
       branchProbability: 0.7,
-      minTributaryLength: 4,
+      minTributaryLength: 10,
       minTributaryDistance: 15,
-      maxTributaryDistance: 80,
+      maxTributaryDistance: 150,
       branchingSeparation: 5,
       ...settings
     };
