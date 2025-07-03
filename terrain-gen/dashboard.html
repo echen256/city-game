@@ -111,6 +111,7 @@
                     <button id="generateLakesBtn" disabled>Generate Lakes</button>
                     <button id="clearLakesBtn" disabled>Clear Lakes</button>
                     <button id="generateRiversBtn" disabled>Generate Rivers</button>
+                    <button id="generateTributariesBtn" disabled>Generate Tributaries</button>
                     <button id="clearRiversBtn" disabled>Clear Rivers</button>
                 </div>
                 <div class="settings">
@@ -125,6 +126,14 @@
                     <div class="setting-item">
                         <label>Number of Rivers</label>
                         <input type="number" id="riversCount" value="2" min="1" max="4">
+                    </div>
+                    <div class="setting-item">
+                        <label>Tributary Depth</label>
+                        <input type="number" id="tributaryDepth" value="3" min="1" max="5">
+                    </div>
+                    <div class="setting-item">
+                        <label>Branch Probability</label>
+                        <input type="number" id="branchProbability" value="0.7" min="0.1" max="1.0" step="0.1">
                     </div>
                 </div>
             </div>
@@ -258,6 +267,7 @@
         import { VoronoiGenerator } from './geometry/voronoi/VoronoiGenerator.js';
         import { VoronoiImageExporter } from './import-export/VoronoiImageExporter.js';
         import { RiversGenerator } from './rivers/RiversGenerator.js';
+        import { TributariesGenerator } from './rivers/TributariesGenerator.js';
         import { FeatureDrawer } from './drawer/FeatureDrawer.js';
         import { GraphState } from './geometry/graph/GraphState.js';
         import { GraphUtils } from './geometry/graph/GraphUtils.js';
@@ -270,6 +280,7 @@
         // let lakesGenerator = null;
         // let marshGenerator = null;
         let riversGenerator = null;
+        let tributariesGenerator = null;
         let featureDrawer = null;
         let graphState = null;
         let highlightedPartitionElements = [];
@@ -381,8 +392,19 @@
             };
         }
 
+        function getTributarySettings() {
+            return {
+                maxDepth: parseInt(document.getElementById('tributaryDepth').value),
+                branchProbability: parseFloat(document.getElementById('branchProbability').value),
+                riverEdgeWeight: 100,
+                baseEdgeWeight: 1,
+                maxDistanceInfluence: 50,
+                minTributaryLength: 3
+            };
+        }
+
         function enableDependentButtons(enable) {
-            const buttons = ['generateCoastBtn', 'clearCoastBtn', 'generateHillsBtn', 'clearHillsBtn', 'generateLakesBtn', 'clearLakesBtn', 'generateRiversBtn', 'clearRiversBtn', 'generateMarshesBtn', 'clearMarshesBtn', 'exportImageBtn', 'exportDataBtn'];
+            const buttons = ['generateCoastBtn', 'clearCoastBtn', 'generateHillsBtn', 'clearHillsBtn', 'generateLakesBtn', 'clearLakesBtn', 'generateRiversBtn', 'generateTributariesBtn', 'clearRiversBtn', 'generateMarshesBtn', 'clearMarshesBtn', 'exportImageBtn', 'exportDataBtn'];
             buttons.forEach(id => {
                 const element = document.getElementById(id);
                 if (element) {
@@ -731,6 +753,7 @@
                 // lakesGenerator = new LakesGenerator(voronoiGenerator, settings);
                 // marshGenerator = new MarshGenerator(voronoiGenerator, settings);
                 riversGenerator = new RiversGenerator(voronoiGenerator);
+                tributariesGenerator = new TributariesGenerator(voronoiGenerator, getTributarySettings());
                 
                 // Initialize FeatureDrawer with the canvas and grid size
                 const canvas = document.getElementById('canvas');
@@ -806,6 +829,7 @@
                     voronoiGenerator = new VoronoiGenerator(mockTerrainData, settings);
                     imageExporter = new VoronoiImageExporter(voronoiGenerator, settings); 
                     riversGenerator = new RiversGenerator(voronoiGenerator, settings);
+                    tributariesGenerator = new TributariesGenerator(voronoiGenerator, getTributarySettings());
 
                     voronoiGenerator.generateVoronoi();
                     updateStats();
@@ -1133,16 +1157,89 @@
             }
 
             console.log(`Rivers generation complete. Total paths: ${riverPaths.length}`);
+            
+            // Enable tributaries button if rivers were generated
+            if (riverPaths.length > 0) {
+                document.getElementById('generateTributariesBtn').disabled = false;
+                log('Tributaries button enabled - rivers ready for tributary generation');
+            }
         }
 
-        document.getElementById('clearRiversBtn').addEventListener('click', function () {
-            // if (!riversGenerator) return;
+        document.getElementById('generateTributariesBtn').addEventListener('click', function () {
+            if (!tributariesGenerator || !riversGenerator || !featureDrawer) {
+                updateStatus('Error: Rivers must be generated first');
+                return;
+            }
 
-            // riversGenerator.clearRivers();
-            // updateStats();
-            // drawDiagram();
-            // updateStatus('Rivers cleared');
-            // log('Cleared all rivers');
+            try {
+                const riverPaths = riversGenerator.getRiverPaths();
+                if (riverPaths.length === 0) {
+                    updateStatus('Error: No rivers found. Generate rivers first.');
+                    log('Error: No rivers found for tributary generation');
+                    return;
+                }
+
+                updateStatus(`Generating tributaries for ${riverPaths.length} rivers...`);
+                log(`Starting tributary generation for ${riverPaths.length} main rivers...`);
+
+                // Get the original graph for tributary generation
+                const originalGraph = GraphUtils.createDeepCopyOfGraph(voronoiGenerator.delaunatorWrapper);
+                
+                // Generate tributaries
+                const tributaryPaths = tributariesGenerator.generateTributaries(riverPaths, originalGraph);
+                
+                // Draw tributaries on canvas (in lighter blue)
+                if (tributaryPaths && tributaryPaths.length > 0) {
+                    tributaryPaths.forEach((path, index) => {
+                        if (path && path.length > 1) {
+                            // Convert vertex indices to coordinates
+                            const coordinates = path.map(vertexIndex => {
+                                const vertex = voronoiGenerator.delaunatorWrapper.circumcenters[vertexIndex];
+                                return vertex ? { x: vertex.x, z: vertex.z || vertex.y || 0 } : null;
+                            }).filter(coord => coord !== null);
+                            
+                            if (coordinates.length > 1) {
+                                featureDrawer.drawPath(coordinates, {
+                                    color: '#87CEEB', // Light blue for tributaries
+                                    width: 2
+                                });
+                                log(`Drew tributary ${index + 1} with ${coordinates.length} coordinate points`);
+                            }
+                        }
+                    });
+                    log(`Drew ${tributaryPaths.length} light blue tributary paths on canvas`);
+                }
+
+                const tributaryStats = tributariesGenerator.getTributaryStats();
+                updateStatus(`Generated ${tributaryStats.totalTributaries} tributaries (avg length: ${Math.round(tributaryStats.averageLength)})`);
+                log(`Generated tributaries: ${tributaryStats.totalTributaries} paths, ${tributaryStats.totalVertices} total vertices`);
+                if (tributaryStats.longestTributary > 0) {
+                    log(`Longest tributary: ${tributaryStats.longestTributary} vertices`);
+                }
+
+                console.log(`Tributaries generation complete. Total paths: ${tributaryStats.totalTributaries}`);
+
+            } catch (error) {
+                updateStatus(`Error: ${error.message}`);
+                log(`Error generating tributaries: ${error.message}`);
+                console.error(error);
+            }
+        });
+
+        document.getElementById('clearRiversBtn').addEventListener('click', function () {
+            if (!riversGenerator) return;
+
+            riversGenerator.clearRivers();
+            if (tributariesGenerator) {
+                tributariesGenerator.clearTributaries();
+            }
+            updateStats();
+            drawDiagram();
+            updateStatus('Rivers and tributaries cleared');
+            log('Cleared all rivers and tributaries');
+            
+            // Disable tributaries button when rivers are cleared
+            document.getElementById('generateTributariesBtn').disabled = true;
         });
 
         document.getElementById('generateMarshesBtn').addEventListener('click', function () {
