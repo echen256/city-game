@@ -52,6 +52,11 @@ export class RiversGenerator {
     /** @type {number} */
     this._seed = undefined;
     
+    // Initialize seed if provided
+    if (this.settings.seed !== undefined) {
+      this.seedRandom(this.settings.seed);
+    }
+    
     /** @type {PathFinder} */
     this.pathfinder = new PathFinder(voronoiGenerator.delaunatorWrapper);
     console.log('RiversGenerator constructor');
@@ -363,10 +368,21 @@ export class RiversGenerator {
   }
 
   /**
+   * Set the seeded random number generator
+   * @param {Function} seededRandom - Seeded random function from seedrandom library
+   */
+  setSeededRandom(seededRandom) {
+    this._seededRandom = seededRandom;
+  }
+
+  /**
    * Generate random number (seeded if available)
    * @returns {number} Random number between 0 and 1
    */
   random() {
+    if (this._seededRandom) {
+      return this._seededRandom();
+    }
     if (this._seed !== undefined) {
       this._seed = (this._seed * 9301 + 49297) % 233280;
       return this._seed / 233280;

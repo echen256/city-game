@@ -72,7 +72,18 @@ export class VoronoiGenerator {
     this._seed = seed;
   }
 
+  /**
+   * Set the seeded random number generator
+   * @param {Function} seededRandom - Seeded random function from seedrandom library
+   */
+  setSeededRandom(seededRandom) {
+    this._seededRandom = seededRandom;
+  }
+
   random() {
+    if (this._seededRandom) {
+      return this._seededRandom();
+    }
     if (this._seed !== undefined) {
       this._seed = (this._seed * 9301 + 49297) % 233280;
       return this._seed / 233280;

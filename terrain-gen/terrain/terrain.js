@@ -8,6 +8,26 @@ export class TerrainGenerator {
     this.citySettings = settings.city;
     this.noise = createNoise2D();
     this.tileGrid = new TileGrid(this.settings.gridSize);
+    this._seededRandom = null;
+  }
+
+  /**
+   * Set the seeded random number generator
+   * @param {Function} seededRandom - Seeded random function from seedrandom library
+   */
+  setSeededRandom(seededRandom) {
+    this._seededRandom = seededRandom;
+  }
+
+  /**
+   * Generate random number using seeded generator if available
+   * @returns {number} Random number between 0 and 1
+   */
+  random() {
+    if (this._seededRandom) {
+      return this._seededRandom();
+    }
+    return Math.random();
   }
 
   generateTerrain() {
@@ -89,12 +109,12 @@ export class TerrainGenerator {
 
   generateHills(gridSize, hillSettings) {
     const { minHills, maxHills, hillRadius, hillIntensity } = hillSettings;
-    const numHills = Math.floor(Math.random() * (maxHills - minHills + 1)) + minHills;
+    const numHills = Math.floor(this.random() * (maxHills - minHills + 1)) + minHills;
     
     for (let h = 0; h < numHills; h++) {
       // Random hill center
-      const centerX = Math.random() * gridSize;
-      const centerZ = Math.random() * gridSize;
+      const centerX = this.random() * gridSize;
+      const centerZ = this.random() * gridSize;
       
       // Apply hill effect to surrounding tiles
       for (let tileX = 0; tileX < gridSize; tileX++) {
@@ -190,7 +210,7 @@ export class TerrainGenerator {
     // Generate multiple river candidates
     for (let i = 0; i < candidateCount; i++) {
       const { startPoint, endPoint } = this.generateRiverEndpoints(gridSize);
-      const numControlPoints = Math.floor(Math.random() * (maxControlPoints - minControlPoints + 1)) + minControlPoints;
+      const numControlPoints = Math.floor(this.random() * (maxControlPoints - minControlPoints + 1)) + minControlPoints;
       const controlPoints = this.generateRiverControlPoints(startPoint, endPoint, numControlPoints, randomOffset, gridSize);
       const riverPath = this.generateBezierCurve([startPoint, ...controlPoints, endPoint], curveResolution);
       const length = this.calculateRiverLength(riverPath);
@@ -210,7 +230,7 @@ export class TerrainGenerator {
     // Select randomly from top percentage
     const topCount = Math.max(1, Math.ceil(candidates.length * (topPercentage / 100)));
     const topCandidates = candidates.slice(0, topCount);
-    const selectedIndex = Math.floor(Math.random() * topCandidates.length);
+    const selectedIndex = Math.floor(this.random() * topCandidates.length);
     
     return topCandidates[selectedIndex];
   }
@@ -233,22 +253,22 @@ export class TerrainGenerator {
   generateRiverEndpoints(gridSize) {
     // Choose two different edges randomly
     const edges = ['north', 'south', 'east', 'west'];
-    const startEdge = edges[Math.floor(Math.random() * edges.length)];
+    const startEdge = edges[Math.floor(this.random() * edges.length)];
     let endEdge;
     do {
-      endEdge = edges[Math.floor(Math.random() * edges.length)];
+      endEdge = edges[Math.floor(this.random() * edges.length);
     } while (endEdge === startEdge);
     
     const getPointOnEdge = (edge) => {
       switch (edge) {
         case 'north':
-          return { x: Math.random() * gridSize, z: 0 };
+          return { x: this.random() * gridSize, z: 0 };
         case 'south':
-          return { x: Math.random() * gridSize, z: gridSize - 1 };
+          return { x: this.random() * gridSize, z: gridSize - 1 };
         case 'east':
-          return { x: gridSize - 1, z: Math.random() * gridSize };
+          return { x: gridSize - 1, z: this.random() * gridSize };
         case 'west':
-          return { x: 0, z: Math.random() * gridSize };
+          return { x: 0, z: this.random() * gridSize };
       }
     };
     
@@ -269,8 +289,8 @@ export class TerrainGenerator {
       const baseZ = startPoint.z + (endPoint.z - startPoint.z) * t;
       
       // Apply random offset
-      const offsetX = (Math.random() - 0.5) * maxOffset * 2;
-      const offsetZ = (Math.random() - 0.5) * maxOffset * 2;
+      const offsetX = (this.random() - 0.5) * maxOffset * 2;
+      const offsetZ = (this.random() - 0.5) * maxOffset * 2;
       
       // Clamp to grid bounds
       const x = Math.max(0, Math.min(gridSize - 1, baseX + offsetX));
@@ -321,13 +341,13 @@ export class TerrainGenerator {
   }
 
   generateRiverBranches(mainRiver, gridSize, minBranches, maxBranches, minControlPoints, maxControlPoints, randomOffset, curveResolution) {
-    const numBranches = Math.floor(Math.random() * (maxBranches - minBranches + 1)) + minBranches;
+    const numBranches = Math.floor(this.random() * (maxBranches - minBranches + 1)) + minBranches;
     const branches = [];
     const allRivers = [mainRiver]; // Track all rivers for potential branching sources
     
     for (let b = 0; b < numBranches; b++) {
       // Select a source river (main river or existing branch)
-      const sourceRiver = allRivers[Math.floor(Math.random() * allRivers.length)];
+      const sourceRiver = allRivers[Math.floor(this.random() * allRivers.length)];
       
       // Select branch source point 1/3 down the source river
       const branchIndex = Math.floor(sourceRiver.path.length / 3);
@@ -337,7 +357,7 @@ export class TerrainGenerator {
       const branchEndPoint = this.generateRandomEdgePoint(gridSize);
       
       // Generate control points for the branch
-      const numControlPoints = Math.floor(Math.random() * (maxControlPoints - minControlPoints + 1)) + minControlPoints;
+      const numControlPoints = Math.floor(this.random() * (maxControlPoints - minControlPoints + 1)) + minControlPoints;
       const controlPoints = this.generateRiverControlPoints(branchSourcePoint, branchEndPoint, numControlPoints, randomOffset, gridSize);
       
       // Generate branch path
@@ -361,17 +381,17 @@ export class TerrainGenerator {
 
   generateRandomEdgePoint(gridSize) {
     const edges = ['north', 'south', 'east', 'west'];
-    const edge = edges[Math.floor(Math.random() * edges.length)];
+    const edge = edges[Math.floor(this.random() * edges.length)];
     
     switch (edge) {
       case 'north':
-        return { x: Math.random() * gridSize, z: 0 };
+        return { x: this.random() * gridSize, z: 0 };
       case 'south':
-        return { x: Math.random() * gridSize, z: gridSize - 1 };
+        return { x: this.random() * gridSize, z: gridSize - 1 };
       case 'east':
-        return { x: gridSize - 1, z: Math.random() * gridSize };
+        return { x: gridSize - 1, z: this.random() * gridSize };
       case 'west':
-        return { x: 0, z: Math.random() * gridSize };
+        return { x: 0, z: this.random() * gridSize };
       default:
         return { x: 0, z: 0 };
     }
@@ -435,7 +455,7 @@ export class TerrainGenerator {
             );
             
             // Random chance to erode based on calculated probability
-            if (Math.random() < erosionProbability) {
+            if (this.random() < erosionProbability) {
               tilesToErode.push(tile);
             }
           }

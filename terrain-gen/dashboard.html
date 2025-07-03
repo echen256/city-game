@@ -275,6 +275,9 @@
         </div>
     </div>
 
+    <!-- Seedrandom library for deterministic random number generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/seedrandom/3.0.5/seedrandom.min.js"></script>
+
     <script type="module">
         import { VoronoiGenerator } from './geometry/voronoi/VoronoiGenerator.js';
         import { VoronoiImageExporter } from './import-export/VoronoiImageExporter.js';
@@ -294,6 +297,9 @@
         let riversGenerator = null;
         let tributariesGenerator = null;
         let featureDrawer = null;
+        
+        // Global seeded random number generator
+        let seededRandom = null;
         let graphState = null;
         let highlightedPartitionElements = [];
         let showTriangulation = true;
@@ -760,15 +766,24 @@
                 log('Starting Voronoi generation');
 
                 const settings = getSettings();
+                
+                // Create global seeded random number generator
+                seededRandom = new Math.seedrandom(settings.voronoi.seed);
+                
                 voronoiGenerator = new VoronoiGenerator(mockTerrainData, settings);
+                voronoiGenerator.setSeededRandom(seededRandom);
                 voronoiGenerator.generateVoronoi();
                 imageExporter = new VoronoiImageExporter(voronoiGenerator, settings);
                 // coastlineGenerator = new CoastlineGenerator(voronoiGenerator, settings);
                 // hillsGenerator = new HillsGenerator(voronoiGenerator, settings);
                 // lakesGenerator = new LakesGenerator(voronoiGenerator, settings);
                 // marshGenerator = new MarshGenerator(voronoiGenerator, settings);
-                riversGenerator = new RiversGenerator(voronoiGenerator);
-                tributariesGenerator = new TributariesGenerator(voronoiGenerator, getTributarySettings());
+                riversGenerator = new RiversGenerator(voronoiGenerator, settings);
+                riversGenerator.setSeededRandom(seededRandom);
+                const tributarySettings = getTributarySettings();
+                tributarySettings.seed = settings.voronoi.seed;
+                tributariesGenerator = new TributariesGenerator(voronoiGenerator, tributarySettings);
+                tributariesGenerator.setSeededRandom(seededRandom);
                 
                 // Initialize FeatureDrawer with the canvas and grid size
                 const canvas = document.getElementById('canvas');
@@ -841,10 +856,19 @@
 
                     // Create new generators with imported settings
                     const settings = importedData.metadata.settings || getSettings();
+                    
+                    // Create global seeded random number generator
+                    seededRandom = new Math.seedrandom(settings.voronoi.seed);
+                    
                     voronoiGenerator = new VoronoiGenerator(mockTerrainData, settings);
+                    voronoiGenerator.setSeededRandom(seededRandom);
                     imageExporter = new VoronoiImageExporter(voronoiGenerator, settings); 
                     riversGenerator = new RiversGenerator(voronoiGenerator, settings);
-                    tributariesGenerator = new TributariesGenerator(voronoiGenerator, getTributarySettings());
+                    riversGenerator.setSeededRandom(seededRandom);
+                    const tributarySettings = getTributarySettings();
+                    tributarySettings.seed = settings.voronoi.seed;
+                    tributariesGenerator = new TributariesGenerator(voronoiGenerator, tributarySettings);
+                    tributariesGenerator.setSeededRandom(seededRandom);
 
                     voronoiGenerator.generateVoronoi();
                     updateStats();

@@ -10,6 +10,26 @@ export class BaseTerrainGenerator {
     this.noise = createNoise2D();
     this.tileGrid = new TileGrid(this.settings.gridSize);
     this.terrainData = new TerrainData(this.tileGrid);
+    this._seededRandom = null;
+  }
+
+  /**
+   * Set the seeded random number generator
+   * @param {Function} seededRandom - Seeded random function from seedrandom library
+   */
+  setSeededRandom(seededRandom) {
+    this._seededRandom = seededRandom;
+  }
+
+  /**
+   * Generate random number using seeded generator if available
+   * @returns {number} Random number between 0 and 1
+   */
+  random() {
+    if (this._seededRandom) {
+      return this._seededRandom();
+    }
+    return Math.random();
   }
 
   generateTerrain() {
@@ -81,12 +101,12 @@ export class BaseTerrainGenerator {
 
   generateHills(gridSize, hillSettings) {
     const { minHills, maxHills, hillRadius, hillIntensity } = hillSettings;
-    const numHills = Math.floor(Math.random() * (maxHills - minHills + 1)) + minHills;
+    const numHills = Math.floor(this.random() * (maxHills - minHills + 1)) + minHills;
     
     for (let h = 0; h < numHills; h++) {
       // Random hill center
-      const centerX = Math.random() * gridSize;
-      const centerZ = Math.random() * gridSize;
+      const centerX = this.random() * gridSize;
+      const centerZ = this.random() * gridSize;
       
       // Apply hill effect to surrounding tiles
       for (let tileX = 0; tileX < gridSize; tileX++) {

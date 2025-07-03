@@ -53,6 +53,9 @@ export class TributariesGenerator {
       ...settings
     };
     
+    /** @type {number|undefined} */
+    this._seed = undefined;
+    
     /** @type {Array<Array<number>>} */
     this.tributaryPaths = [];
     
@@ -73,7 +76,44 @@ export class TributariesGenerator {
       { symbol: 'F', replacement: 'FF', probability: 0.1 }         // No branching option
     ];
     
+    // Initialize seed if provided
+    if (this.settings.seed !== undefined) {
+      this.seedRandom(this.settings.seed);
+    }
+    
     console.log('TributariesGenerator: Initialized with max depth', this.settings.maxDepth);
+  }
+  
+  /**
+   * Set a seed for deterministic random number generation
+   * @param {number} seed - The seed value
+   */
+  seedRandom(seed) {
+    this._seed = seed;
+  }
+  
+  /**
+   * Set the seeded random number generator
+   * @param {Function} seededRandom - Seeded random function from seedrandom library
+   */
+  setSeededRandom(seededRandom) {
+    this._seededRandom = seededRandom;
+  }
+
+  /**
+   * Generate a seeded random number between 0 and 1
+   * Uses the same algorithm as VoronoiGenerator for consistency
+   * @returns {number} Random number between 0 and 1
+   */
+  random() {
+    if (this._seededRandom) {
+      return this._seededRandom();
+    }
+    if (this._seed === undefined) {
+      return Math.random();
+    }
+    this._seed = (this._seed * 16807) % 2147483647;
+    return (this._seed - 1) / 2147483646;
   }
   
   /**
@@ -322,7 +362,7 @@ export class TributariesGenerator {
         
         if (applicableRules.length > 0) {
           // Choose rule based on probability
-          const rand = Math.random();
+          const rand = this.random();
           let cumulativeProbability = 0;
           let selectedRule = null;
           
@@ -554,7 +594,7 @@ export class TributariesGenerator {
     
     candidates.sort((a, b) => b.distance - a.distance); // Sort by distance DESC
     const maxCandidates = Math.min(candidates.length, 3);
-    const selectedIndex = Math.floor(Math.random() * maxCandidates);
+    const selectedIndex = Math.floor(this.random() * maxCandidates);
     
     return candidates[selectedIndex].vertex;
   }
