@@ -86,6 +86,12 @@ export class DelaunatorWrapper {
     }
   }
 
+  isBoundaryPoint(vertex, tolerance = 0.01) {
+    const gridSize = this.settings.gridSize;
+    return vertex.x <= tolerance || vertex.x >= gridSize - tolerance || 
+           vertex.z <= tolerance || vertex.z >= gridSize - tolerance;
+  }
+
   clampVerticesToBounds() {
     // Use the true grid size from settings instead of calculating from points
     const gridSize = this.settings.gridSize;
@@ -252,22 +258,44 @@ export class DelaunatorWrapper {
         continue;
       }
       
+      const isBoundary1 = this.isBoundaryPoint(p1);
+      const isBoundary2 = this.isBoundaryPoint(p2);
+      
+      // Skip edge if both vertices are boundary points
+      if (isBoundary1 && isBoundary2) {
+        continue;
+      }
+      
       const d = p1.distanceTo(p2);
+      const edgeKey1 = `${t1}-${t2}`;
+      const edgeKey2 = `${t2}-${t1}`;
+      
       const e1 = new Edge(
         p1,
         p2,
-        `${t1}-${t2}`,
+        edgeKey1,
         d
       );
       const e2 = new Edge(
         p2,
         p1,
-        `${t2}-${t1}`,
+        edgeKey2,
         d
       );
 
-      edges.set(`${t1}-${t2}`, e1); 
-      edges.set(`${t2}-${t1}`, e2);
+      edges.set(edgeKey1, e1); 
+      edges.set(edgeKey2, e2);
+      
+      // Populate voronoiVertexEdgeMap
+      if (!this.voronoiVertexEdgeMap.has(t1)) {
+        this.voronoiVertexEdgeMap.set(t1, []);
+      }
+      if (!this.voronoiVertexEdgeMap.has(t2)) {
+        this.voronoiVertexEdgeMap.set(t2, []);
+      }
+      
+      this.voronoiVertexEdgeMap.get(t1).push(edgeKey1);
+      this.voronoiVertexEdgeMap.get(t2).push(edgeKey2);
     }
 
     this.voronoiEdges = edges;
@@ -308,6 +336,9 @@ export class DelaunatorWrapper {
         continue;
       }
       
+      const currentVertex = this.circumcenters[vertexIndex];
+      const isCurrentBoundary = this.isBoundaryPoint(currentVertex);
+      
       const { halfedges } = this.delaunay;
       const connected = new Set();
       
@@ -321,20 +352,18 @@ export class DelaunatorWrapper {
             const oppositeTriangle = Math.floor(opposite / 3);
             // Only add connection if the connected vertex is also valid
             const circumcenter = this.circumcenters[oppositeTriangle];
-            if (oppositeTriangle === 505) {
-
-              console.log('--------------------------------');
-              console.log(this.gridSize);
-              console.log(circumcenter);
-              console.log(oppositeTriangle);
-            }
-            
             if (circumcenter.x < 0 || circumcenter.x > this.settings.gridSize || circumcenter.z < 0 || circumcenter.z > this.settings.gridSize) {
-  
               continue;
             }
+            
             if (this.circumcenters[oppositeTriangle]) {
-
+              const isNeighborBoundary = this.isBoundaryPoint(circumcenter);
+              
+              // Skip connection if both vertices are boundary points
+              if (isCurrentBoundary && isNeighborBoundary) {
+                continue;
+              }
+              
               connected.add(oppositeTriangle);
             }
           }
