@@ -419,7 +419,7 @@ export class RiversGenerator {
   selectNorthEdgePoint(graphData) {
     console.log('=== SELECTING NORTH EDGE START POINT ===');
     const gridSize = this.voronoiGenerator.settings.gridSize;
-    const edgeTolerance = 50; // Distance from edge to consider "edge vertex"
+    const edgeTolerance =  30; // Distance from edge to consider "edge vertex"
     const northEdgeVertices = [];
 
     console.log(`Graph data has ${graphData.circumcenters.length} total circumcenters`);
@@ -431,9 +431,9 @@ export class RiversGenerator {
       
       const x = vertex.x;
       const z = vertex.z || vertex.y || 0;
-      
+ 
       // Check if vertex is near north edge (z coordinate close to 0) and available in graph
-      if (z < edgeTolerance && z > 0 && x >= 0 && x <= (gridSize) && 
+      if (z < edgeTolerance && z >= 0 && x >= 0 && x <= (gridSize) && 
           graphData.voronoiVertexVertexMap[index]) {
         northEdgeVertices.push(index);
         console.log(`Found north edge vertex ${index} at (${x.toFixed(1)}, ${z.toFixed(1)})`);
@@ -461,7 +461,7 @@ export class RiversGenerator {
   selectSouthEdgePoint(graphData) {
     console.log('=== SELECTING SOUTH EDGE END POINT ===');
     const gridSize = this.voronoiGenerator.settings.gridSize;
-    const edgeTolerance = 50; // Distance from edge to consider "edge vertex"
+    const edgeTolerance =  10; // Distance from edge to consider "edge vertex"
     const southEdgeVertices = [];
 
     console.log(`Graph data has ${graphData.circumcenters.length} total circumcenters`);
@@ -475,7 +475,7 @@ export class RiversGenerator {
       const z = vertex.z || vertex.y || 0;
       
       // Check if vertex is near south edge (z coordinate close to gridSize) and available in graph
-      if (z < gridSize && z > (gridSize - edgeTolerance) && x >= 0 && x <= (gridSize ) && 
+      if (z <= gridSize && z >= (gridSize - edgeTolerance) && x >= 0 && x <= (gridSize ) && 
           graphData.voronoiVertexVertexMap[index]) {
         southEdgeVertices.push(index);
         console.log(`Found south edge vertex ${index} at (${x.toFixed(1)}, ${z.toFixed(1)})`);

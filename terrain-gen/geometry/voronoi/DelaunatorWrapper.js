@@ -36,16 +36,15 @@ export class DelaunatorWrapper {
     }
 
     // Calculate circumcenters (Delaunator doesn't provide these)
-    this.calculateCircumcenters();
+        this.calculateCircumcenters();
     
-    // Prune out-of-bounds circumcenters before generating edges
- 
-     
+    // Clamp out-of-bounds circumcenters to grid bounds before generating edges
+    this.clampVerticesToBounds();
+    
     // Generate Voronoi cells
     this.generateVoronoiCells();
 
     this.getVoronoiEdges();
-   // this.pruneOutOfBoundsVertices();
     this.findCellsConnectedToVertex();
     this.findConnectedVertices();
     
@@ -87,43 +86,55 @@ export class DelaunatorWrapper {
     }
   }
 
-  pruneOutOfBoundsVertices() {
-    // Determine map bounds from the non-boundary points
-    const nonBoundaryPoints = this.points.filter(p => !p.isBoundary);
-    if (nonBoundaryPoints.length === 0) return;
-
-    // Find the actual map bounds
-    const minX = Math.min(...nonBoundaryPoints.map(p => p.x));
-    const maxX = Math.max(...nonBoundaryPoints.map(p => p.x));
-    const minZ = Math.min(...nonBoundaryPoints.map(p => p.z || p.y || 0));
-    const maxZ = Math.max(...nonBoundaryPoints.map(p => p.z || p.y || 0));
-
-    // Add a small buffer to avoid edge effects
-    const buffer = 1;
+  clampVerticesToBounds() {
+    // Use the true grid size from settings instead of calculating from points
+    const gridSize = this.settings.gridSize;
+    
+    // Define bounds as the actual grid boundaries (0 to gridSize)
     const bounds = {
-      minX: minX - buffer,
-      maxX: maxX + buffer,
-      minZ: minZ - buffer,
-      maxZ: maxZ + buffer
+      minX: 0,
+      maxX: gridSize,
+      minZ: 0,
+      maxZ: gridSize
     };
 
-    console.log(`Pruning vertices outside bounds: x[${bounds.minX}, ${bounds.maxX}], z[${bounds.minZ}, ${bounds.maxZ}]`);
+    console.log(`Clamping vertices to true grid bounds: x[${bounds.minX}, ${bounds.maxX}], z[${bounds.minZ}, ${bounds.maxZ}]`);
 
-    // Count vertices before pruning
+    // Count vertices before clamping
     const originalCount = this.circumcenters.filter(v => v !== null).length;
+    let clampedCount = 0;
 
-    // Prune circumcenters that are outside map bounds
+    // Clamp circumcenters to true grid bounds
     for (let i = 0; i < this.circumcenters.length; i++) {
       const vertex = this.circumcenters[i];
-      if (vertex && 
-          (vertex.x < bounds.minX || vertex.x > bounds.maxX || 
-           vertex.z < bounds.minZ || vertex.z > bounds.maxZ)) {
-        this.circumcenters[i] = null;
+      if (!vertex) continue;
+      
+      let wasClamped = false;
+      
+      // Clamp x coordinate to grid bounds
+      if (vertex.x < bounds.minX) {
+        vertex.x = bounds.minX;
+        wasClamped = true;
+      } else if (vertex.x > bounds.maxX) {
+        vertex.x = bounds.maxX;
+        wasClamped = true;
+      }
+      
+      // Clamp z coordinate to grid bounds
+      if (vertex.z < bounds.minZ) {
+        vertex.z = bounds.minZ;
+        wasClamped = true;
+      } else if (vertex.z > bounds.maxZ) {
+        vertex.z = bounds.maxZ;
+        wasClamped = true;
+      }
+      
+      if (wasClamped) {
+        clampedCount++;
       }
     }
 
-    const prunedCount = this.circumcenters.filter(v => v !== null).length;
-    console.log(`Pruned ${originalCount - prunedCount} out-of-bounds vertices (${prunedCount} remaining)`);
+    console.log(`Clamped ${clampedCount} out-of-bounds vertices to true grid bounds (${originalCount} total vertices)`);
   }
 
   generateVoronoiCells() {
