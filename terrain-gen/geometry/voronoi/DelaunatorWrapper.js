@@ -2,15 +2,18 @@ import Delaunator from 'delaunator';
 import { Edge, Point, GeometryUtils } from '../GeometryTypes.js';
 
 export class DelaunatorWrapper {
-  constructor(points) {
+  constructor(points, settings) {
     this.points = points;
+    this.settings = settings;
     this.delaunay = null;
     this.circumcenters = [];
     this.voronoiCells = new Map();
     this.voronoiEdges = new Map();
     this.voronoiCellVertexMap = new Map();
+    // Map of vertex index to array of connected vertex indices
     this.voronoiVertexVertexMap = new Map();
-    this.voronoiVertextEdges = new Map();
+    // Map of vertex index to array of connected edges
+    this.voronoiVertexEdgeMap = new Map();
   }
 
   triangulate() {
@@ -33,13 +36,15 @@ export class DelaunatorWrapper {
     }
 
     // Calculate circumcenters (Delaunator doesn't provide these)
-    this.calculateCircumcenters();
-     
+        this.calculateCircumcenters();
+    
+    // Clamp out-of-bounds circumcenters to grid bounds before generating edges
+    this.clampVerticesToBounds();
+    
     // Generate Voronoi cells
     this.generateVoronoiCells();
 
     this.getVoronoiEdges();
-
     this.findCellsConnectedToVertex();
     this.findConnectedVertices();
     
@@ -79,6 +84,57 @@ export class DelaunatorWrapper {
 
       this.circumcenters.push(new Point(x, y));
     }
+  }
+
+  clampVerticesToBounds() {
+    // Use the true grid size from settings instead of calculating from points
+    const gridSize = this.settings.gridSize;
+    
+    // Define bounds as the actual grid boundaries (0 to gridSize)
+    const bounds = {
+      minX: 0,
+      maxX: gridSize,
+      minZ: 0,
+      maxZ: gridSize
+    };
+
+    console.log(`Clamping vertices to true grid bounds: x[${bounds.minX}, ${bounds.maxX}], z[${bounds.minZ}, ${bounds.maxZ}]`);
+
+    // Count vertices before clamping
+    const originalCount = this.circumcenters.filter(v => v !== null).length;
+    let clampedCount = 0;
+
+    // Clamp circumcenters to true grid bounds
+    for (let i = 0; i < this.circumcenters.length; i++) {
+      const vertex = this.circumcenters[i];
+      if (!vertex) continue;
+      
+      let wasClamped = false;
+      
+      // Clamp x coordinate to grid bounds
+      if (vertex.x < bounds.minX) {
+        vertex.x = bounds.minX;
+        wasClamped = true;
+      } else if (vertex.x > bounds.maxX) {
+        vertex.x = bounds.maxX;
+        wasClamped = true;
+      }
+      
+      // Clamp z coordinate to grid bounds
+      if (vertex.z < bounds.minZ) {
+        vertex.z = bounds.minZ;
+        wasClamped = true;
+      } else if (vertex.z > bounds.maxZ) {
+        vertex.z = bounds.maxZ;
+        wasClamped = true;
+      }
+      
+      if (wasClamped) {
+        clampedCount++;
+      }
+    }
+
+    console.log(`Clamped ${clampedCount} out-of-bounds vertices to true grid bounds (${originalCount} total vertices)`);
   }
 
   generateVoronoiCells() {
@@ -151,6 +207,16 @@ export class DelaunatorWrapper {
         const t = Math.floor(e / 3) * 3;
         for (let i = 0; i < 3; i++) {
           const neighbor = triangles[t + i];
+          const circumcenter = this.circumcenters[neighbor];
+  
+          if (neighbor === 505) {
+            console.log('--------------------------------');
+            console.log(circumcenter);
+          }
+          if (circumcenter.x < 0 || circumcenter.x > this.gridSize || circumcenter.z < 0 || circumcenter.z > this.gridSize) {
+            console.log(circumcenter);
+            continue;
+          }
           if (neighbor !== pointIndex) {
             cell.neighbors.add(neighbor);
           }
@@ -180,24 +246,28 @@ export class DelaunatorWrapper {
       const t2 = Math.floor(opposite / 3);
       const p1 = this.circumcenters[t1];
       const p2 = this.circumcenters[t2];
-      const d = p1.distanceTo(p2);
-      if (t2 !== -1) { 
-        const e1 = new Edge(
-          p1,
-          p2,
-          `${t1}-${t2}`,
-          d
-        );
-        const e2 = new Edge(
-          p2,
-          p1,
-          `${t2}-${t1}`,
-          d
-        );
-
-        edges.set(`${t1}-${t2}`, e1); 
-        edges.set(`${t2}-${t1}`, e2);
+      
+      // Skip edges involving pruned (null) vertices
+      if (!p1 || !p2 || t2 === -1) {
+        continue;
       }
+      
+      const d = p1.distanceTo(p2);
+      const e1 = new Edge(
+        p1,
+        p2,
+        `${t1}-${t2}`,
+        d
+      );
+      const e2 = new Edge(
+        p2,
+        p1,
+        `${t2}-${t1}`,
+        d
+      );
+
+      edges.set(`${t1}-${t2}`, e1); 
+      edges.set(`${t2}-${t1}`, e2);
     }
 
     this.voronoiEdges = edges;
@@ -205,6 +275,11 @@ export class DelaunatorWrapper {
 
   findCellsConnectedToVertex() {  
     for (let i = 0; i < this.circumcenters.length; i++) {
+      // Skip pruned (null) vertices
+      if (!this.circumcenters[i]) {
+        continue;
+      }
+      
       const connectedCells = new Set();
       const { triangles } = this.delaunay;
 
@@ -219,12 +294,20 @@ export class DelaunatorWrapper {
           }
       }
     
-      this.voronoiCellVertexMap[i] = Array.from(connectedCells).sort((a, b) => a - b);
+      // Only store mapping if there are connected cells
+      if (connectedCells.size > 0) {
+        this.voronoiCellVertexMap[i] = Array.from(connectedCells).sort((a, b) => a - b);
+      }
     }
   }
 
   findConnectedVertices() {
     for (let vertexIndex = 0; vertexIndex < this.circumcenters.length; vertexIndex++) {
+      // Skip pruned (null) vertices
+      if (!this.circumcenters[vertexIndex]) {
+        continue;
+      }
+      
       const { halfedges } = this.delaunay;
       const connected = new Set();
       
@@ -236,11 +319,35 @@ export class DelaunatorWrapper {
           const opposite = halfedges[e];
           if (opposite !== -1) {
             const oppositeTriangle = Math.floor(opposite / 3);
-            connected.add(oppositeTriangle);
+            // Only add connection if the connected vertex is also valid
+            const circumcenter = this.circumcenters[oppositeTriangle];
+            if (oppositeTriangle === 505) {
+
+              console.log('--------------------------------');
+              console.log(this.gridSize);
+              console.log(circumcenter);
+              console.log(oppositeTriangle);
+            }
+            
+            if (circumcenter.x < 0 || circumcenter.x > this.settings.gridSize || circumcenter.z < 0 || circumcenter.z > this.settings.gridSize) {
+  
+              continue;
+            }
+            if (this.circumcenters[oppositeTriangle]) {
+
+              connected.add(oppositeTriangle);
+            }
           }
         }
       }
-      this.voronoiVertexVertexMap[vertexIndex] = Array.from(connected);
+      
+      // Only store mapping if there are valid connections
+      if (connected.size > 0) {
+        this.voronoiVertexVertexMap[vertexIndex] = Array.from(connected);
+      } else {
+        delete this.voronoiVertexVertexMap[vertexIndex];
+      }
+ 
     }
   
 

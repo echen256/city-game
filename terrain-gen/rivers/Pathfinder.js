@@ -32,13 +32,7 @@ export class PathFinder {
    * @returns {Array<number>} Path as array of cell IDs
    */
   findPath(startPointIndex, endPointIndex, vertexMap, edgeMap, realCoordinates) {
-    console.log('A* pathfinding with typed geometry classes...');
-
-    console.log(vertexMap);
-    console.log(edgeMap);
-    console.log(startPointIndex);
-    console.log(endPointIndex);
-    
+    console.log('A* pathfinding with typed geometry classes...'); 
     
     // A* pathfinding algorithm
     const openSet = new Set([startPointIndex]);
@@ -86,12 +80,9 @@ export class PathFinder {
         continue;
       }
 
-      const neighbors = vertexMap[current];
-      console.log(current);
-      console.log(neighbors);
+      const neighbors = vertexMap[current]; 
       for (const neighbor of neighbors) {
-        const edgeId = `${current}-${neighbor}`;
-        console.log(edgeId);
+        const edgeId = `${current}-${neighbor}`; 
         const edge = edgeMap.get(edgeId);
         if (!edge) {
           console.log(`ERROR: Edge ${edgeId} not found in edge map!`);

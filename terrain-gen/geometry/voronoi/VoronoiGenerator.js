@@ -242,7 +242,7 @@ export class VoronoiGenerator {
    */
   createVoronoiDiagram() {
     try {
-      this.delaunatorWrapper = new DelaunatorWrapper(this.sites);
+      this.delaunatorWrapper = new DelaunatorWrapper(this.sites, this.settings);
       const result = this.delaunatorWrapper.triangulate();
       
       if (!result?.voronoiCells) {
