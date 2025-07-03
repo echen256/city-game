@@ -101,6 +101,9 @@ export class RiversGenerator {
   generateSingleRiver(riverIndex, graphData) {
     console.log(`\n=== GENERATING SINGLE RIVER ${riverIndex + 1} ===`);
     
+    // Apply boundary weighting to discourage river paths along map edges
+    this.applyBoundaryWeighting(graphData);
+    
     // Step 1: Select random start point on north edge
     let startPoint = this.selectNorthEdgePoint(graphData);
     if (startPoint === null) {
@@ -493,5 +496,41 @@ export class RiversGenerator {
     
     console.log(`SUCCESS: Selected south edge vertex ${selectedVertex} (${selectedIndex + 1}/${southEdgeVertices.length})`);
     return selectedVertex;
+  }
+
+  /**
+   * Apply high weights to edges near grid boundaries to discourage pathfinding along borders
+   * @param {Object} graphData - Graph data to modify
+   */
+  applyBoundaryWeighting(graphData) {
+    const gridSize = this.voronoiGenerator.settings.gridSize;
+    const boundaryTolerance = 30; // Distance from boundary to consider "boundary edge"
+    const boundaryWeight = 1000; // Very high weight to discourage boundary usage
+    let boundaryEdgeCount = 0;
+
+    console.log(`RiversGenerator: Applying boundary weighting (tolerance: ${boundaryTolerance}, weight: ${boundaryWeight})`);
+
+    // Check if a vertex is near any boundary
+    const isNearBoundary = (pos) => {
+      if (!pos) return false;
+      return pos.x <= boundaryTolerance ||                    // Near left edge
+             pos.x >= (gridSize - boundaryTolerance) ||       // Near right edge
+             pos.z <= boundaryTolerance ||                    // Near top edge
+             pos.z >= (gridSize - boundaryTolerance);         // Near bottom edge
+    };
+
+    // Apply high weights to boundary edges
+    for (const [edgeKey, edge] of graphData.voronoiEdges.entries()) {
+      const [vertex1, vertex2] = edgeKey.split('-').map(Number);
+      const pos1 = graphData.circumcenters[vertex1];
+      const pos2 = graphData.circumcenters[vertex2];
+
+      if (isNearBoundary(pos1) || isNearBoundary(pos2)) {
+        edge.weight = boundaryWeight;
+        boundaryEdgeCount++;
+      }
+    }
+
+    console.log(`RiversGenerator: Applied boundary weighting to ${boundaryEdgeCount} edges`);
   }
 }

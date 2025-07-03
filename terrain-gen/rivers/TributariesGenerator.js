@@ -46,7 +46,10 @@ export class TributariesGenerator {
       baseEdgeWeight: 1,
       maxDistanceInfluence: 50,
       branchProbability: 0.7,
-      minTributaryLength: 3,
+      minTributaryLength: 4,
+      minTributaryDistance: 15,
+      maxTributaryDistance: 80,
+      branchingSeparation: 5,
       ...settings
     };
     
@@ -64,9 +67,10 @@ export class TributariesGenerator {
     
     /** @type {Array<LSystemRule>} */
     this.lSystemRules = [
-      { symbol: 'F', replacement: 'F[+F]F[-F]F', probability: 0.6 },
+      { symbol: 'F', replacement: 'F[+F]F', probability: 0.4 },    // Reduced branching
       { symbol: 'F', replacement: 'FF[+F]', probability: 0.3 },
-      { symbol: 'F', replacement: 'F[-F]F', probability: 0.1 }
+      { symbol: 'F', replacement: 'F[-F]F', probability: 0.2 },
+      { symbol: 'F', replacement: 'FF', probability: 0.1 }         // No branching option
     ];
     
     console.log('TributariesGenerator: Initialized with max depth', this.settings.maxDepth);
@@ -136,12 +140,22 @@ export class TributariesGenerator {
     let riverEdgeCount = 0;
     let normalEdgeCount = 0;
     
-    // Update edge weights based on distance from rivers
+    let boundaryEdgeCount = 0;
+    const boundaryWeight = 1000; // Very high weight to discourage boundary usage
+    
+    // Update edge weights based on distance from rivers and boundary proximity
     for (const [edgeKey, edge] of weightedGraph.voronoiEdges.entries()) {
       const [vertex1, vertex2] = edgeKey.split('-').map(Number);
       
-      // If either vertex is part of a river, use high weight
-      if (this.riverVertices.has(vertex1) || this.riverVertices.has(vertex2)) {
+      // Check if this edge is near grid boundaries
+      const isBoundaryEdge = this.isBoundaryEdge(vertex1, vertex2, weightedGraph);
+      
+      if (isBoundaryEdge) {
+        // Apply very high weight to boundary edges to discourage pathfinding
+        edge.weight = boundaryWeight;
+        boundaryEdgeCount++;
+      } else if (this.riverVertices.has(vertex1) || this.riverVertices.has(vertex2)) {
+        // If either vertex is part of a river, use high weight
         edge.weight = this.settings.riverEdgeWeight;
         riverEdgeCount++;
       } else {
@@ -157,9 +171,37 @@ export class TributariesGenerator {
       }
     }
     
-    console.log(`TributariesGenerator: Set weights for ${riverEdgeCount} river edges and ${normalEdgeCount} normal edges`);
+    console.log(`TributariesGenerator: Set weights for ${riverEdgeCount} river edges, ${normalEdgeCount} normal edges, and ${boundaryEdgeCount} boundary edges`);
     console.log('TributariesGenerator: Weighted graph creation complete');
     return weightedGraph;
+  }
+  
+  /**
+   * Check if an edge connects vertices near the grid boundary
+   * @param {number} vertex1 - First vertex index
+   * @param {number} vertex2 - Second vertex index  
+   * @param {Object} graph - Graph data
+   * @returns {boolean} True if edge is near boundary
+   */
+  isBoundaryEdge(vertex1, vertex2, graph) {
+    const pos1 = graph.circumcenters[vertex1];
+    const pos2 = graph.circumcenters[vertex2];
+    
+    if (!pos1 || !pos2) return false;
+    
+    // Get grid size from voronoi generator settings
+    const gridSize = this.voronoiGenerator.settings.gridSize;
+    const boundaryTolerance = 30; // Distance from boundary to consider "boundary edge"
+    
+    // Check if either vertex is near any boundary
+    const isNearBoundary = (pos) => {
+      return pos.x <= boundaryTolerance ||                    // Near left edge
+             pos.x >= (gridSize - boundaryTolerance) ||       // Near right edge
+             pos.z <= boundaryTolerance ||                    // Near top edge
+             pos.z >= (gridSize - boundaryTolerance);         // Near bottom edge
+    };
+    
+    return isNearBoundary(pos1) || isNearBoundary(pos2);
   }
   
   /**
@@ -344,29 +386,29 @@ export class TributariesGenerator {
    */
   findBranchingPoints(riverPath, graph) {
     const branchingPoints = [];
+    const minBranchingSeparation = this.settings.branchingSeparation;
     
-    // Skip first and last few vertices to avoid endpoints
-    const startSkip = Math.min(2, Math.floor(riverPath.length * 0.1));
-    const endSkip = Math.min(2, Math.floor(riverPath.length * 0.1));
+    const startSkip = Math.min(3, Math.floor(riverPath.length * 0.15));
+    const endSkip = Math.min(3, Math.floor(riverPath.length * 0.15));
+    
+    let lastBranchingIndex = -minBranchingSeparation;
     
     for (let i = startSkip; i < riverPath.length - endSkip; i++) {
-      const vertex = riverPath[i];
-      console.log(vertex);
-      const connections = graph.voronoiVertexVertexMap[vertex] || [];
+      if (i - lastBranchingIndex < minBranchingSeparation) continue;
       
-      // Potential branching point if vertex has connections to non-river vertices
+      const vertex = riverPath[i];
+      const connections = graph.voronoiVertexVertexMap[vertex] || [];
       const nonRiverConnections = connections.filter(conn => !this.riverVertices.has(conn));
       
-      if (nonRiverConnections.length > 0) {
-        // Determine branching direction based on river flow
+      if (nonRiverConnections.length >= 2) { // Require multiple options
         const direction = this.determineFlowDirection(riverPath, i);
-        
         branchingPoints.push({
           vertex,
           connections: nonRiverConnections,
           direction,
           riverIndex: i
         });
+        lastBranchingIndex = i;
       }
     }
     
@@ -412,12 +454,38 @@ export class TributariesGenerator {
       weightedGraph.circumcenters
     );
     
-    if (tributaryPath.length < this.settings.minTributaryLength) {
+    // Validate the tributary before accepting it
+    if (!this.validateTributary(tributaryPath, startVertex, endVertex, weightedGraph)) {
       return null;
     }
     
     console.log(`TributariesGenerator: Created tributary from ${startVertex} to ${endVertex} (${tributaryPath.length} vertices, depth ${depth})`);
     return tributaryPath;
+  }
+
+  /**
+   * Validate a tributary path to ensure it meets quality requirements
+   * @param {Array<number>} tributaryPath - The generated tributary path
+   * @param {number} startVertex - Starting vertex
+   * @param {number} endVertex - Ending vertex
+   * @param {Object} graph - Graph data
+   * @returns {boolean} True if tributary is valid
+   */
+  validateTributary(tributaryPath, startVertex, endVertex, graph) {
+    // Check minimum length
+    if (tributaryPath.length < this.settings.minTributaryLength) return false;
+    
+    // Check that path moves away from river
+    const startPos = graph.circumcenters[startVertex];
+    const endPos = graph.circumcenters[endVertex];
+    if (!startPos || !endPos) return false;
+    
+    const distance = Math.sqrt(
+      Math.pow(endPos.x - startPos.x, 2) + 
+      Math.pow(endPos.z - startPos.z, 2)
+    );
+    
+    return distance >= this.settings.minTributaryDistance; // Ensure meaningful separation
   }
   
   /**
@@ -432,8 +500,9 @@ export class TributariesGenerator {
     const startPos = graph.circumcenters[startVertex];
     if (!startPos) return null;
     
-    // Search for endpoints within a reasonable distance
-    const maxDistance = 30 / (depth + 1); // Shorter tributaries at higher depths
+    // Improved distance scaling - longer tributaries
+    const minDistance = this.settings.minTributaryDistance;
+    const maxDistance = Math.max(50, this.settings.maxTributaryDistance / (depth + 1));
     const candidates = [];
     
     for (let i = 0; i < graph.circumcenters.length; i++) {
@@ -444,27 +513,25 @@ export class TributariesGenerator {
         Math.pow(vertex.x - startPos.x, 2) + 
         Math.pow(vertex.z - startPos.z, 2)
       );
-      candidates.push({ vertex: i, distance });
-      // if (distance <= maxDistance && distance >= 5) {
-      //   // Check if direction matches
-      //   const isLeftSide = vertex.x < startPos.x;
-      //   const directionMatches = (direction === 'left' && isLeftSide) || 
-      //                           (direction === 'right' && !isLeftSide);
+      
+      // Apply distance constraints
+      if (distance >= minDistance && distance <= maxDistance) {
+        // Apply direction constraints
+        const isLeftSide = vertex.x < startPos.x;
+        const directionMatches = (direction === 'left' && isLeftSide) || 
+                               (direction === 'right' && !isLeftSide);
         
-      //  // if (directionMatches) {
-      //     candidates.push({ vertex: i, distance });
-      //  // }
-      // }
+        if (directionMatches) {
+          candidates.push({ vertex: i, distance });
+        }
+      }
     }
-    console.log('--------------------------------');
-    console.log(candidates);
+    
+    // Select from farther candidates, not closest ones
     if (candidates.length === 0) return null;
     
-    // Choose a random candidate, favoring closer ones
-    candidates.sort((a, b) => a.distance - b.distance);
-
-    console.log(candidates);
-    const maxCandidates = Math.min(candidates.length, 5);
+    candidates.sort((a, b) => b.distance - a.distance); // Sort by distance DESC
+    const maxCandidates = Math.min(candidates.length, 3);
     const selectedIndex = Math.floor(Math.random() * maxCandidates);
     
     return candidates[selectedIndex].vertex;
