@@ -37,12 +37,12 @@ export class Map {
     }
 
     generateVoronoi() {
-        this.voronoiGenerator.generateVoronoi();
+        this.voronoiGenerator.generateVoronoi(this);
         this.drawDiagram();
     }
 
     generateRivers() {
-        this.riversGenerator.generateRivers(this,this.graphState,this.settings.rivers.numRivers);
+        this.riversGenerator.generateRivers(this);
         this.drawDiagram();
             }
 

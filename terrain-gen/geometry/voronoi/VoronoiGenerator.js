@@ -16,8 +16,8 @@ export class VoronoiGenerator {
   /**
    * Generate complete Voronoi diagram
    */
-  generateVoronoi() {
-    const voronoiSettings = this.settings.voronoi;
+  generateVoronoi(map) {
+    const voronoiSettings = map.settings.voronoi;
     if (!voronoiSettings?.enabled) return;
     this.generateSeedPoints(voronoiSettings);
     this.createVoronoiDiagram();

@@ -214,7 +214,9 @@ export class RiversGenerator {
    * @param {number} numRivers - Number of rivers to generate
    * @returns {Array<Array<number>>} Array of river paths
    */
-  generateRivers(map, graphState, numRivers) {
+  generateRivers(map) {
+    const numRivers = map.settings.rivers.numRivers;
+    const graphState = map.graphState;
     console.log(`Generating ${numRivers} rivers using GraphState workflow...`);
 
     const riverPaths = [];
