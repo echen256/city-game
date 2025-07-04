@@ -5,7 +5,8 @@ import { VoronoiCell} from '../GeometryTypes.js';
  * Simplified Voronoi diagram generator
  */
 export class VoronoiGenerator {
-  constructor(settings) { 
+  constructor(graphState,settings) { 
+    this.graphState = graphState;
     this.settings = settings;
     this.sites = [];
     this.delaunatorWrapper = null;
@@ -20,6 +21,9 @@ export class VoronoiGenerator {
     if (!voronoiSettings?.enabled) return;
     this.generateSeedPoints(voronoiSettings);
     this.createVoronoiDiagram();
+    this.applyBoundaryWeighting();
+    this.graphState.reset();
+    this.graphState.initialize(this.delaunatorWrapper, this.settings);
   }
 
   /**
@@ -32,11 +36,10 @@ export class VoronoiGenerator {
     if (seed !== undefined) this.seedRandom(seed);
 
     this.generatePoissonSites(poissonRadius || minDistance);
+ 
+    this.addBoundaryPoints();
+    
 
-    // Add boundary points if needed
-    if (settings.addBoundaryPoints !== false) {
-      this.addBoundaryPoints();
-    }
   }
 
   /**
@@ -136,6 +139,35 @@ export class VoronoiGenerator {
       }
 
       if (!found) activeList.splice(randomIndex, 1);
+    }
+  }
+
+  applyBoundaryWeighting() {
+    const gridSize = this.settings.gridSize;
+    const boundaryTolerance = 30; // Distance from boundary to consider "boundary edge"
+    const boundaryWeight = 1000; // Very high weight to discourage boundary usage
+    let boundaryEdgeCount = 0;
+
+
+    // Check if a vertex is near any boundary
+    const isNearBoundary = (pos) => {
+      if (!pos) return false;
+      return pos.x <= boundaryTolerance ||                    // Near left edge
+        pos.x >= (gridSize - boundaryTolerance) ||       // Near right edge
+        pos.z <= boundaryTolerance ||                    // Near top edge
+        pos.z >= (gridSize - boundaryTolerance);         // Near bottom edge
+    };
+
+    // Apply high weights to boundary edges
+    for (const [edgeKey, edge] of this.delaunatorWrapper.voronoiEdges.entries()) {
+      const [vertex1, vertex2] = edgeKey.split('-').map(Number);
+      const pos1 = this.delaunatorWrapper.circumcenters[vertex1];
+      const pos2 = this.delaunatorWrapper.circumcenters[vertex2];
+
+      if (isNearBoundary(pos1) || isNearBoundary(pos2)) {
+        edge.weight = boundaryWeight;
+        boundaryEdgeCount++;
+      }
     }
   }
 

@@ -363,7 +363,27 @@
                     numSites: parseInt(document.getElementById('numSites').value),
                     distribution: document.getElementById('distribution').value,
                     poissonRadius: parseInt(document.getElementById('poissonRadius').value),
-                    seed: parseInt(document.getElementById('seed').value)
+                    seed: parseInt(document.getElementById('seed').value),
+                    graphics: {
+                       
+                    }
+                },
+                rivers: {
+                    showRivers: true,
+                    numRivers: parseInt(document.getElementById('riversCount').value), 
+                    graphics: {
+                       color: 'blue',
+                       width: 3
+                    }
+                },
+                tributaries: {
+                    showTributaries: true,
+                    numTributaries: 5,// parseInt(document.getElementById('tributariesCount').value),
+                    maxTributaryLength:  5,//parseInt(document.getElementById('tributaryLength').value),
+                    graphics: {
+                        color: '#00BFFF',
+                        width: 2
+                    }
                 }
             };
         }
@@ -677,14 +697,12 @@
                 updateStatus('Generating Voronoi diagram...');
                 log('Starting Voronoi generation');
 
-                const settings = getSettings();
-                console.log(settings);
-                map = new Map(settings);
+                map = new Map(getSettings());
                 map.generateVoronoi();
     
                 // Initialize FeatureDrawer with the canvas and grid size
                 const canvas = document.getElementById('canvas');
-                featureDrawer = new FeatureDrawer(map, canvas, settings);
+                featureDrawer = new FeatureDrawer(map, canvas, getSettings());
                 
                 // Initialize GraphState for debugging
                 // initializeGraphState();
@@ -710,146 +728,22 @@
         });
 
         document.getElementById('generateRiversBtn').addEventListener('click', function () {
-        
             try {
-                const numRivers = parseInt(document.getElementById('riversCount').value);
+                map.generateRivers();
+                updateStats();
+                drawDiagram();
             } catch (error) {
                 updateStatus(`Error: ${error.message}`);
                 log(`Error generating rivers: ${error.message}`);
                 console.error(error);
             }
         });
-
-        async function generateRiversWithTracking(numRivers) {
-            if (!map.voronoiGenerator || !map.voronoiGenerator.delaunatorWrapper.voronoiCells || map.voronoiGenerator.delaunatorWrapper.voronoiCells.size === 0) {
-                console.error('RiversGenerator: No Voronoi diagram available');
-                return;
-            }
-
-            console.log(`Generating ${numRivers} rivers using GraphState workflow...`);
-
-            // Initialize GraphState with initial graph
-            if (graphState) {
-                graphState.reset();
-                graphState.initialize(map.voronoiGenerator.delaunatorWrapper, getSettings());
-            }
-
-            const riverPaths = [];
-
-            for (let i = 0; i < numRivers; i++) {
-                // Get the largest available partition from GraphState
-                const largestPartition = graphState.getLargestPartition();
-                if (!largestPartition) {
-                    console.log(`No more available partitions for river ${i + 1}. Stopping generation.`);
-                    break;
-                }
-                
-                console.log(`River ${i + 1}: Using partition ${largestPartition.id} with ${largestPartition.graph.circumcenters.filter(v => v !== null).length} vertices`);
-
-                // Generate river path on the selected partition
-                const river = riversGenerator.generateSingleRiver(i, largestPartition.graph);
-                if (river.length > 0) {
-                    riverPaths.push(river);
-                    console.log(`Generated river ${i + 1} with ${river.length} vertices`);
-
-                    // Split the partition using GraphState
-                    const splitMetadata = {
-                        featureType: 'river',
-                        featureIndex: i,
-                        description: `River ${i + 1}`,
-                        additionalData: {
-                            riverLength: river.length,
-                            startVertex: river[0],
-                            endVertex: river[river.length - 1]
-                        }
-                    };
-                    
-                    const newPartitions = graphState.splitGraphByPath(largestPartition.id, river, splitMetadata);
-                    
-                    console.log(`After river ${i + 1}: Split into ${newPartitions.length} new partitions`);
-                    newPartitions.forEach((partition, idx) => {
-                        console.log(`  Partition ${partition.id}: ${partition.graph.circumcenters.filter(v => v !== null).length} vertices`);
-                    });
-                }
-            }
-
-            // Store results in riversGenerator for compatibility
-            riversGenerator.riverPaths = riverPaths;
-
-            const riverStats = riversGenerator.getRiverStats();
-
-            updateStats();
-            drawDiagram();
-
-            updateStatus(`Generated ${riverPaths.length} rivers (avg length: ${Math.round(riverStats.averageRiverLength)})`);
-            log(`Generated rivers: ${riverPaths.length} paths, ${riverStats.totalRiverCells} total cells`);
-            if (riverStats.longestRiver > 0) {
-                log(`Longest river: ${riverStats.longestRiver} cells`);
-            }
-
-            console.log(`Rivers generation complete. Total paths: ${riverPaths.length}`);
-            
-            // Enable tributaries button if rivers were generated
-            if (riverPaths.length > 0) {
-                document.getElementById('generateTributariesBtn').disabled = false;
-                log('Tributaries button enabled - rivers ready for tributary generation');
-            }
-        }
-
+ 
         document.getElementById('generateTributariesBtn').addEventListener('click', function () {
-            if (!tributariesGenerator || !riversGenerator || !featureDrawer) {
-                updateStatus('Error: Rivers must be generated first');
-                return;
-            }
-
             try {
-                const riverPaths = riversGenerator.getRiverPaths();
-                if (riverPaths.length === 0) {
-                    updateStatus('Error: No rivers found. Generate rivers first.');
-                    log('Error: No rivers found for tributary generation');
-                    return;
-                }
-
-                updateStatus(`Generating tributaries for ${riverPaths.length} rivers...`);
-                log(`Starting tributary generation for ${riverPaths.length} main rivers...`);
-
-                // Get the original graph for tributary generation
-                const originalGraph = GraphUtils.createDeepCopyOfGraph(map.voronoiGenerator.delaunatorWrapper);
-                
-                // Generate tributaries
-                const tributaryPaths = tributariesGenerator.generateTributaries(riverPaths, originalGraph);
-                
-                // Draw tributaries on canvas (in lighter blue)
-                if (tributaryPaths && tributaryPaths.length > 0) {
-                    tributaryPaths.forEach((path, index) => {
-                        if (path && path.length > 1) {
-                            // Convert vertex indices to coordinates
-                            const coordinates = path.map(vertexIndex => {
-                                const vertex = map.voronoiGenerator.delaunatorWrapper.circumcenters[vertexIndex];
-                                return vertex ? { x: vertex.x, z: vertex.z || vertex.y || 0 } : null;
-                            }).filter(coord => coord !== null);
-                            
-                            if (coordinates.length > 1) {
-                                featureDrawer.drawPath(coordinates, {
-                                    color: '#00BFFF', // Bright deep sky blue for tributaries
-                                    width: 2
-                                });
-                                log(`Drew tributary ${index + 1} with ${coordinates.length} coordinate points`);
-                            }
-                        }
-                    });
-                    log(`Drew ${tributaryPaths.length} light blue tributary paths on canvas`);
-                }
-
-                const tributaryStats = tributariesGenerator.getTributaryStats();
-                updateStatus(`Generated ${tributaryStats.totalTributaries} tributaries (avg length: ${Math.round(tributaryStats.averageLength)})`);
-                log(`Generated tributaries: ${tributaryStats.totalTributaries} paths, ${tributaryStats.totalVertices} total vertices`);
-                if (tributaryStats.longestTributary > 0) {
-                    log(`Longest tributary: ${tributaryStats.longestTributary} vertices`);
-                }
-
-                console.log(`Tributaries generation complete. Total paths: ${tributaryStats.totalTributaries}`);
-
+                map.generateTributaries();
+                updateStats();
+                drawDiagram();
             } catch (error) {
                 updateStatus(`Error: ${error.message}`);
                 log(`Error generating tributaries: ${error.message}`);

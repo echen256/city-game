@@ -8,24 +8,19 @@ import { GraphUtils } from './geometry/graph/GraphUtils.js';
 export class Map {
     constructor(settings) {
         this.settings = settings;   
-        this.voronoiGenerator = new VoronoiGenerator(this.settings);
-
+        this.graphState = new GraphState();
+        this.voronoiGenerator = new VoronoiGenerator(this.graphState,this.settings);
+        this.graphState.settings = this.voronoiGenerator.settings; 
         this.riversGenerator = new RiversGenerator(this.voronoiGenerator, this.settings);
 
         // Create global seeded random number generator
         this.seededRandom = new Math.seedrandom(settings.voronoi.seed);
         
         this.voronoiGenerator.setSeededRandom(this.seededRandom);
-
-        console.log(this.settings);
         this.riversGenerator = new RiversGenerator(this.voronoiGenerator, this.settings);
         this.riversGenerator.setSeededRandom(this.seededRandom);
         this.tributariesGenerator = new TributariesGenerator(this.voronoiGenerator, this.settings);
         this.tributariesGenerator.setSeededRandom(this.seededRandom);
-        
-        this.graphState = new GraphState();
-        this.graphState.settings = this.voronoiGenerator.settings; 
-        
     }
 
     generateMap() {
@@ -39,10 +34,10 @@ export class Map {
     }
 
     generateRivers() {
-        this.riversGenerator.generateRivers();
+        this.riversGenerator.generateRivers(this,this.graphState,this.settings.rivers.numRivers);
     }
 
     generateTributaries() {
-        this.tributariesGenerator.generateTributaries();
+        this.tributariesGenerator.generateTributaries(this);
     }
 }

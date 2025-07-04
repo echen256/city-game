@@ -446,19 +446,51 @@ export class FeatureDrawer {
     }
   }
 
-  /**
-   * Test function to draw a simple diagonal line for debugging
-   */
-  drawTestLine() {
-    console.log('Drawing test line from top-left to bottom-right');
-    const testPath = [
-      { x: 50, z: 50 },
-      { x: 550, z: 550 }
-    ];
-    this.drawPath(testPath, { color: 'red', width: 5 });
+  drawRivers() {
+    if (this.map.riversGenerator && this.settings.rivers.showRivers) {
+      const riverPaths = this.map.riversGenerator.getRiverPaths(); 
+      if (riverPaths && riverPaths.length > 0) {
+        riverPaths.forEach((path, index) => {
+          if (path && path.length > 1) {
+            // Convert vertex indices to coordinates
+            const coordinates = path.map(vertexIndex => {
+              const vertex = this.voronoiGenerator.delaunatorWrapper.circumcenters[vertexIndex];
+              return vertex ? { x: vertex.x, z: vertex.z || vertex.y || 0 } : null;
+            }).filter(coord => coord !== null);
+
+            if (coordinates.length > 1) {
+              this.drawPath(coordinates, {
+                color: 'blue',
+                width: 3
+              });
+            }
+          }
+        });
+      }
+    }
   }
 
-
+ 
+  drawTributaries() {
+    if (this.map?.tributariesGenerator && this.settings?.tributaries?.showTributaries) {
+      const tributaryPaths = this.map.tributariesGenerator.getTributaryPaths();
+      tributaryPaths.forEach((path, index) => {
+          if (path && path.length > 1) { 
+              const coordinates = path.map(vertexIndex => {
+                  const vertex = this.map.voronoiGenerator.delaunatorWrapper.circumcenters[vertexIndex];
+                  return vertex ? { x: vertex.x, z: vertex.z || vertex.y || 0 } : null;
+              }).filter(coord => coord !== null);
+              console.log(coordinates);
+              if (coordinates.length > 1) {
+                  this.drawPath(coordinates, {
+                      color: '#00BFFF', // Bright deep sky blue for tributaries
+                      width: 2
+                  });
+              }
+          }
+      });
+    } 
+  }
 
   drawDiagram() {
 
@@ -486,29 +518,8 @@ export class FeatureDrawer {
         siteColor: '#ffff00',
         vertexColor: '#ff0000'
       });
-
-      // Draw rivers if they exist (on top of diagram)
-      if (this.map.riversGenerator && this.settings.showRivers) {
-        const riverPaths = this.map.riversGenerator.getRiverPaths();
-        if (riverPaths && riverPaths.length > 0) {
-          riverPaths.forEach((path, index) => {
-            if (path && path.length > 1) {
-              // Convert vertex indices to coordinates
-              const coordinates = path.map(vertexIndex => {
-                const vertex = this.voronoiGenerator.delaunatorWrapper.circumcenters[vertexIndex];
-                return vertex ? { x: vertex.x, z: vertex.z || vertex.y || 0 } : null;
-              }).filter(coord => coord !== null);
-
-              if (coordinates.length > 1) {
-                this.drawPath(coordinates, {
-                  color: 'blue',
-                  width: 3
-                });
-              }
-            }
-          });
-        }
-      }
+      this.drawRivers();
+      this.drawTributaries();
     } catch (error) {
       console.error(error);
     }
