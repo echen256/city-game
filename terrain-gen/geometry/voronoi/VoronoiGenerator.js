@@ -5,8 +5,7 @@ import { VoronoiCell} from '../GeometryTypes.js';
  * Simplified Voronoi diagram generator
  */
 export class VoronoiGenerator {
-  constructor(terrainData, settings) {
-    this.terrainData = terrainData;
+  constructor(settings) { 
     this.settings = settings;
     this.sites = [];
     this.delaunatorWrapper = null;
@@ -168,8 +167,7 @@ export class VoronoiGenerator {
         return;
       }
       
-      // Create VoronoiCell instances from wrapper results
-      this.cells.clear();
+      // Create VoronoiCell instances from wrapper results 
       let cellId = 0;
       
       result.voronoiCells.forEach((cellData, index) => {
@@ -206,10 +204,8 @@ export class VoronoiGenerator {
         
         cell.calculateArea();
         cell.calculatePerimeter();
-        
-        this.cells.set(cellId++, cell);
-      });
-      console.log(`Generated ${this.cells.size} Voronoi cells`);
+         
+      }); 
       
     } catch (error) {
       console.error('Error during triangulation:', error);

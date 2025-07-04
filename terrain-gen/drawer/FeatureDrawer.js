@@ -2,19 +2,13 @@
  * FeatureDrawer.js - Draws terrain features on the map canvas
  */
 export class FeatureDrawer {
-  constructor(canvas, gridSize = 600) {
+  constructor(map, canvas, settings) {
+    this.settings = settings;
+    this.map = map;
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
-    this.gridSize = gridSize;
-    this.voronoiGenerator = null;
-  }
-
-  /**
-   * Set the Voronoi generator for advanced drawing operations
-   * @param {Object} voronoiGenerator - VoronoiGenerator instance
-   */
-  setVoronoiGenerator(voronoiGenerator) {
-    this.voronoiGenerator = voronoiGenerator;
+    this.gridSize = settings.gridSize || 600;
+    this.voronoiGenerator = map.voronoiGenerator;
   }
 
   /**
@@ -44,7 +38,7 @@ export class FeatureDrawer {
     console.log('FeatureDrawer: Last point:', path[path.length - 1]);
 
     this.ctx.save();
-    
+
     // Set drawing style
     this.ctx.strokeStyle = color;
     this.ctx.lineWidth = width;
@@ -53,24 +47,24 @@ export class FeatureDrawer {
 
     // Begin drawing the path
     this.ctx.beginPath();
-    
+
     // Move to first point
     const firstPoint = this.worldToCanvas(path[0]);
     console.log('FeatureDrawer: First canvas point:', firstPoint);
     this.ctx.moveTo(firstPoint.x, firstPoint.y);
-    
+
     // Draw lines to subsequent points
     for (let i = 1; i < path.length; i++) {
       const point = this.worldToCanvas(path[i]);
       this.ctx.lineTo(point.x, point.y);
     }
-    
+
     const lastPoint = this.worldToCanvas(path[path.length - 1]);
     console.log('FeatureDrawer: Last canvas point:', lastPoint);
-    
+
     this.ctx.stroke();
     this.ctx.restore();
-    
+
     console.log('FeatureDrawer: Path drawing completed');
   }
 
@@ -99,10 +93,10 @@ export class FeatureDrawer {
     // Scale world coordinates (0-gridSize) to canvas coordinates (0-canvas.width/height)
     const scaleX = this.canvas.width / this.gridSize;
     const scaleY = this.canvas.height / this.gridSize;
-    
+
     const canvasX = worldPoint.x * scaleX;
     const canvasY = worldPoint.z * scaleY;
-    
+
     return { x: canvasX, y: canvasY };
   }
 
@@ -171,7 +165,7 @@ export class FeatureDrawer {
 
     const delaunatorWrapper = this.voronoiGenerator.delaunatorWrapper;
     const voronoiEdges = delaunatorWrapper.voronoiEdges;
-    
+
     if (!voronoiEdges || voronoiEdges.length === 0) {
       console.warn('No Voronoi edges available to draw');
       return;
@@ -180,22 +174,22 @@ export class FeatureDrawer {
     this.ctx.save();
     this.ctx.strokeStyle = color;
     this.ctx.lineWidth = width;
-    
+
     const scaleX = this.canvas.width / this.gridSize;
     const scaleZ = this.canvas.height / this.gridSize;
-    
+
     voronoiEdges.forEach((edge, index) => {
       const startX = edge.a.x * scaleX;
       const startY = edge.a.z * scaleZ;
       const endX = edge.b.x * scaleX;
       const endY = edge.b.z * scaleZ;
-      
+
       this.ctx.beginPath();
       this.ctx.moveTo(startX, startY);
       this.ctx.lineTo(endX, endY);
       this.ctx.stroke();
     });
-    
+
     this.ctx.restore();
     console.log(`Drew ${voronoiEdges.length} Voronoi edges`);
   }
@@ -228,7 +222,7 @@ export class FeatureDrawer {
         // Fill cell
         this.ctx.beginPath();
         this.ctx.moveTo(cell.vertices[0].x * scaleX, cell.vertices[0].z * scaleZ);
-        
+
         for (let i = 1; i < cell.vertices.length; i++) {
           this.ctx.lineTo(cell.vertices[i].x * scaleX, cell.vertices[i].z * scaleZ);
         }
@@ -277,21 +271,21 @@ export class FeatureDrawer {
     this.ctx.save();
     this.ctx.strokeStyle = color;
     this.ctx.lineWidth = width;
-    
+
     if (dashed) {
       this.ctx.setLineDash([2, 2]);
     }
-    
+
     const scaleX = this.canvas.width / this.gridSize;
     const scaleZ = this.canvas.height / this.gridSize;
 
     const { triangles, coords } = triangulationData.delaunay;
-    
+
     for (let i = 0; i < triangles.length; i += 3) {
       const aIndex = triangles[i] * 2;
       const bIndex = triangles[i + 1] * 2;
       const cIndex = triangles[i + 2] * 2;
-      
+
       this.ctx.beginPath();
       this.ctx.moveTo(coords[aIndex] * scaleX, coords[aIndex + 1] * scaleZ);
       this.ctx.lineTo(coords[bIndex] * scaleX, coords[bIndex + 1] * scaleZ);
@@ -299,7 +293,7 @@ export class FeatureDrawer {
       this.ctx.closePath();
       this.ctx.stroke();
     }
-    
+
     this.ctx.setLineDash([]);
     this.ctx.restore();
     console.log(`Drew triangulation with ${triangles.length / 3} triangles`);
@@ -323,7 +317,7 @@ export class FeatureDrawer {
 
     this.ctx.save();
     this.ctx.fillStyle = color;
-    
+
     const scaleX = this.canvas.width / this.gridSize;
     const scaleZ = this.canvas.height / this.gridSize;
 
@@ -361,15 +355,15 @@ export class FeatureDrawer {
 
     this.ctx.save();
     this.ctx.fillStyle = color;
-    
+
     const scaleX = this.canvas.width / this.gridSize;
     const scaleZ = this.canvas.height / this.gridSize;
 
     let drawnCount = 0;
     circumcenters.forEach(circumcenter => {
-      if (circumcenter && 
-          circumcenter.x >= 0 && circumcenter.z >= 0 && 
-          circumcenter.x <= this.gridSize && circumcenter.z <= this.gridSize) {
+      if (circumcenter &&
+        circumcenter.x >= 0 && circumcenter.z >= 0 &&
+        circumcenter.x <= this.gridSize && circumcenter.z <= this.gridSize) {
         this.ctx.beginPath();
         this.ctx.arc(
           circumcenter.x * scaleX,
@@ -462,5 +456,61 @@ export class FeatureDrawer {
       { x: 550, z: 550 }
     ];
     this.drawPath(testPath, { color: 'red', width: 5 });
+  }
+
+
+
+  drawDiagram() {
+
+    try {
+      // Get triangulation data once
+      const triangulationData = this.voronoiGenerator.delaunatorWrapper;
+
+      // Prepare data for the complete diagram drawing
+      const diagramData = {
+        cells: this.voronoiGenerator.delaunatorWrapper.voronoiCells,
+        sites: this.voronoiGenerator.delaunatorWrapper.points,
+        triangulationData: triangulationData
+      };
+
+      // Draw complete diagram using FeatureDrawer
+      this.drawCompleteDiagram(diagramData, {
+        backgroundColor: '#0a0a0a',
+        showTriangulation: this.settings.showTriangulation,
+        showVoronoiEdges: this.settings.showVoronoi,
+        showCells: this.settings.showCells,
+        showSites: this.settings.showSites,
+        showVertices: this.settings.showVertices,
+        triangulationColor: '#888888',
+        voronoiColor: '#00ff88',
+        siteColor: '#ffff00',
+        vertexColor: '#ff0000'
+      });
+
+      // Draw rivers if they exist (on top of diagram)
+      if (this.map.riversGenerator && this.settings.showRivers) {
+        const riverPaths = this.map.riversGenerator.getRiverPaths();
+        if (riverPaths && riverPaths.length > 0) {
+          riverPaths.forEach((path, index) => {
+            if (path && path.length > 1) {
+              // Convert vertex indices to coordinates
+              const coordinates = path.map(vertexIndex => {
+                const vertex = this.voronoiGenerator.delaunatorWrapper.circumcenters[vertexIndex];
+                return vertex ? { x: vertex.x, z: vertex.z || vertex.y || 0 } : null;
+              }).filter(coord => coord !== null);
+
+              if (coordinates.length > 1) {
+                this.drawPath(coordinates, {
+                  color: 'blue',
+                  width: 3
+                });
+              }
+            }
+          });
+        }
+      }
+    } catch (error) {
+      console.error(error);
+    }
   }
 }

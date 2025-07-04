@@ -285,6 +285,7 @@
         import { FeatureDrawer } from './drawer/FeatureDrawer.js';
         import { GraphState } from './geometry/graph/GraphState.js';
         import { GraphUtils } from './geometry/graph/GraphUtils.js';
+        import { Map } from './Map.js';
 
         // State
         let voronoiGenerator = null;
@@ -313,33 +314,7 @@
         let selectedVertexIndex = null; // Track which vertex is selected
         let highlightedVertices = new Set(); // Track highlighted connected vertices
 
-        // Mock terrain data
-        const mockTerrainData = {
-            features: new Map(),
-            featureCounter: 0,
-            createFeature: function (type) {
-                const id = `${type}_${++this.featureCounter}`;
-                const feature = {
-                    id, type,
-                    centroid: { x: 0, z: 0 },
-                    bezierCurves: [],
-                    pointDistributions: [],
-                    affectedTiles: [],
-                    metadata: {},
-                    setCentroid: function (x, z) { this.centroid = { x, z }; return this; },
-                    addBezierCurve: function (curve) { this.bezierCurves.push(curve); return this; },
-                    addPointDistribution: function (points) { this.pointDistributions.push(points); return this; },
-                    addAffectedTile: function (x, z) { this.affectedTiles.push({ x, z }); return this; },
-                    setMetadata: function (key, value) { this.metadata[key] = value; return this; },
-                    getMetadata: function (key) { return this.metadata[key]; }
-                };
-                this.features.set(id, feature);
-                return feature;
-            },
-            getFeaturesByType: function (type) {
-                return Array.from(this.features.values()).filter(f => f.type === type);
-            }
-        };
+        let map = null;
 
         // Utility functions
         function log(message) {
@@ -382,6 +357,7 @@
             return {
                 gridSize: 600,
                 margin: 60,
+                seed: parseInt(document.getElementById('seed').value),
                 voronoi: {
                     enabled: true,
                     numSites: parseInt(document.getElementById('numSites').value),
@@ -426,15 +402,15 @@
             // Clear existing hover elements
             hoverContainer.innerHTML = '';
 
-            if (!voronoiGenerator.delaunatorWrapper.voronoiCells) {
+            if (!map.voronoiGenerator.delaunatorWrapper.voronoiCells) {
                 return;
             }
 
-            const scaleX = canvas.width / voronoiGenerator.settings.gridSize;
-            const scaleZ = canvas.height / voronoiGenerator.settings.gridSize;
+            const scaleX = canvas.width / map.voronoiGenerator.settings.gridSize;
+            const scaleZ = canvas.height / map.voronoiGenerator.settings.gridSize;
             const hoverRadius = 5; // 10px radius as requested
 
-            voronoiGenerator.delaunatorWrapper.voronoiCells.forEach((cell, cellId) => {
+            map.voronoiGenerator.delaunatorWrapper.voronoiCells.forEach((cell, cellId) => {
                 if (!cell.site) return;
 
                 const hoverElement = document.createElement('div');
@@ -472,7 +448,7 @@
             });
 
             // Create vertex hover elements
-            const triangulationData = voronoiGenerator.delaunatorWrapper;
+            const triangulationData = map.voronoiGenerator.delaunatorWrapper;
             createVertexHoverElements(triangulationData);
         }
 
@@ -483,7 +459,7 @@
             // Clear existing vertex elements
             vertexContainer.innerHTML = '';
 
-            if (!voronoiGenerator || !triangulationData) {
+            if (!map.voronoiGenerator || !triangulationData) {
                 return;
             }
 
@@ -491,8 +467,8 @@
                 return;
             }
 
-            const scaleX = canvas.width / voronoiGenerator.settings.gridSize;
-            const scaleZ = canvas.height / voronoiGenerator.settings.gridSize;
+            const scaleX = canvas.width / map.voronoiGenerator.settings.gridSize;
+            const scaleZ = canvas.height / map.voronoiGenerator.settings.gridSize;
             const vertexRadius = 1; // 5px radius for vertices (10px diameter)
 
             triangulationData.circumcenters.forEach((circumcenter, vertexIndex) => {
@@ -501,7 +477,7 @@
                 const vertexElement = document.createElement('div');
                 vertexElement.className = 'voronoi-vertex-hover';
                 if(circumcenter.x < 0 || circumcenter.z < 0) return;
-                if(circumcenter.x > voronoiGenerator.settings.gridSize || circumcenter.z > voronoiGenerator.settings.gridSize) return;  
+                if(circumcenter.x > map.voronoiGenerator.settings.gridSize || circumcenter.z > map.voronoiGenerator.settings.gridSize) return;  
                 vertexElement.style.left = `${(circumcenter.x * scaleX) - vertexRadius}px`;
                 vertexElement.style.top = `${(circumcenter.z * scaleZ) - vertexRadius}px`;
                 vertexElement.style.width = `${vertexRadius * 2}px`;
@@ -581,13 +557,12 @@
             cellPositionSpan.textContent = `(${x}, ${y})`;
 
             // Find connected cells (cells that share this vertex)
-            const triangulationData = voronoiGenerator.delaunatorWrapper;
-            const connectedCells = [...triangulationData.voronoiCellVertexMap[vertexIndex]];
+            const connectedCells = [...map.voronoiGenerator.delaunatorWrapper.voronoiCellVertexMap[vertexIndex]];
             cellNeighborsSpan.textContent = `[${connectedCells.join(', ')}]`;
 
             // Set type to Vertex and show connected cells info
             infoTypeSpan.textContent = 'Vertex';
-            const connectedVertices = [...triangulationData.voronoiVertexVertexMap[vertexIndex]];
+            const connectedVertices = [...map.voronoiGenerator.delaunatorWrapper.voronoiVertexVertexMap[vertexIndex]];
             connectedCellsSpan.textContent = `[${connectedVertices.join(', ')}]`;
             vertexInfoDiv.style.display = 'block';
 
@@ -662,7 +637,7 @@
             // Set new selection
             selectedVertexIndex = vertexIndex;
 
-            const connectedVertices = voronoiGenerator.delaunatorWrapper.voronoiVertexVertexMap[vertexIndex];
+            const connectedVertices = map.voronoiGenerator.delaunatorWrapper.voronoiVertexVertexMap[vertexIndex];
 
             // Get vertex container for finding vertex elements
             const vertexContainer = document.getElementById('vertexHoverElements');
@@ -684,59 +659,9 @@
         }
 
         function drawDiagram() {
-            if (!voronoiGenerator || !featureDrawer) return;
-
+     
             try {
-                // Set voronoi generator reference in feature drawer
-                featureDrawer.setVoronoiGenerator(voronoiGenerator);
-
-                // Get triangulation data once
-                const triangulationData = voronoiGenerator.delaunatorWrapper;
-
-                // Prepare data for the complete diagram drawing
-                const diagramData = {
-                    cells: voronoiGenerator.delaunatorWrapper.voronoiCells,
-                    sites: voronoiGenerator.delaunatorWrapper.points,
-                    triangulationData: triangulationData
-                };
-
-                // Draw complete diagram using FeatureDrawer
-                featureDrawer.drawCompleteDiagram(diagramData, {
-                    backgroundColor: '#0a0a0a',
-                    showTriangulation: showTriangulation,
-                    showVoronoiEdges: showVoronoi,
-                    showCells: true,
-                    showSites: showSites,
-                    showVertices: showVertices,
-                    triangulationColor: '#888888',
-                    voronoiColor: '#00ff88',
-                    siteColor: '#ffff00',
-                    vertexColor: '#ff0000'
-                });
-
-                // Draw rivers if they exist (on top of diagram)
-                if (riversGenerator && showRivers) {
-                    const riverPaths = riversGenerator.getRiverPaths();
-                    if (riverPaths && riverPaths.length > 0) {
-                        riverPaths.forEach((path, index) => {
-                            if (path && path.length > 1) {
-                                // Convert vertex indices to coordinates
-                                const coordinates = path.map(vertexIndex => {
-                                    const vertex = voronoiGenerator.delaunatorWrapper.circumcenters[vertexIndex];
-                                    return vertex ? { x: vertex.x, z: vertex.z || vertex.y || 0 } : null;
-                                }).filter(coord => coord !== null);
-                                
-                                if (coordinates.length > 1) {
-                                    featureDrawer.drawPath(coordinates, {
-                                        color: 'blue',
-                                        width: 3
-                                    });
-                                }
-                            }
-                        });
-                    }
-                }
-
+                featureDrawer.drawDiagram();
                 // Create hover elements for cell interaction
                 createCellHoverElements();
 
@@ -753,47 +678,29 @@
                 log('Starting Voronoi generation');
 
                 const settings = getSettings();
-                
-                // Create global seeded random number generator
-                seededRandom = new Math.seedrandom(settings.voronoi.seed);
-                
-                voronoiGenerator = new VoronoiGenerator(mockTerrainData, settings);
-                voronoiGenerator.setSeededRandom(seededRandom);
-                voronoiGenerator.generateVoronoi();
-                riversGenerator = new RiversGenerator(voronoiGenerator, settings);
-                riversGenerator.setSeededRandom(seededRandom);
-                const tributarySettings = getTributarySettings();
-                tributarySettings.seed = settings.voronoi.seed;
-                tributariesGenerator = new TributariesGenerator(voronoiGenerator, tributarySettings);
-                tributariesGenerator.setSeededRandom(seededRandom);
-                
+                console.log(settings);
+                map = new Map(settings);
+                map.generateVoronoi();
+    
                 // Initialize FeatureDrawer with the canvas and grid size
                 const canvas = document.getElementById('canvas');
-                featureDrawer = new FeatureDrawer(canvas, settings.gridSize);
+                featureDrawer = new FeatureDrawer(map, canvas, settings);
                 
                 // Initialize GraphState for debugging
-                initializeGraphState();
-                graphState.initialize(voronoiGenerator.delaunatorWrapper, settings);
+                // initializeGraphState();
+                // graphState.initialize(voronoiGenerator.delaunatorWrapper, settings);
                 
                 // Enable debugging buttons
                 document.getElementById('refreshGraphStateBtn').disabled = false;
                 document.getElementById('clearGraphHighlightBtn').disabled = false;
                 document.getElementById('showGraphStatsBtn').disabled = false;
                 
-                // Test the drawing mechanism
-                setTimeout(() => {
-                    featureDrawer.drawTestLine();
-                    log('Drew test line for debugging');
-                }, 1000);
-
-               
-
                 updateStats();
                 drawDiagram();
                 enableDependentButtons(true);
 
                 updateStatus('Voronoi diagram generated successfully');
-                log(`Generated ${voronoiGenerator.delaunatorWrapper.points.length} sites and ${voronoiGenerator.delaunatorWrapper.voronoiCells.size} cells`);
+                log(`Generated ${map.voronoiGenerator.delaunatorWrapper.points.length} sites and ${map.voronoiGenerator.delaunatorWrapper.voronoiCells.size} cells`);
 
             } catch (error) {
                 updateStatus(`Error: ${error.message}`);
@@ -803,16 +710,9 @@
         });
 
         document.getElementById('generateRiversBtn').addEventListener('click', function () {
-            if (!riversGenerator || !featureDrawer) return;
-
+        
             try {
                 const numRivers = parseInt(document.getElementById('riversCount').value);
-
-                updateStatus(`Generating ${numRivers} rivers...`);
-
-                // Custom river generation with GraphState tracking
-                generateRiversWithTracking(numRivers);
-
             } catch (error) {
                 updateStatus(`Error: ${error.message}`);
                 log(`Error generating rivers: ${error.message}`);
@@ -821,7 +721,7 @@
         });
 
         async function generateRiversWithTracking(numRivers) {
-            if (!voronoiGenerator || !voronoiGenerator.delaunatorWrapper.voronoiCells || voronoiGenerator.delaunatorWrapper.voronoiCells.size === 0) {
+            if (!map.voronoiGenerator || !map.voronoiGenerator.delaunatorWrapper.voronoiCells || map.voronoiGenerator.delaunatorWrapper.voronoiCells.size === 0) {
                 console.error('RiversGenerator: No Voronoi diagram available');
                 return;
             }
@@ -831,7 +731,7 @@
             // Initialize GraphState with initial graph
             if (graphState) {
                 graphState.reset();
-                graphState.initialize(voronoiGenerator.delaunatorWrapper, getSettings());
+                graphState.initialize(map.voronoiGenerator.delaunatorWrapper, getSettings());
             }
 
             const riverPaths = [];
@@ -914,7 +814,7 @@
                 log(`Starting tributary generation for ${riverPaths.length} main rivers...`);
 
                 // Get the original graph for tributary generation
-                const originalGraph = GraphUtils.createDeepCopyOfGraph(voronoiGenerator.delaunatorWrapper);
+                const originalGraph = GraphUtils.createDeepCopyOfGraph(map.voronoiGenerator.delaunatorWrapper);
                 
                 // Generate tributaries
                 const tributaryPaths = tributariesGenerator.generateTributaries(riverPaths, originalGraph);
@@ -925,7 +825,7 @@
                         if (path && path.length > 1) {
                             // Convert vertex indices to coordinates
                             const coordinates = path.map(vertexIndex => {
-                                const vertex = voronoiGenerator.delaunatorWrapper.circumcenters[vertexIndex];
+                                const vertex = map.voronoiGenerator.delaunatorWrapper.circumcenters[vertexIndex];
                                 return vertex ? { x: vertex.x, z: vertex.z || vertex.y || 0 } : null;
                             }).filter(coord => coord !== null);
                             
@@ -962,7 +862,7 @@
         });
 
         document.getElementById('clearAllBtn').addEventListener('click', function () {
-            voronoiGenerator = null;
+            map = null;
             // coastlineGenerator = null;
             // hillsGenerator = null;
             // lakesGenerator = null;
@@ -1078,7 +978,7 @@
         });
 
         document.getElementById('exportDataBtn').addEventListener('click', function () {
-            if (!voronoiGenerator || !voronoiGenerator.delaunatorWrapper) {
+            if (!map.voronoiGenerator || !map.voronoiGenerator.delaunatorWrapper) {
                 log('Error: No Voronoi data available to export');
                 return;
             }
@@ -1086,7 +986,7 @@
             try {
                 updateStatus('Exporting DelaunatorWrapper data...');
 
-                const delaunatorWrapper = voronoiGenerator.delaunatorWrapper;
+                const delaunatorWrapper = map.voronoiGenerator.delaunatorWrapper;
 
                 // Prepare export data object
                 const exportData = {
@@ -1094,7 +994,7 @@
                         exportTimestamp: new Date().toISOString(),
                         version: '1.0',
                         description: 'Voronoi Delaunator data export',
-                        settings: voronoiGenerator.settings
+                        settings: map.voronoiGenerator.settings
                     },
                     points: delaunatorWrapper.points.map((point, index) => ({
                         index: index,
@@ -1209,12 +1109,12 @@
             // Clear any existing highlight
             clearVertexHighlight();
 
-            if (!voronoiGenerator || !voronoiGenerator.delaunatorWrapper) {
+            if (!map.voronoiGenerator || !map.voronoiGenerator.delaunatorWrapper) {
                 log('Error: No Voronoi data available');
                 return;
             }
 
-            const circumcenters = voronoiGenerator.delaunatorWrapper.circumcenters;
+            const circumcenters = map.voronoiGenerator.delaunatorWrapper.circumcenters;
             
             if (vertexId >= circumcenters.length || !circumcenters[vertexId]) {
                 log(`Error: Vertex ${vertexId} not found or is null`);
@@ -1223,8 +1123,8 @@
 
             const vertex = circumcenters[vertexId];
             const canvas = document.getElementById('canvas');
-            const scaleX = canvas.width / voronoiGenerator.settings.gridSize;
-            const scaleZ = canvas.height / voronoiGenerator.settings.gridSize;
+            const scaleX = canvas.width / map.voronoiGenerator.settings.gridSize;
+            const scaleZ = canvas.height / map.voronoiGenerator.settings.gridSize;
 
             // Create highlight element
             const highlightElement = document.createElement('div');
@@ -1269,7 +1169,7 @@
         function initializeGraphState() {
             if (!graphState) {
                 graphState = new GraphState();
-                graphState.settings = voronoiGenerator.settings;
+                graphState.settings = map.voronoiGenerator.settings;
                 
                 // Listen for graph state changes
                 graphState.addEventListener((eventType, data, state) => {
@@ -1387,8 +1287,8 @@
                 
                 // Create centroid highlight
                 const canvas = document.getElementById('canvas');
-                const scaleX = canvas.width / voronoiGenerator.settings.gridSize;
-                const scaleZ = canvas.height / voronoiGenerator.settings.gridSize;
+                const scaleX = canvas.width / map.voronoiGenerator.settings.gridSize;
+                const scaleZ = canvas.height / map.voronoiGenerator.settings.gridSize;
 
                 const highlightElement = document.createElement('div');
                 highlightElement.className = 'centroid-highlight';
@@ -1419,11 +1319,11 @@
         function highlightGraphPartition(partition) {
             clearGraphPartitionHighlight();
             
-            if (!partition || !voronoiGenerator) return;
+            if (!partition || !map.voronoiGenerator) return;
             
             const canvas = document.getElementById('canvas');
-            const scaleX = canvas.width / voronoiGenerator.settings.gridSize;
-            const scaleZ = canvas.height / voronoiGenerator.settings.gridSize;
+            const scaleX = canvas.width / map.voronoiGenerator.settings.gridSize;
+            const scaleZ = canvas.height / map.voronoiGenerator.settings.gridSize;
             const canvasContainer = document.querySelector('.canvas-wrapper');
 
             // Highlight all vertices in this partition
