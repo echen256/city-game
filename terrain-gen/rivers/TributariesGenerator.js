@@ -11,24 +11,15 @@ import { GraphUtils } from '../geometry/graph/GraphUtils.js';
  * Simplified tributary generator
  */
 export class TributariesGenerator {
-  constructor(voronoiGenerator, settings = {}) {
+  constructor(voronoiGenerator, settings = {},seededRandom) {
     this.voronoiGenerator = voronoiGenerator;
     this.settings = settings;
-    this._seededRandom = null;
     this.tributaryPaths = [];
     this.riverVertices = new Set();
     this.mainRiverPaths = [];
     this.pathfinder = new PathFinder(voronoiGenerator.delaunatorWrapper);
+    this.seededRandom = seededRandom;
   }
-
-  setSeededRandom(seededRandom) {
-    this._seededRandom = seededRandom;
-  }
-
-  random() {
-    return this._seededRandom ? this._seededRandom() : Math.random();
-  }
-
   /**
    * Generate a single tributary for a river
    * @param {Array<number>} riverPath - Single river path
@@ -43,7 +34,7 @@ export class TributariesGenerator {
     // Select a random vertex from the middle portion of the river
     const startIndex = Math.floor(riverPath.length * 0.3);
     const endIndex = Math.floor(riverPath.length * 0.7);
-    const randomIndex = startIndex + Math.floor(this.random() * (endIndex - startIndex));
+    const randomIndex = startIndex + Math.floor(this.seededRandom() * (endIndex - startIndex));
     const startVertex = riverPath[randomIndex];
 
     console.log(`Starting tributary from river vertex ${startVertex} (index ${randomIndex})`);
@@ -215,19 +206,3 @@ export class TributariesGenerator {
   }
 }
 
-
-/*
-
-        function getTributarySettings() {
-            return {
-                maxDepth: parseInt(document.getElementById('tributaryDepth').value),
-                branchProbability: parseFloat(document.getElementById('branchProbability').value),
-                minTributaryDistance: parseInt(document.getElementById('minTributaryDistance').value),
-                maxTributaryDistance: parseInt(document.getElementById('maxTributaryDistance').value),
-                branchingSeparation: parseInt(document.getElementById('branchingSeparation').value),
-                riverEdgeWeight: 100,
-                baseEdgeWeight: 1,
-                maxDistanceInfluence: 50,
-                minTributaryLength: 4
-            };
-        }*/

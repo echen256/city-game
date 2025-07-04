@@ -82,7 +82,6 @@ function getSettings() {
             numSites: parseInt(document.getElementById('numSites').value),
             distribution: document.getElementById('distribution').value,
             poissonRadius: parseInt(document.getElementById('poissonRadius').value),
-            seed: parseInt(document.getElementById('seed').value),
             graphics: {
                
             }

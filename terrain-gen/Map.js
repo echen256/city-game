@@ -10,21 +10,27 @@ export class Map {
         this.featureDrawer = featureDrawer;
         this.settings = settings;   
         this.graphState = new GraphState();
-        this.voronoiGenerator = new VoronoiGenerator(this.graphState,this.settings);
+        this.seededRandom = new Math.seedrandom(this.settings.seed);
+        this.voronoiGenerator = new VoronoiGenerator(this.graphState,this.settings,this.seededRandom);
         this.graphState.settings = this.voronoiGenerator.settings; 
-        this.riversGenerator = new RiversGenerator(this.voronoiGenerator, this.settings);
-
-        // Create global seeded random number generator
-        this.seededRandom = new Math.seedrandom(settings.voronoi.seed);
-        
-        this.voronoiGenerator.setSeededRandom(this.seededRandom);
-        this.riversGenerator = new RiversGenerator(this.voronoiGenerator, this.settings);
-        this.riversGenerator.setSeededRandom(this.seededRandom);
-        this.tributariesGenerator = new TributariesGenerator(this.voronoiGenerator, this.settings);
-        this.tributariesGenerator.setSeededRandom(this.seededRandom);
+        this.riversGenerator = new RiversGenerator(this.voronoiGenerator, this.settings,this.seededRandom);  
+        this.tributariesGenerator = new TributariesGenerator(this.voronoiGenerator, this.settings,this.seededRandom);
+       
     }
 
-    generateMap() {
+    updateSettings(settings) {
+        if (settings) {
+            this.featureDrawer.settings = settings;
+        }
+        this.voronoiGenerator.settings = settings;
+        this.riversGenerator.settings = settings;
+        this.tributariesGenerator.settings = settings; 
+    }
+
+    generateMap(settings) {
+        if (settings) {
+            this.updateSettings(settings);
+        }
         this.voronoiGenerator.generateVoronoi();
         this.riversGenerator.generateRivers();
         this.tributariesGenerator.generateTributaries();
@@ -45,10 +51,7 @@ export class Map {
         this.drawDiagram();
     }
 
-    drawDiagram(settings) {
-        if (settings) {
-            this.featureDrawer.settings = settings;
-        }
+    drawDiagram() {
         this.featureDrawer.drawDiagram(this);
     }
 }

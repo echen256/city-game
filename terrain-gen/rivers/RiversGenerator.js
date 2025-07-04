@@ -34,7 +34,7 @@ export class RiversGenerator {
    * @param {Object} voronoiGenerator - Voronoi diagram generator
    * @param {RiverSettings} settings - Generator settings
    */
-  constructor(voronoiGenerator, settings) {
+  constructor(voronoiGenerator, settings,seededRandom) {
     /** @type {Object} */
     this.voronoiGenerator = voronoiGenerator;
     /** @type {RiverSettings} */
@@ -49,19 +49,14 @@ export class RiversGenerator {
     this.usedEndPoints = new Set();
     /** @type {number} */
     this.minSeparationDistance = 50;
-    /** @type {number} */
-    this._seed = undefined;
-
-    // Initialize seed if provided
-    if (this.settings.seed !== undefined) {
-      this.seedRandom(this.settings.seed);
-    }
-
     /** @type {PathFinder} */
     this.pathfinder = new PathFinder(voronoiGenerator.delaunatorWrapper);
+    this.seededRandom = seededRandom;
     console.log('RiversGenerator constructor');
     console.log(voronoiGenerator.delaunatorWrapper);
   }
+
+  
 
   /**
    * Generate a single river path
@@ -306,37 +301,6 @@ export class RiversGenerator {
   }
 
   /**
-   * Set random seed for reproducibility
-   * @param {number} seed - Random seed
-   */
-  seedRandom(seed) {
-    this._seed = seed;
-  }
-
-  /**
-   * Set the seeded random number generator
-   * @param {Function} seededRandom - Seeded random function from seedrandom library
-   */
-  setSeededRandom(seededRandom) {
-    this._seededRandom = seededRandom;
-  }
-
-  /**
-   * Generate random number (seeded if available)
-   * @returns {number} Random number between 0 and 1
-   */
-  random() {
-    if (this._seededRandom) {
-      return this._seededRandom();
-    }
-    if (this._seed !== undefined) {
-      this._seed = (this._seed * 9301 + 49297) % 233280;
-      return this._seed / 233280;
-    }
-    return Math.random();
-  }
-
-  /**
    * Create terrain features for rivers
    * @param {Object} terrainData - Terrain data manager
    * @returns {RiverFeature} Overall rivers feature
@@ -411,7 +375,7 @@ export class RiversGenerator {
     }
 
     // Select random vertex from north edge
-    const selectedIndex = Math.floor(this.random() * northEdgeVertices.length);
+    const selectedIndex = Math.floor(this.seededRandom() * northEdgeVertices.length);
     const selectedVertex = northEdgeVertices[selectedIndex];
 
     console.log(`SUCCESS: Selected north edge vertex ${selectedVertex} (${selectedIndex + 1}/${northEdgeVertices.length})`);
@@ -452,8 +416,8 @@ export class RiversGenerator {
       return null;
     }
 
-    // Select random vertex from south edge
-    const selectedIndex = Math.floor(this.random() * southEdgeVertices.length);
+    // Select random vertex from south edge 
+    const selectedIndex = Math.floor(this.seededRandom() * southEdgeVertices.length);
     const selectedVertex = southEdgeVertices[selectedIndex];
 
     console.log(`SUCCESS: Selected south edge vertex ${selectedVertex} (${selectedIndex + 1}/${southEdgeVertices.length})`);

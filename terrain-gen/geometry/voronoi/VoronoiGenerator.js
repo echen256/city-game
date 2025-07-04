@@ -5,12 +5,12 @@ import { VoronoiCell} from '../GeometryTypes.js';
  * Simplified Voronoi diagram generator
  */
 export class VoronoiGenerator {
-  constructor(graphState,settings) { 
+  constructor(graphState,settings,seededRandom) { 
     this.graphState = graphState;
     this.settings = settings;
     this.sites = [];
     this.delaunatorWrapper = null;
-    this._seed = undefined;
+    this.seededRandom = seededRandom;
   }
 
   /**
@@ -23,7 +23,7 @@ export class VoronoiGenerator {
     this.createVoronoiDiagram();
     this.applyBoundaryWeighting();
     this.graphState.reset();
-    this.graphState.initialize(this.delaunatorWrapper, this.settings);
+    this.graphState.initialize(this.delaunatorWrapper, this.settings);  
   }
 
   /**
@@ -43,32 +43,6 @@ export class VoronoiGenerator {
   }
 
   /**
-   * Simplified random number generator with optional seed
-   */
-  seedRandom(seed) {
-    this._seed = seed;
-  }
-
-  /**
-   * Set the seeded random number generator
-   * @param {Function} seededRandom - Seeded random function from seedrandom library
-   */
-  setSeededRandom(seededRandom) {
-    this._seededRandom = seededRandom;
-  }
-
-  random() {
-    if (this._seededRandom) {
-      return this._seededRandom();
-    }
-    if (this._seed !== undefined) {
-      this._seed = (this._seed * 9301 + 49297) % 233280;
-      return this._seed / 233280;
-    }
-    return Math.random();
-  }
-
-  /**
    * Simplified Poisson disk sampling
    */
   generatePoissonSites(radius) {
@@ -80,8 +54,8 @@ export class VoronoiGenerator {
     
     // Start with a random point
     const firstPoint = {
-      x: radius + this.random() * (gridSize - 2 * radius),
-      z: radius + this.random() * (gridSize - 2 * radius)
+      x: radius + this.seededRandom() * (gridSize - 2 * radius),
+      z: radius + this.seededRandom() * (gridSize - 2 * radius)
     };
     
     this.sites.push(firstPoint);
@@ -90,13 +64,13 @@ export class VoronoiGenerator {
     grid[gridIndex] = firstPoint;
 
     while (activeList.length > 0) {
-      const randomIndex = Math.floor(this.random() * activeList.length);
+      const randomIndex = Math.floor(this.seededRandom() * activeList.length);
       const point = activeList[randomIndex];
       let found = false;
 
       for (let i = 0; i < 30; i++) {
-        const angle = this.random() * 2 * Math.PI;
-        const distance = radius + this.random() * radius;
+        const angle = this.seededRandom() * 2 * Math.PI;
+        const distance = radius + this.seededRandom() * radius;
         const newPoint = {
           x: point.x + Math.cos(angle) * distance,
           z: point.z + Math.sin(angle) * distance
