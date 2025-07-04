@@ -44,12 +44,14 @@ export class TributariesGenerator {
       maxDepth: 3,
       riverEdgeWeight: 100,
       baseEdgeWeight: 1,
-      maxDistanceInfluence: 50,
+      maxDistanceInfluence: 80,
       branchProbability: 0.7,
-      minTributaryLength: 10,
-      minTributaryDistance: 15,
+      minTributaryLength: 15,
+      minTributaryDistance: 20,
+      idealTributaryDistance: 50,
       maxTributaryDistance: 150,
       branchingSeparation: 5,
+      minBranchSpacing: 30,
       ...settings
     };
     
@@ -195,18 +197,28 @@ export class TributariesGenerator {
         edge.weight = boundaryWeight;
         boundaryEdgeCount++;
       } else if (this.riverVertices.has(vertex1) || this.riverVertices.has(vertex2)) {
-        // If either vertex is part of a river, use high weight
-        edge.weight = this.settings.riverEdgeWeight;
+        // If either vertex is part of a river, use lower weight for river traversal
+        edge.weight = 5;
         riverEdgeCount++;
       } else {
-        // Weight decreases with distance from rivers
+        // Weight decreases with distance from rivers (inverted gradient)
         const dist1 = riverDistances.get(vertex1) || this.settings.maxDistanceInfluence;
         const dist2 = riverDistances.get(vertex2) || this.settings.maxDistanceInfluence;
         const avgDistance = (dist1 + dist2) / 2;
         
-        // Exponential decay: closer to rivers = lower weight (easier pathfinding)
-        const distanceWeight = Math.exp(avgDistance / this.settings.maxDistanceInfluence);
-        edge.weight = this.settings.baseEdgeWeight * distanceWeight;
+        if (avgDistance < 5) {
+          // Very high weight near rivers to strongly discourage staying close
+          edge.weight = 100;
+        } else if (avgDistance < 10) {
+          // Still high weight in the near zone
+          edge.weight = 50;
+        } else if (avgDistance < 20) {
+          // Medium weight in transition zone
+          edge.weight = 20;
+        } else {
+          // Very low weight for distant areas (strongly encourage reaching far)
+          edge.weight = Math.max(1, 5 - avgDistance * 0.1);
+        }
         normalEdgeCount++;
       }
     }
@@ -426,53 +438,77 @@ export class TributariesGenerator {
    */
   findBranchingPoints(riverPath, graph) {
     const branchingPoints = [];
-    const minBranchingSeparation = this.settings.branchingSeparation;
+    const minBranchSpacing = this.settings.minBranchSpacing || 30;
     
     const startSkip = Math.min(3, Math.floor(riverPath.length * 0.15));
     const endSkip = Math.min(3, Math.floor(riverPath.length * 0.15));
     
     console.log(`TributariesGenerator: Searching for branching points in river of length ${riverPath.length}`);
-    console.log(`TributariesGenerator: Skipping first ${startSkip} and last ${endSkip} vertices, checking separation of ${minBranchingSeparation}`);
+    console.log(`TributariesGenerator: Skipping first ${startSkip} and last ${endSkip} vertices, checking spacing of ${minBranchSpacing}`);
     
-    let lastBranchingIndex = -minBranchingSeparation;
+    const candidates = [];
     let candidatesChecked = 0;
-    let candidatesSkippedForSeparation = 0;
     let candidatesWithoutConnections = 0;
     
+    // First pass: collect all valid candidates
     for (let i = startSkip; i < riverPath.length - endSkip; i++) {
       candidatesChecked++;
-      
-      if (i - lastBranchingIndex < minBranchingSeparation) {
-        candidatesSkippedForSeparation++;
-        continue;
-      }
       
       const vertex = riverPath[i];
       const connections = graph.voronoiVertexVertexMap[vertex] || [];
       const nonRiverConnections = connections.filter(conn => !this.riverVertices.has(conn));
       
-      console.log(`TributariesGenerator: Vertex ${vertex} at index ${i}: ${connections.length} total connections, ${nonRiverConnections.length} non-river connections`);
-      
-      if (nonRiverConnections.length >= 1) { // Reduced requirement from 2 to 1
+      if (nonRiverConnections.length >= 1) {
         const direction = this.determineFlowDirection(riverPath, i);
-        branchingPoints.push({
-          vertex,
-          connections: nonRiverConnections,
-          direction,
-          riverIndex: i
-        });
-        lastBranchingIndex = i;
-        console.log(`TributariesGenerator: Added branching point at vertex ${vertex} with direction ${direction}`);
+        
+        // Check geometric suitability (angle relative to river flow)
+        const pos = graph.circumcenters[vertex];
+        if (pos) {
+          candidates.push({
+            vertex,
+            connections: nonRiverConnections,
+            direction,
+            riverIndex: i,
+            position: pos
+          });
+        }
       } else {
         candidatesWithoutConnections++;
       }
     }
     
+    // Second pass: select well-spaced subset
+    const selectedIndices = new Set();
+    
+    for (let i = 0; i < candidates.length; i++) {
+      const candidate = candidates[i];
+      let tooClose = false;
+      
+      // Check distance to already selected branching points
+      for (const selectedIdx of selectedIndices) {
+        const selected = candidates[selectedIdx];
+        const distance = Math.sqrt(
+          Math.pow(candidate.position.x - selected.position.x, 2) +
+          Math.pow(candidate.position.z - selected.position.z, 2)
+        );
+        
+        if (distance < minBranchSpacing) {
+          tooClose = true;
+          break;
+        }
+      }
+      
+      if (!tooClose) {
+        selectedIndices.add(i);
+        branchingPoints.push(candidate);
+      }
+    }
+    
     console.log(`TributariesGenerator: Branching point search complete:`);
     console.log(`  - Candidates checked: ${candidatesChecked}`);
-    console.log(`  - Skipped for separation: ${candidatesSkippedForSeparation}`);
+    console.log(`  - Valid candidates found: ${candidates.length}`);
     console.log(`  - Without sufficient connections: ${candidatesWithoutConnections}`);
-    console.log(`  - Branching points found: ${branchingPoints.length}`);
+    console.log(`  - Branching points selected (with spacing): ${branchingPoints.length}`);
     
     return branchingPoints;
   }
@@ -507,14 +543,47 @@ export class TributariesGenerator {
       return null;
     }
     
-    // Use pathfinding to create the tributary
-    const tributaryPath = this.pathfinder.findPath(
-      startVertex,
+    // Create waypoints to force a more meandering path
+    const waypoints = this.generateWaypoints(startVertex, endVertex, direction, weightedGraph);
+    
+    // Build the tributary path through waypoints
+    let tributaryPath = [];
+    let currentStart = startVertex;
+    
+    // Add paths through each waypoint
+    for (const waypoint of waypoints) {
+      const segment = this.pathfinder.findPath(
+        currentStart,
+        waypoint,
+        weightedGraph.voronoiVertexVertexMap,
+        weightedGraph.voronoiEdges,
+        weightedGraph.circumcenters
+      );
+      
+      if (!segment || segment.length < 2) continue;
+      
+      // Add segment (avoiding duplicates)
+      if (tributaryPath.length === 0) {
+        tributaryPath = segment;
+      } else {
+        tributaryPath = tributaryPath.concat(segment.slice(1));
+      }
+      
+      currentStart = waypoint;
+    }
+    
+    // Final segment to endpoint
+    const finalSegment = this.pathfinder.findPath(
+      currentStart,
       endVertex,
       weightedGraph.voronoiVertexVertexMap,
       weightedGraph.voronoiEdges,
       weightedGraph.circumcenters
     );
+    
+    if (finalSegment && finalSegment.length > 1) {
+      tributaryPath = tributaryPath.concat(finalSegment.slice(1));
+    }
     
     // Validate the tributary before accepting it
     if (!this.validateTributary(tributaryPath, startVertex, endVertex, weightedGraph)) {
@@ -523,6 +592,72 @@ export class TributariesGenerator {
     
     console.log(`TributariesGenerator: Created tributary from ${startVertex} to ${endVertex} (${tributaryPath.length} vertices, depth ${depth})`);
     return tributaryPath;
+  }
+
+  /**
+   * Generate waypoints to create a more meandering tributary path
+   * @param {number} startVertex - Starting vertex
+   * @param {number} endVertex - Ending vertex
+   * @param {string} direction - Direction preference
+   * @param {Object} graph - Graph data
+   * @returns {Array<number>} Array of waypoint vertices
+   */
+  generateWaypoints(startVertex, endVertex, direction, graph) {
+    const waypoints = [];
+    const startPos = graph.circumcenters[startVertex];
+    const endPos = graph.circumcenters[endVertex];
+    
+    if (!startPos || !endPos) return waypoints;
+    
+    // Calculate vector from start to end
+    const dx = endPos.x - startPos.x;
+    const dz = endPos.z - startPos.z;
+    const distance = Math.sqrt(dx * dx + dz * dz);
+    
+    // Perpendicular vector for creating curves
+    const perpX = -dz / distance;
+    const perpZ = dx / distance;
+    
+    // Create 1-2 waypoints based on distance
+    const numWaypoints = distance > 40 ? 2 : 1;
+    
+    for (let i = 1; i <= numWaypoints; i++) {
+      const t = i / (numWaypoints + 1);
+      
+      // Interpolated position along the line
+      const midX = startPos.x + dx * t;
+      const midZ = startPos.z + dz * t;
+      
+      // Add perpendicular offset for curvature
+      const offset = (this.random() - 0.5) * 20 + (direction === 'left' ? -10 : 10);
+      const waypointX = midX + perpX * offset;
+      const waypointZ = midZ + perpZ * offset;
+      
+      // Find nearest vertex to this position
+      let nearestVertex = null;
+      let minDist = Infinity;
+      
+      for (let v = 0; v < graph.circumcenters.length; v++) {
+        const vertex = graph.circumcenters[v];
+        if (!vertex || this.riverVertices.has(v)) continue;
+        
+        const dist = Math.sqrt(
+          Math.pow(vertex.x - waypointX, 2) + 
+          Math.pow(vertex.z - waypointZ, 2)
+        );
+        
+        if (dist < minDist) {
+          minDist = dist;
+          nearestVertex = v;
+        }
+      }
+      
+      if (nearestVertex !== null && minDist < 15) {
+        waypoints.push(nearestVertex);
+      }
+    }
+    
+    return waypoints;
   }
 
   /**
@@ -564,6 +699,7 @@ export class TributariesGenerator {
     
     // Improved distance scaling - longer tributaries
     const minDistance = this.settings.minTributaryDistance;
+    const idealDistance = this.settings.idealTributaryDistance || 40;
     const maxDistance = Math.max(50, this.settings.maxTributaryDistance / (depth + 1));
     const candidates = [];
     
@@ -589,14 +725,23 @@ export class TributariesGenerator {
       }
     }
     
-    // Select from farther candidates, not closest ones
-    if (candidates.length === 0) return null;
+    // Filter candidates that are too close
+    const validCandidates = candidates.filter(c => c.distance >= minDistance);
     
-    candidates.sort((a, b) => b.distance - a.distance); // Sort by distance DESC
-    const maxCandidates = Math.min(candidates.length, 3);
+    if (validCandidates.length === 0) return null;
+    
+    // Prefer candidates near ideal distance
+    validCandidates.sort((a, b) => {
+      const aDiff = Math.abs(a.distance - idealDistance);
+      const bDiff = Math.abs(b.distance - idealDistance);
+      return aDiff - bDiff;
+    });
+    
+    // Select from top candidates (those closest to ideal distance)
+    const maxCandidates = Math.min(validCandidates.length, 3);
     const selectedIndex = Math.floor(this.random() * maxCandidates);
     
-    return candidates[selectedIndex].vertex;
+    return validCandidates[selectedIndex].vertex;
   }
   
   /**
