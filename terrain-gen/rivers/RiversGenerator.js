@@ -1,301 +1,162 @@
-import { RiverPathfinder } from './RiverPathfinder.js';
+import { Point, Edge, Triangle, HalfEdge, VoronoiEdge, GeometryUtils } from '../geometry/GeometryTypes.js';
+import { PathFinder } from './Pathfinder.js';
+import { GraphUtils } from '../geometry/graph/GraphUtils.js';
 
+/**
+ * @typedef {Object} RiverSettings
+ * @property {number} [minSeparationDistance=50] - Minimum separation between river start/end points
+ */
+
+/**
+ * @typedef {Object} RiverStats
+ * @property {number} totalRiverCells - Total number of cells occupied by rivers
+ * @property {number} numberOfRivers - Number of river paths generated
+ * @property {number} averageRiverLength - Average length of river paths
+ * @property {number} longestRiver - Length of the longest river path
+ */
+
+/**
+ * @typedef {Object} RiverFeature
+ * @property {string} id - Feature ID
+ * @property {string} type - Feature type
+ * @property {Object} centroid - Feature centroid coordinates
+ * @property {Array<Object>} bezierCurves - Bezier curves defining the feature
+ * @property {Array<Array<Object>>} pointDistributions - Point distributions
+ * @property {Array<Object>} affectedTiles - Affected tiles
+ * @property {Object} metadata - Feature metadata
+ */
+
+/**
+ * Rivers generator using typed geometry and pathfinding
+ */
 export class RiversGenerator {
+  /**
+   * @param {Object} voronoiGenerator - Voronoi diagram generator
+   * @param {RiverSettings} settings - Generator settings
+   */
   constructor(voronoiGenerator, settings) {
+    /** @type {Object} */
     this.voronoiGenerator = voronoiGenerator;
+    /** @type {RiverSettings} */
     this.settings = settings;
+    /** @type {Set<number>} */
     this.riverCells = new Set();
-    this.riverPaths = []; // Array of river path arrays
-    this.coastlineGenerator = null;
-    this.lakesGenerator = null;
-    this.marshGenerator = null;
-    this.usedStartPoints = new Set(); // Track used start points
-    this.usedEndPoints = new Set();   // Track used end points
-    this.minSeparationDistance = 50; // Minimum distance between start/end points
+    /** @type {Array<Array<number>>} */
+    this.riverPaths = [];
+    /** @type {Set<number>} */
+    this.usedStartPoints = new Set();
+    /** @type {Set<number>} */
+    this.usedEndPoints = new Set();
+    /** @type {number} */
+    this.minSeparationDistance = 50;
+    /** @type {number} */
+    this._seed = undefined;
     
-    // Create pathfinder instance
-    this.pathfinder = new RiverPathfinder(voronoiGenerator, settings);
+    // Initialize seed if provided
+    if (this.settings.seed !== undefined) {
+      this.seedRandom(this.settings.seed);
+    }
+    
+    /** @type {PathFinder} */
+    this.pathfinder = new PathFinder(voronoiGenerator.delaunatorWrapper);
+    console.log('RiversGenerator constructor');
+    console.log(voronoiGenerator.delaunatorWrapper);
   }
 
+  /**
+   * Generate rivers using pathfinding (legacy method - use GraphState workflow instead)
+   * @param {number} [numRivers=2] - Number of rivers to generate
+   * @returns {Array<Array<number>>} Array of river paths
+   * @deprecated Use GraphState workflow with generateSingleRiver() instead
+   */
   generateRivers(numRivers = 2) {
+    console.warn('RiversGenerator.generateRivers() is deprecated. Use GraphState workflow with generateSingleRiver() instead.');
+    
     if (!this.voronoiGenerator || !this.voronoiGenerator.cells || this.voronoiGenerator.cells.size === 0) {
       console.error('RiversGenerator: No Voronoi diagram available');
       return [];
     }
-
+    
     this.clearRivers();
-    
-    // Setup pathfinder with current state
-    this.setupPathfinder();
-    
-    console.log(`Generating ${numRivers} rivers...`);
+    console.log(`Generating ${numRivers} rivers using legacy method...`);
 
+    // Use the original graph for simple generation
+    const originalGraph = GraphUtils.createDeepCopyOfGraph(this.voronoiGenerator.delaunatorWrapper);
+    
     for (let i = 0; i < numRivers; i++) {
-      const river = this.generateSingleRiver(i);
+      const river = this.generateSingleRiver(i, originalGraph);
       if (river.length > 0) {
         this.riverPaths.push(river);
-        console.log(`Generated river ${i + 1} with ${river.length} cells`);
+        console.log(`Generated river ${i + 1} with ${river.length} vertices`);
+        
+        // Remove used vertices for subsequent rivers (basic approach)
+        GraphUtils.removeUsedVerticesFromGraph(originalGraph, river);
       }
     }
 
     console.log(`Rivers generation complete. Total paths: ${this.riverPaths.length}, total cells: ${this.riverCells.size}`);
     return this.riverPaths;
   }
-
-  setupPathfinder() {
-    // Set references to other generators
-    this.pathfinder.setCoastlineGenerator(this.coastlineGenerator);
-    this.pathfinder.setLakesGenerator(this.lakesGenerator);
-    this.pathfinder.setMarshGenerator(this.marshGenerator);
-    this.pathfinder.setHillsGenerator(this.settings.hillsGenerator);
-    this.pathfinder.setRiverCells(this.riverCells);
-    
-    // Build Voronoi edge graph for pathfinding
-    this.pathfinder.buildVoronoiEdgeGraph();
-  }
-
-  generateSingleRiver(riverIndex) {
+  /**
+   * Generate a single river path
+   * @param {number} riverIndex - Index of the river to generate
+   * @param {Object} graphData - Graph data containing vertices, edges, and circumcenters
+   * @returns {Array<number>} River path as array of vertex indices
+   */
+  generateSingleRiver(riverIndex, graphData) {
     console.log(`\n=== GENERATING SINGLE RIVER ${riverIndex + 1} ===`);
     
-    // Step 1: Select a random edge as starting point (non-coastal edge)
-    const startCell = this.selectEdgeStartPoint();
-    if (!startCell) {
+    // Apply boundary weighting to discourage river paths along map edges
+    this.applyBoundaryWeighting(graphData);
+    
+    // Step 1: Select random start point on north edge
+    let startPoint = this.selectNorthEdgePoint(graphData);
+    if (startPoint === null) {
       console.log(`FAILURE: No valid start point found for river ${riverIndex + 1}`);
       return [];
     }
 
-    // Mark start point immediately and add to used points
-    const startCellObj = this.voronoiGenerator.cells.get(startCell);
-    if (startCellObj) {
-      startCellObj.setMetadata('riverStartPoint', true);
-      startCellObj.setMetadata('riverIndex', riverIndex);
-      this.usedStartPoints.add(startCell);
-      console.log(`Marked start point: ${startCell}`);
+    // Step 2: Select random end point on south edge
+    let endPoint = this.selectSouthEdgePoint(graphData);
+    if (endPoint === null) {
+      console.log(`FAILURE: No valid end point found for river ${riverIndex + 1}`);
+      return [];
     }
 
-    // Step 2: Find target (water features: lakes, coasts, marshes, or opposite edge)
-    let targets = this.findWaterTargets();
-    if (targets.length === 0) {
-      console.log(`No water targets found for river ${riverIndex + 1}, using parallel edge targets`);
-      targets = this.selectParallelEdgeTargets(startCell);
-      
-      if (targets.length === 0) {
-        console.log(`FAILURE: No parallel edge targets found for river ${riverIndex + 1}`);
-        return [];
-      }
-    }
+    console.log(`Selected start point: ${startPoint} (north edge)`);
+    console.log(`Selected end point: ${endPoint} (south edge)`);
 
-    // Mark end point immediately (choose closest valid target)
-    if (targets.length > 0) {
-      let endPointId = null;
-      
-      // Filter targets to exclude those too close to used end points
-      const validTargets = targets.filter(targetId => 
-        !this.isTooCloseToUsedPoints(targetId, this.usedEndPoints)
-      );
-      
-      if (validTargets.length === 0) {
-        console.log(`No valid end targets (all too close to existing end points), using closest anyway`);
-        endPointId = targets[0]; // Fallback to first target
-      } else {
-        endPointId = validTargets[0]; // Default to first valid target
-        
-        // If multiple valid targets, find the closest one to start point
-        if (validTargets.length > 1 && startCellObj?.site) {
-          let minDistance = Infinity;
-          const startSite = startCellObj.site;
-          
-          for (const targetId of validTargets) {
-            const targetCell = this.voronoiGenerator.cells.get(targetId);
-            if (targetCell && targetCell.site) {
-              const dx = startSite.x - targetCell.site.x;
-              const dy = (startSite.z || startSite.y || 0) - (targetCell.site.z || targetCell.site.y || 0);
-              const distance = Math.sqrt(dx * dx + dy * dy);
-              if (distance < minDistance) {
-                minDistance = distance;
-                endPointId = targetId;
-              }
-            }
-          }
-        }
-      }
-      
-      const endCellObj = this.voronoiGenerator.cells.get(endPointId);
-      if (endCellObj) {
-        endCellObj.setMetadata('riverEndPoint', true);
-        endCellObj.setMetadata('riverIndex', riverIndex);
-        this.usedEndPoints.add(endPointId);
-        console.log(`Marked end point: ${endPointId}`);
-      }
-    }
-
-    // Log elevation info for debugging
-    const startElevation = this.getCellElevation(startCell);
-    console.log(`River ${riverIndex + 1}: Starting at cell ${startCell}, elevation ${Math.round(startElevation)}`);
-
-    // Step 3: Use A* pathfinding to find path to nearest water target
-    console.log(`Starting A* pathfinding from ${startCell} to ${targets.length} targets...`);
-    const path = this.pathfinder.findPathToWater(startCell, targets);
+    // Step 3: Use A* pathfinding to find path from north to south edge
+    console.log(`Starting A* pathfinding from ${startPoint} to ${endPoint}...`);
+    console.log(`Pathfinder data check:`);
+    console.log(`- Start vertex in vertexMap: ${!!graphData.voronoiVertexVertexMap[startPoint]}`);
+    console.log(`- End vertex in vertexMap: ${!!graphData.voronoiVertexVertexMap[endPoint]}`);
+    console.log(`- Start vertex connections: ${graphData.voronoiVertexVertexMap[startPoint] ? graphData.voronoiVertexVertexMap[startPoint].length : 'N/A'}`);
+    console.log(`- End vertex connections: ${graphData.voronoiVertexVertexMap[endPoint] ? graphData.voronoiVertexVertexMap[endPoint].length : 'N/A'}`);
+    
+    const path = this.pathfinder.findPath(startPoint, endPoint,
+       graphData.voronoiVertexVertexMap,
+       graphData.voronoiEdges,
+       graphData.circumcenters);
     console.log(`A* pathfinding result: ${path.length > 0 ? 'SUCCESS' : 'FAILED'}`);
     
-    if (path.length > 0) {
-      // Analyze elevation profile of the path
-      const elevations = path.map(cellId => this.getCellElevation(cellId));
-      const startElev = elevations[0];
-      const endElev = elevations[elevations.length - 1];
-      const maxElev = Math.max(...elevations);
-      const minElev = Math.min(...elevations);
-      
-      console.log(`River ${riverIndex + 1}: Path found - ${path.length} cells`);
-      console.log(`  Elevation: ${Math.round(startElev)} -> ${Math.round(endElev)} (Δ${Math.round(endElev - startElev)})`);
-      console.log(`  Range: ${Math.round(minElev)} to ${Math.round(maxElev)}`);
-      
-      // Check for uphill segments
-      let uphillSegments = 0;
-      for (let i = 1; i < elevations.length; i++) {
-        if (elevations[i] > elevations[i - 1]) {
-          uphillSegments++;
-        }
-      }
-      if (uphillSegments > 0) {
-        console.log(`  Warning: ${uphillSegments} uphill segments found`);
-      }
-
-      // Mark all cells in path as river cells
-      path.forEach((cellId, index) => {
-        const cell = this.voronoiGenerator.cells.get(cellId);
-        if (cell) {
-          this.riverCells.add(cellId);
-          cell.setMetadata('river', true);
-          cell.setMetadata('riverIndex', riverIndex);
-          cell.setMetadata('riverPosition', index);
-          cell.setMetadata('riverElevation', elevations[index]);
-        }
-      });
-      
+    if (path.length > 0) {   
       console.log(`SUCCESS: River ${riverIndex + 1} generated with ${path.length} cells`);
     } else {
-      console.log(`FAILURE: No path found from elevation ${Math.round(startElevation)}`);
+      console.log(`FAILURE: No path found from start point ${startPoint} to end point ${endPoint}`);
     }
 
     console.log(`=== SINGLE RIVER ${riverIndex + 1} COMPLETE ===\n`);
     return path;
   }
 
-  selectEdgeStartPoint() {
-    console.log(`=== SELECTING EDGE START POINT ===`);
-    const gridSize = this.settings.gridSize;
-    const edgeTolerance = 100; // Distance from edge to consider "edge cell"
-    const edgeCells = [];
-
-    console.log(`Grid size: ${gridSize}, Edge tolerance: ${edgeTolerance}`);
-
-    this.voronoiGenerator.cells.forEach((cell, cellId) => {
-      // Skip coastal cells
-      if (this.coastlineGenerator && this.coastlineGenerator.isCoastal(cellId)) {
-        console.log(`Skipping coastal cell ${cellId}`);
-        return;
-      }
-
-      const site = cell.site;
-      if (!site) {
-        console.log(`Skipping cell ${cellId} - no site`);
-        return;
-      }
-
-      const x = site.x;
-      const y = site.z || site.y || 0;
-
-      // Check if cell is near any edge
-      const isNearEdge = 
-        x <= edgeTolerance ||                    // West edge
-        x >= (gridSize - edgeTolerance) ||       // East edge
-        y <= edgeTolerance ||                    // North edge
-        y >= (gridSize - edgeTolerance);         // South edge
-      
-      console.log(isNearEdge, x, y, gridSize, edgeTolerance)
-
-      if (isNearEdge) {
-        // Check if this cell is too close to previously used start points
-        if (this.isTooCloseToUsedPoints(cellId, this.usedStartPoints)) {
-          console.log(`Skipping edge cell ${cellId} at (${x.toFixed(1)}, ${y.toFixed(1)}) - too close to existing start point`);
-          return;
-        }
-        
-        console.log(`Found edge cell ${cellId} at (${x.toFixed(1)}, ${y.toFixed(1)})`);
-        edgeCells.push(cellId);
-      }
-    });
-
-    console.log(`Total edge cells found: ${edgeCells.length}`);
-    console.log(`Edge cells: [${edgeCells}]`);
-
-    if (edgeCells.length === 0) {
-      console.log(`ERROR: No valid edge cells found!`);
-      return null;
-    }
-
-    // Use seeded random for reproducibility
-    const seed = this.settings.voronoi?.seed || Date.now();
-    this.seedRandom(seed + 2000); // Offset seed for rivers
-    
-    const randomIndex = Math.floor(this.random() * edgeCells.length);
-    const selectedCell = edgeCells[randomIndex];
-    
-    console.log(`Selected start cell: ${selectedCell} (random index: ${randomIndex})`);
-    console.log(`=== EDGE START POINT SELECTED ===`);
-    
-    return selectedCell;
-  }
-
-  findWaterTargets() {
-    console.log(`=== FINDING WATER TARGETS ===`);
-    const targets = [];
-
-    // Add coastal cells as targets
-    if (this.coastlineGenerator) {
-      const coastalCells = this.coastlineGenerator.getCoastalCells();
-      console.log(`Found ${coastalCells.length} coastal cells: [${coastalCells}]`);
-      targets.push(...coastalCells);
-    } else {
-      console.log(`No coastline generator available`);
-    }
-
-    // Add lake cells as targets
-    if (this.lakesGenerator) {
-      const lakeCells = this.lakesGenerator.getLakeCells();
-      console.log(`Found ${lakeCells.length} lake cells: [${lakeCells}]`);
-      targets.push(...lakeCells);
-    } else {
-      console.log(`No lakes generator available`);
-    }
-
-    // Add marsh cells as targets (lower priority)
-    if (this.marshGenerator) {
-      const marshCells = this.marshGenerator.getMarshCells();
-      console.log(`Found ${marshCells.length} marsh cells: [${marshCells}]`);
-      targets.push(...marshCells);
-    } else {
-      console.log(`No marsh generator available`);
-    }
-
-    console.log(`Total water targets found: ${targets.length}`);
-    console.log(`All targets: [${targets}]`);
-    console.log(`=== WATER TARGETS FOUND ===`);
-
-    return targets;
-  }
-
+  /**
+   * Get cell elevation from various sources
+   * @param {number} cellId - Cell ID
+   * @returns {number} Cell elevation
+   */
   getCellElevation(cellId) {
-    // Get elevation from hills generator, or use gradient height, or default to 0
-    if (this.settings.hillsGenerator) {
-      const height = this.settings.hillsGenerator.getCellHeight(cellId);
-      if (height > 0) {
-        return height;
-      }
-    }
-
-    // If no hills generator, try to get gradient height from cell metadata
+    // Try to get gradient height from cell metadata
     const cell = this.voronoiGenerator.cells.get(cellId);
     if (cell) {
       const gradientHeight = cell.getMetadata('height');
@@ -324,18 +185,35 @@ export class RiversGenerator {
     return 0;
   }
 
+  /**
+   * Check if a cell is part of a river
+   * @param {number} cellId - Cell ID to check
+   * @returns {boolean} True if cell is part of a river
+   */
   isRiverCell(cellId) {
     return this.riverCells.has(cellId);
   }
 
+  /**
+   * Get all river cell IDs
+   * @returns {Array<number>} Array of river cell IDs
+   */
   getRiverCells() {
     return Array.from(this.riverCells);
   }
 
+  /**
+   * Get all river paths
+   * @returns {Array<Array<number>>} Array of river paths
+   */
   getRiverPaths() {
     return [...this.riverPaths];
   }
 
+  /**
+   * Get river generation statistics
+   * @returns {RiverStats} River statistics
+   */
   getRiverStats() {
     return {
       totalRiverCells: this.riverCells.size,
@@ -347,6 +225,9 @@ export class RiversGenerator {
     };
   }
 
+  /**
+   * Clear all river data
+   */
   clearRivers() {
     // Remove river metadata from all cells
     this.voronoiGenerator.cells.forEach((cell) => {
@@ -363,23 +244,12 @@ export class RiversGenerator {
     this.usedEndPoints.clear();
   }
 
-  // Set references to other generators
-  setCoastlineGenerator(coastlineGenerator) {
-    this.coastlineGenerator = coastlineGenerator;
-  }
 
-  setLakesGenerator(lakesGenerator) {
-    this.lakesGenerator = lakesGenerator;
-  }
-
-  setMarshGenerator(marshGenerator) {
-    this.marshGenerator = marshGenerator;
-  }
-
-  setHillsGenerator(hillsGenerator) {
-    this.settings.hillsGenerator = hillsGenerator;
-  }
-
+  /**
+   * Select parallel edge targets for rivers
+   * @param {number} startCell - Starting cell ID
+   * @returns {Array<number>} Array of target cell IDs
+   */
   selectParallelEdgeTargets(startCell) {
     const gridSize = this.settings.gridSize;
     const edgeTolerance = 100; // Distance from edge to consider "edge cell"
@@ -455,7 +325,12 @@ export class RiversGenerator {
     return targetCells;
   }
 
-  // Helper method to calculate distance between two cells
+  /**
+   * Calculate distance between two cells
+   * @param {number} cellId1 - First cell ID
+   * @param {number} cellId2 - Second cell ID
+   * @returns {number} Distance between cells
+   */
   getDistanceBetweenCells(cellId1, cellId2) {
     const cell1 = this.voronoiGenerator.cells.get(cellId1);
     const cell2 = this.voronoiGenerator.cells.get(cellId2);
@@ -469,7 +344,12 @@ export class RiversGenerator {
     return Math.sqrt(dx * dx + dy * dy);
   }
 
-  // Check if a cell is too close to any used points
+  /**
+   * Check if a cell is too close to any used points
+   * @param {number} cellId - Cell ID to check
+   * @param {Set<number>} usedPoints - Set of used point IDs
+   * @returns {boolean} True if cell is too close to used points
+   */
   isTooCloseToUsedPoints(cellId, usedPoints) {
     for (const usedCellId of usedPoints) {
       if (this.getDistanceBetweenCells(cellId, usedCellId) < this.minSeparationDistance) {
@@ -479,12 +359,30 @@ export class RiversGenerator {
     return false;
   }
 
-  // Seeded random number generator
+  /**
+   * Set random seed for reproducibility
+   * @param {number} seed - Random seed
+   */
   seedRandom(seed) {
     this._seed = seed;
   }
 
+  /**
+   * Set the seeded random number generator
+   * @param {Function} seededRandom - Seeded random function from seedrandom library
+   */
+  setSeededRandom(seededRandom) {
+    this._seededRandom = seededRandom;
+  }
+
+  /**
+   * Generate random number (seeded if available)
+   * @returns {number} Random number between 0 and 1
+   */
   random() {
+    if (this._seededRandom) {
+      return this._seededRandom();
+    }
     if (this._seed !== undefined) {
       this._seed = (this._seed * 9301 + 49297) % 233280;
       return this._seed / 233280;
@@ -492,7 +390,11 @@ export class RiversGenerator {
     return Math.random();
   }
 
-  // Create terrain features for rivers
+  /**
+   * Create terrain features for rivers
+   * @param {Object} terrainData - Terrain data manager
+   * @returns {RiverFeature} Overall rivers feature
+   */
   createRiverFeatures(terrainData) {
     this.riverPaths.forEach((path, index) => {
       const riverFeature = terrainData.createFeature(`river_${index}`);
@@ -525,5 +427,126 @@ export class RiversGenerator {
     riversFeature.setMetadata('stats', this.getRiverStats());
     
     return riversFeature;
+  }
+
+
+  /**
+   * Select a random vertex point on the north edge of the map
+   * @param {Object} graphData - Graph data to search
+   * @returns {number|null} Vertex index on north edge or null if none found
+   */
+  selectNorthEdgePoint(graphData) {
+    console.log('=== SELECTING NORTH EDGE START POINT ===');
+    const gridSize = this.voronoiGenerator.settings.gridSize;
+    const edgeTolerance =  30; // Distance from edge to consider "edge vertex"
+    const northEdgeVertices = [];
+
+    console.log(`Graph data has ${graphData.circumcenters.length} total circumcenters`);
+    console.log(`Graph data has ${Object.keys(graphData.voronoiVertexVertexMap).length} vertex mappings`);
+
+    // Check circumcenters (Voronoi vertices) for those near the north edge
+    graphData.circumcenters.forEach((vertex, index) => {
+      if (!vertex) return;
+      
+      const x = vertex.x;
+      const z = vertex.z || vertex.y || 0;
+ 
+      // Check if vertex is near north edge (z coordinate close to 0) and available in graph
+      if (z < edgeTolerance && z >= 0 && x >= 0 && x <= (gridSize) && 
+          graphData.voronoiVertexVertexMap[index]) {
+        northEdgeVertices.push(index);
+        console.log(`Found north edge vertex ${index} at (${x.toFixed(1)}, ${z.toFixed(1)})`);
+      }
+    });
+
+    if (northEdgeVertices.length === 0) {
+      console.log('FAILURE: No vertices found on north edge');
+      return null;
+    }
+
+    // Select random vertex from north edge
+    const selectedIndex = Math.floor(this.random() * northEdgeVertices.length);
+    const selectedVertex = northEdgeVertices[selectedIndex];
+    
+    console.log(`SUCCESS: Selected north edge vertex ${selectedVertex} (${selectedIndex + 1}/${northEdgeVertices.length})`);
+    return selectedVertex;
+  }
+
+  /**
+   * Select a random vertex point on the south edge of the map
+   * @param {Object} graphData - Graph data to search
+   * @returns {number|null} Vertex index on south edge or null if none found
+   */
+  selectSouthEdgePoint(graphData) {
+    console.log('=== SELECTING SOUTH EDGE END POINT ===');
+    const gridSize = this.voronoiGenerator.settings.gridSize;
+    const edgeTolerance =  10; // Distance from edge to consider "edge vertex"
+    const southEdgeVertices = [];
+
+    console.log(`Graph data has ${graphData.circumcenters.length} total circumcenters`);
+    console.log(`Graph data has ${Object.keys(graphData.voronoiVertexVertexMap).length} vertex mappings`);
+
+    // Check circumcenters (Voronoi vertices) for those near the south edge
+    graphData.circumcenters.forEach((vertex, index) => {
+      if (!vertex) return;
+      
+      const x = vertex.x;
+      const z = vertex.z || vertex.y || 0;
+      
+      // Check if vertex is near south edge (z coordinate close to gridSize) and available in graph
+      if (z <= gridSize && z >= (gridSize - edgeTolerance) && x >= 0 && x <= (gridSize ) && 
+          graphData.voronoiVertexVertexMap[index]) {
+        southEdgeVertices.push(index);
+        console.log(`Found south edge vertex ${index} at (${x.toFixed(1)}, ${z.toFixed(1)})`);
+      }
+    });
+
+    if (southEdgeVertices.length === 0) {
+      console.log('FAILURE: No vertices found on south edge');
+      return null;
+    }
+
+    // Select random vertex from south edge
+    const selectedIndex = Math.floor(this.random() * southEdgeVertices.length);
+    const selectedVertex = southEdgeVertices[selectedIndex];
+    
+    console.log(`SUCCESS: Selected south edge vertex ${selectedVertex} (${selectedIndex + 1}/${southEdgeVertices.length})`);
+    return selectedVertex;
+  }
+
+  /**
+   * Apply high weights to edges near grid boundaries to discourage pathfinding along borders
+   * @param {Object} graphData - Graph data to modify
+   */
+  applyBoundaryWeighting(graphData) {
+    const gridSize = this.voronoiGenerator.settings.gridSize;
+    const boundaryTolerance = 30; // Distance from boundary to consider "boundary edge"
+    const boundaryWeight = 1000; // Very high weight to discourage boundary usage
+    let boundaryEdgeCount = 0;
+
+    console.log(`RiversGenerator: Applying boundary weighting (tolerance: ${boundaryTolerance}, weight: ${boundaryWeight})`);
+
+    // Check if a vertex is near any boundary
+    const isNearBoundary = (pos) => {
+      if (!pos) return false;
+      return pos.x <= boundaryTolerance ||                    // Near left edge
+             pos.x >= (gridSize - boundaryTolerance) ||       // Near right edge
+             pos.z <= boundaryTolerance ||                    // Near top edge
+             pos.z >= (gridSize - boundaryTolerance);         // Near bottom edge
+    };
+
+    // Apply high weights to boundary edges
+    for (const [edgeKey, edge] of graphData.voronoiEdges.entries()) {
+      const [vertex1, vertex2] = edgeKey.split('-').map(Number);
+      const pos1 = graphData.circumcenters[vertex1];
+      const pos2 = graphData.circumcenters[vertex2];
+
+      if (isNearBoundary(pos1) || isNearBoundary(pos2)) {
+        edge.weight = boundaryWeight;
+        boundaryEdgeCount++;
+      }
+    }
+
+    console.log(`RiversGenerator: Applied boundary weighting to ${boundaryEdgeCount} edges`);
   }
 }

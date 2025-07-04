@@ -1,258 +1,36 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Terrain Generation Dashboard</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: #1a1a1a;
-            color: #ffffff;
-        }
-        
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-        
-        .header {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-        
-        .header h1 {
-            color: #00ff88;
-            margin-bottom: 10px;
-        }
-        
-        .controls {
-            background-color: #2a2a2a;
-            padding: 30px;
-            border-radius: 10px;
-            margin-bottom: 30px;
-            border: 1px solid #444;
-        }
-        
-        .control-section {
-            margin-bottom: 25px;
-            padding-bottom: 20px;
-            border-bottom: 1px solid #444;
-        }
-        
-        .control-section:last-child {
-            border-bottom: none;
-            margin-bottom: 0;
-        }
-        
-        .control-section h3 {
-            color: #00ff88;
-            margin-top: 0;
-            margin-bottom: 15px;
-        }
-        
-        .button-group {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            margin-bottom: 15px;
-        }
-        
-        button {
-            background-color: #00ff88;
-            color: #000000;
-            border: none;
-            padding: 12px 20px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-weight: bold;
-            font-size: 14px;
-            transition: background-color 0.3s;
-        }
-        
-        button:hover {
-            background-color: #00cc66;
-        }
-        
-        button:disabled {
-            background-color: #666666;
-            color: #999999;
-            cursor: not-allowed;
-        }
-        
-        .settings {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin-top: 15px;
-        }
-        
-        .setting-item {
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
-        }
-        
-        .setting-item label {
-            color: #cccccc;
-            font-size: 12px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-        
-        .setting-item input, .setting-item select {
-            background-color: #1a1a1a;
-            border: 1px solid #666;
-            color: white;
-            padding: 8px;
-            border-radius: 3px;
-        }
-        
-        .status {
-            background-color: #1a1a1a;
-            padding: 20px;
-            border-radius: 5px;
-            margin-bottom: 20px;
-            border: 1px solid #333;
-        }
-        
-        .stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 15px;
-            margin-top: 15px;
-        }
-        
-        .stat-item {
-            background-color: #2a2a2a;
-            padding: 15px;
-            border-radius: 5px;
-            text-align: center;
-        }
-        
-        .stat-value {
-            font-size: 24px;
-            font-weight: bold;
-            color: #00ff88;
-        }
-        
-        .stat-label {
-            font-size: 12px;
-            color: #cccccc;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-        
-        .canvas-container {
-            background-color: #2a2a2a;
-            padding: 20px;
-            border-radius: 10px;
-            border: 1px solid #444;
-            text-align: center;
-        }
-        
-        canvas {
-            border: 1px solid #666;
-            background-color: #0a0a0a;
-            max-width: 100%;
-            height: auto;
-        }
-        
-        .log {
-            background-color: #0a0a0a;
-            padding: 15px;
-            border-radius: 5px;
-            font-family: monospace;
-            font-size: 12px;
-            max-height: 200px;
-            overflow-y: auto;
-            margin-top: 15px;
-            border: 1px solid #333;
-        }
-        
-        .hidden {
-            display: none;
-        }
-        
-        .coast-controls {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            align-items: center;
-        }
-        
-        .coast-controls select {
-            background-color: #1a1a1a;
-            border: 1px solid #666;
-            color: white;
-            padding: 8px;
-            border-radius: 3px;
-        }
-        
-        .canvas-wrapper {
-            position: relative;
-            display: inline-block;
-        }
-        
-        .voronoi-cell-hover {
-            position: absolute;
-            border-radius: 50%;
-            background-color: transparent;
-            cursor: pointer;
-            pointer-events: auto;
-        }
-        
-        .voronoi-cell-hover:hover {
-            background-color: rgba(255, 255, 0, 0.3);
-        }
-        
-        .neighbor-highlight {
-            background-color: rgba(255, 0, 0, 0.5) !important;
-            pointer-events: none;
-        }
-        
-        .cell-info-widget {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            background-color: #2a2a2a;
-            border: 1px solid #666;
-            border-radius: 5px;
-            padding: 15px;
-            color: white;
-            font-family: monospace;
-            font-size: 12px;
-            display: none;
-            z-index: 1000;
-            min-width: 200px;
-        }
-        
-        .cell-info-widget h4 {
-            margin: 0 0 10px 0;
-            color: #00ff88;
-        }
-        
-        .cell-info-line {
-            margin: 5px 0;
-        }
-    </style>
+    <link rel="stylesheet" href="dashboard.css">
 </head>
+
 <body>
     <div class="container">
         <div class="header">
             <h1>Terrain Generation Dashboard</h1>
             <p>Generate and visualize Voronoi-based terrain features</p>
         </div>
-        
+
         <div class="controls">
             <!-- Voronoi Generation -->
             <div class="control-section">
                 <h3>1. Voronoi Diagram</h3>
                 <div class="button-group">
                     <button id="generateVoronoiBtn">Generate Voronoi Diagram</button>
+                    <button id="importDataBtn">Import Data JSON</button>
                     <button id="clearAllBtn">Clear All</button>
+                </div>
+                <div class="settings">
+                    <div class="setting-item" style="grid-column: 1 / -1;">
+                        <label>Import JSON File Path</label>
+                        <input type="text" id="jsonFilePathInput" value="../tests/pathfinding/source_map.json"
+                            placeholder="Enter file path or click Browse...">
+                        <input type="file" id="jsonFileInput" accept=".json" style="display: none;">
+                    </div>
                 </div>
                 <div class="settings">
                     <div class="setting-item">
@@ -278,7 +56,7 @@
                     </div>
                 </div>
             </div>
-            
+
             <!-- Coastline Generation -->
             <div class="control-section">
                 <h3>2. Coastlines</h3>
@@ -299,7 +77,7 @@
                     </div>
                 </div>
             </div>
-            
+
             <!-- Hills Generation -->
             <div class="control-section">
                 <h3>3. Hills & Elevation</h3>
@@ -333,6 +111,7 @@
                     <button id="generateLakesBtn" disabled>Generate Lakes</button>
                     <button id="clearLakesBtn" disabled>Clear Lakes</button>
                     <button id="generateRiversBtn" disabled>Generate Rivers</button>
+                    <button id="generateTributariesBtn" disabled>Generate Tributaries</button>
                     <button id="clearRiversBtn" disabled>Clear Rivers</button>
                 </div>
                 <div class="settings">
@@ -348,6 +127,26 @@
                         <label>Number of Rivers</label>
                         <input type="number" id="riversCount" value="2" min="1" max="4">
                     </div>
+                    <div class="setting-item">
+                        <label>Tributary Depth</label>
+                        <input type="number" id="tributaryDepth" value="3" min="1" max="5">
+                    </div>
+                    <div class="setting-item">
+                        <label>Branch Probability</label>
+                        <input type="number" id="branchProbability" value="0.7" min="0.1" max="1.0" step="0.1">
+                    </div>
+                    <div class="setting-item">
+                        <label>Min Tributary Distance</label>
+                        <input type="number" id="minTributaryDistance" value="15" min="5" max="50">
+                    </div>
+                    <div class="setting-item">
+                        <label>Max Tributary Distance</label>
+                        <input type="number" id="maxTributaryDistance" value="80" min="20" max="200">
+                    </div>
+                    <div class="setting-item">
+                        <label>Branching Separation</label>
+                        <input type="number" id="branchingSeparation" value="5" min="2" max="15">
+                    </div>
                 </div>
             </div>
 
@@ -362,7 +161,7 @@
                     Marshes appear automatically in areas within 2 cells of both lakes and coastlines.
                 </p>
             </div>
-            
+
             <!-- Visualization Controls -->
             <div class="control-section">
                 <h3>6. Visualization</h3>
@@ -370,19 +169,45 @@
                     <button id="toggleTriangulationBtn">Toggle Triangulation</button>
                     <button id="toggleVoronoiBtn">Toggle Voronoi Edges</button>
                     <button id="toggleSitesBtn">Toggle Sites</button>
+                    <button id="toggleVerticesBtn">Toggle Vertices</button>
                     <button id="toggleHeightBtn">Toggle Height Gradient</button>
                     <button id="toggleLakesBtn">Toggle Lakes</button>
                     <button id="toggleMarshesBtn">Toggle Marshes</button>
                     <button id="toggleRiversBtn">Toggle Rivers</button>
                     <button id="exportImageBtn" disabled>Export Image</button>
+                    <button id="exportDataBtn" disabled>Export Data JSON</button>
+                </div>
+                <div class="settings">
+                    <div class="setting-item">
+                        <label>Highlight Vertex ID</label>
+                        <input type="number" id="highlightVertexId" placeholder="Enter vertex ID" min="0">
+                        <button id="highlightVertexBtn">Highlight Vertex</button>
+                        <button id="clearHighlightBtn">Clear Highlight</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Graph Debugging -->
+            <div class="control-section">
+                <h3>7. Graph Debugging</h3>
+                <div class="button-group">
+                    <button id="refreshGraphStateBtn" disabled>Refresh Graph State</button>
+                    <button id="clearGraphHighlightBtn" disabled>Clear Graph Highlight</button>
+                    <button id="showGraphStatsBtn" disabled>Show Statistics</button>
+                </div>
+                <div class="graph-partitions-container">
+                    <h4>Graph Partitions</h4>
+                    <div id="graphPartitionsList" class="partitions-list">
+                        <p class="no-partitions">No graph partitions available. Generate Voronoi diagram first.</p>
+                    </div>
                 </div>
             </div>
         </div>
-        
+
         <div class="status">
             <h3>Status</h3>
             <p id="statusText">Ready to generate terrain features...</p>
-            
+
             <div class="stats">
                 <div class="stat-item">
                     <div class="stat-value" id="sitesCount">0</div>
@@ -425,58 +250,76 @@
                     <div class="stat-label">Rivers</div>
                 </div>
             </div>
-            
+
             <div class="log" id="logOutput"></div>
         </div>
-        
+
         <div class="canvas-container">
             <h3>Current Diagram</h3>
             <div class="canvas-wrapper">
                 <canvas id="canvas" width="800" height="600"></canvas>
                 <div id="cellHoverElements"></div>
+                <div id="vertexHoverElements"></div>
             </div>
         </div>
-        
+
         <div id="cellInfoWidget" class="cell-info-widget">
             <h4>Cell Information</h4>
             <div class="cell-info-line">ID: <span id="cellId">-</span></div>
             <div class="cell-info-line">Position: <span id="cellPosition">-</span></div>
             <div class="cell-info-line">Neighbors: <span id="cellNeighbors">-</span></div>
+            <div class="cell-info-line">Type: <span id="infoType">Cell</span></div>
+            <div class="cell-info-line" id="vertexInfo" style="display: none;">Connected Vertices: <span
+                    id="connectedCells">-</span></div>
+            <div class="cell-info-line">Boundary Type: <span id="boundaryType">-</span></div>
         </div>
     </div>
 
+    <!-- Seedrandom library for deterministic random number generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/seedrandom/3.0.5/seedrandom.min.js"></script>
+
     <script type="module">
-        import { VoronoiGenerator } from './voronoi/VoronoiGenerator.js';
-        import { VoronoiImageExporter } from './voronoi/VoronoiImageExporter.js';
-        import { CoastlineGenerator } from './coastlines/CoastlineGenerator.js';
-        import { HillsGenerator } from './hills/HillsGenerator.js';
-        import { LakesGenerator } from './lakes/LakesGenerator.js';
-        import { MarshGenerator } from './marshes/MarshGenerator.js';
+        import { VoronoiGenerator } from './geometry/voronoi/VoronoiGenerator.js';
+        import { VoronoiImageExporter } from './import-export/VoronoiImageExporter.js';
         import { RiversGenerator } from './rivers/RiversGenerator.js';
+        import { TributariesGenerator } from './rivers/TributariesGenerator.js';
+        import { FeatureDrawer } from './drawer/FeatureDrawer.js';
+        import { GraphState } from './geometry/graph/GraphState.js';
+        import { GraphUtils } from './geometry/graph/GraphUtils.js';
 
         // State
         let voronoiGenerator = null;
         let imageExporter = null;
-        let coastlineGenerator = null;
-        let hillsGenerator = null;
-        let lakesGenerator = null;
-        let marshGenerator = null;
+        // let coastlineGenerator = null;
+        // let hillsGenerator = null;
+        // let lakesGenerator = null;
+        // let marshGenerator = null;
         let riversGenerator = null;
+        let tributariesGenerator = null;
+        let featureDrawer = null;
+        
+        // Global seeded random number generator
+        let seededRandom = null;
+        let graphState = null;
+        let highlightedPartitionElements = [];
         let showTriangulation = true;
         let showVoronoi = true;
         let showSites = true;
+        let showVertices = true;
         let showHeightGradient = true;
         let showLakes = true;
         let showMarshes = true;
         let showRivers = true;
         let selectedCellId = null; // Track which cell is selected
         let highlightedNeighbors = new Set(); // Track highlighted neighbor cells
+        let selectedVertexIndex = null; // Track which vertex is selected
+        let highlightedVertices = new Set(); // Track highlighted connected vertices
 
         // Mock terrain data
         const mockTerrainData = {
             features: new Map(),
             featureCounter: 0,
-            createFeature: function(type) {
+            createFeature: function (type) {
                 const id = `${type}_${++this.featureCounter}`;
                 const feature = {
                     id, type,
@@ -485,17 +328,17 @@
                     pointDistributions: [],
                     affectedTiles: [],
                     metadata: {},
-                    setCentroid: function(x, z) { this.centroid = { x, z }; return this; },
-                    addBezierCurve: function(curve) { this.bezierCurves.push(curve); return this; },
-                    addPointDistribution: function(points) { this.pointDistributions.push(points); return this; },
-                    addAffectedTile: function(x, z) { this.affectedTiles.push({ x, z }); return this; },
-                    setMetadata: function(key, value) { this.metadata[key] = value; return this; },
-                    getMetadata: function(key) { return this.metadata[key]; }
+                    setCentroid: function (x, z) { this.centroid = { x, z }; return this; },
+                    addBezierCurve: function (curve) { this.bezierCurves.push(curve); return this; },
+                    addPointDistribution: function (points) { this.pointDistributions.push(points); return this; },
+                    addAffectedTile: function (x, z) { this.affectedTiles.push({ x, z }); return this; },
+                    setMetadata: function (key, value) { this.metadata[key] = value; return this; },
+                    getMetadata: function (key) { return this.metadata[key]; }
                 };
                 this.features.set(id, feature);
                 return feature;
             },
-            getFeaturesByType: function(type) {
+            getFeaturesByType: function (type) {
                 return Array.from(this.features.values()).filter(f => f.type === type);
             }
         };
@@ -530,32 +373,33 @@
 
             const sites = voronoiGenerator.sites ? voronoiGenerator.sites.length : 0;
             const cells = voronoiGenerator.cells ? voronoiGenerator.cells.size : 0;
-            const triangles = voronoiGenerator.getTriangulation()?.triangles?.length || 0;
-            const coastalCells = coastlineGenerator ? coastlineGenerator.getCoastalCells().length : 0;
-            const hillCells = hillsGenerator ? hillsGenerator.getHillCells().length : 0;
-            const heightStats = hillsGenerator ? hillsGenerator.getHeightStats() : null;
-            const maxHeight = heightStats ? Math.round(heightStats.maxHeight) : 0;
-            const lakeCells = lakesGenerator ? lakesGenerator.getLakeCells().length : 0;
-            const depthStats = lakesGenerator ? lakesGenerator.getDepthStats() : null;
-            const maxDepth = depthStats ? Math.round(depthStats.maxDepth) : 0;
-            const marshCells = marshGenerator ? marshGenerator.getMarshCells().length : 0;
-            const riversCount = riversGenerator ? riversGenerator.getRiverPaths().length : 0;
+            const triangles = voronoiGenerator.delaunatorWrapper?.delaunay?.triangles?.length || 0;
+            // const coastalCells = coastlineGenerator ? coastlineGenerator.getCoastalCells().length : 0;
+            // const hillCells = hillsGenerator ? hillsGenerator.getHillCells().length : 0;
+            // const heightStats = hillsGenerator ? hillsGenerator.getHeightStats() : null;
+            // const maxHeight = heightStats ? Math.round(heightStats.maxHeight) : 0;
+            // const lakeCells = lakesGenerator ? lakesGenerator.getLakeCells().length : 0;
+            // const depthStats = lakesGenerator ? lakesGenerator.getDepthStats() : null;
+            // const maxDepth = depthStats ? Math.round(depthStats.maxDepth) : 0;
+            // const marshCells = marshGenerator ? marshGenerator.getMarshCells().length : 0;
+            // const riversCount = riversGenerator ? riversGenerator.getRiverPaths().length : 0;
 
             document.getElementById('sitesCount').textContent = sites;
             document.getElementById('cellsCount').textContent = cells;
             document.getElementById('trianglesCount').textContent = triangles;
-            document.getElementById('coastalCellsCount').textContent = coastalCells;
-            document.getElementById('hillCellsCount').textContent = hillCells;
-            document.getElementById('maxHeight').textContent = maxHeight;
-            document.getElementById('lakeCellsCount').textContent = lakeCells;
-            document.getElementById('maxDepth').textContent = maxDepth;
-            document.getElementById('marshCellsCount').textContent = marshCells;
-            document.getElementById('riversCount').textContent = riversCount;
+            // document.getElementById('coastalCellsCount').textContent = coastalCells;
+            // document.getElementById('hillCellsCount').textContent = hillCells;
+            // document.getElementById('maxHeight').textContent = maxHeight;
+            // document.getElementById('lakeCellsCount').textContent = lakeCells;
+            // document.getElementById('maxDepth').textContent = maxDepth;
+            // document.getElementById('marshCellsCount').textContent = marshCells;
+            // document.getElementById('riversCount').textContent = riversCount;
         }
 
         function getSettings() {
             return {
                 gridSize: 600,
+                margin: 60,
                 voronoi: {
                     enabled: true,
                     numSites: parseInt(document.getElementById('numSites').value),
@@ -566,8 +410,22 @@
             };
         }
 
+        function getTributarySettings() {
+            return {
+                maxDepth: parseInt(document.getElementById('tributaryDepth').value),
+                branchProbability: parseFloat(document.getElementById('branchProbability').value),
+                minTributaryDistance: parseInt(document.getElementById('minTributaryDistance').value),
+                maxTributaryDistance: parseInt(document.getElementById('maxTributaryDistance').value),
+                branchingSeparation: parseInt(document.getElementById('branchingSeparation').value),
+                riverEdgeWeight: 100,
+                baseEdgeWeight: 1,
+                maxDistanceInfluence: 50,
+                minTributaryLength: 4
+            };
+        }
+
         function enableDependentButtons(enable) {
-            const buttons = ['generateCoastBtn', 'clearCoastBtn', 'generateHillsBtn', 'clearHillsBtn', 'generateLakesBtn', 'clearLakesBtn', 'generateRiversBtn', 'clearRiversBtn', 'generateMarshesBtn', 'clearMarshesBtn', 'exportImageBtn'];
+            const buttons = ['generateCoastBtn', 'clearCoastBtn', 'generateHillsBtn', 'clearHillsBtn', 'generateLakesBtn', 'clearLakesBtn', 'generateRiversBtn', 'generateTributariesBtn', 'clearRiversBtn', 'generateMarshesBtn', 'clearMarshesBtn', 'exportImageBtn', 'exportDataBtn'];
             buttons.forEach(id => {
                 const element = document.getElementById(id);
                 if (element) {
@@ -582,40 +440,40 @@
         function createCellHoverElements() {
             const hoverContainer = document.getElementById('cellHoverElements');
             const canvas = document.getElementById('canvas');
-            
+
             // Clear existing hover elements
             hoverContainer.innerHTML = '';
-            
+
             if (!voronoiGenerator || !voronoiGenerator.cells) {
                 return;
             }
-            
+
             const scaleX = canvas.width / voronoiGenerator.settings.gridSize;
             const scaleZ = canvas.height / voronoiGenerator.settings.gridSize;
-            const hoverRadius = 10; // 10px radius as requested
-            
+            const hoverRadius = 5; // 10px radius as requested
+
             voronoiGenerator.cells.forEach((cell, cellId) => {
                 if (!cell.site) return;
-                
+
                 const hoverElement = document.createElement('div');
                 hoverElement.className = 'voronoi-cell-hover';
                 hoverElement.style.left = `${(cell.site.x * scaleX) - hoverRadius}px`;
                 hoverElement.style.top = `${((cell.site.z || cell.site.y || 0) * scaleZ) - hoverRadius}px`;
                 hoverElement.style.width = `${hoverRadius * 2}px`;
                 hoverElement.style.height = `${hoverRadius * 2}px`;
-                
+
                 // Add data attribute for identification
                 hoverElement.dataset.cellId = cellId;
-                
+
                 // Add hover event listeners
                 hoverElement.addEventListener('mouseenter', () => {
                     showCellInfo(cellId, cell);
                 });
-                
+
                 hoverElement.addEventListener('mouseleave', () => {
                     hideCellInfo();
                 });
-                
+
                 // Add click event listener for neighbor highlighting
                 hoverElement.addEventListener('click', (e) => {
                     e.stopPropagation();
@@ -627,8 +485,71 @@
                         highlightNeighbors(cellId, cell);
                     }
                 });
-                
+
                 hoverContainer.appendChild(hoverElement);
+            });
+
+            // Create vertex hover elements
+            const triangulationData = voronoiGenerator.delaunatorWrapper;
+            createVertexHoverElements(triangulationData);
+        }
+
+        function createVertexHoverElements(triangulationData) {
+            const vertexContainer = document.getElementById('vertexHoverElements');
+            const canvas = document.getElementById('canvas');
+
+            // Clear existing vertex elements
+            vertexContainer.innerHTML = '';
+
+            if (!voronoiGenerator || !triangulationData) {
+                return;
+            }
+
+            if (!triangulationData || !triangulationData.circumcenters) {
+                return;
+            }
+
+            const scaleX = canvas.width / voronoiGenerator.settings.gridSize;
+            const scaleZ = canvas.height / voronoiGenerator.settings.gridSize;
+            const vertexRadius = 1; // 5px radius for vertices (10px diameter)
+
+            triangulationData.circumcenters.forEach((circumcenter, vertexIndex) => {
+                if (!circumcenter) return;
+
+                const vertexElement = document.createElement('div');
+                vertexElement.className = 'voronoi-vertex-hover';
+                if(circumcenter.x < 0 || circumcenter.z < 0) return;
+                if(circumcenter.x > voronoiGenerator.settings.gridSize || circumcenter.z > voronoiGenerator.settings.gridSize) return;  
+                vertexElement.style.left = `${(circumcenter.x * scaleX) - vertexRadius}px`;
+                vertexElement.style.top = `${(circumcenter.z * scaleZ) - vertexRadius}px`;
+                vertexElement.style.width = `${vertexRadius * 2}px`;
+                vertexElement.style.height = `${vertexRadius * 2}px`;
+
+                // Add data attribute for identification
+                vertexElement.dataset.vertexIndex = vertexIndex;
+
+                // Add hover event listeners
+                vertexElement.addEventListener('mouseenter', () => {
+                    showVertexInfo(vertexIndex, circumcenter);
+                });
+
+                vertexElement.addEventListener('mouseleave', () => {
+                    hideCellInfo();
+                });
+
+                // Add click event listener for connected vertex highlighting
+                vertexElement.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (selectedVertexIndex === vertexIndex) {
+                        // If clicking the same vertex, clear highlights
+                        clearVertexHighlights();
+                    } else {
+                        // Highlight connected vertices
+                        highlightConnectedVertices(vertexIndex, circumcenter);
+                    }
+                });
+
+                vertexContainer.appendChild(vertexElement);
             });
         }
 
@@ -637,18 +558,57 @@
             const cellIdSpan = document.getElementById('cellId');
             const cellPositionSpan = document.getElementById('cellPosition');
             const cellNeighborsSpan = document.getElementById('cellNeighbors');
-            
+            const infoTypeSpan = document.getElementById('infoType');
+            const vertexInfoDiv = document.getElementById('vertexInfo');
+            const boundaryTypeSpan = document.getElementById('boundaryType');
+
             // Update widget content
             cellIdSpan.textContent = cellId;
-            
+
+
             const x = cell.site.x.toFixed(1);
             const y = (cell.site.z || cell.site.y || 0).toFixed(1);
             cellPositionSpan.textContent = `(${x}, ${y})`;
-            
+
             // Get neighbors array
             const neighbors = cell.neighbors ? Array.from(cell.neighbors).sort((a, b) => a - b) : [];
             cellNeighborsSpan.textContent = `[${neighbors.join(', ')}]`;
-            
+
+            // Set type to Cell
+            infoTypeSpan.textContent = 'Cell';
+            vertexInfoDiv.style.display = 'none';
+            boundaryTypeSpan.textContent = cell.boundaryType;
+            // Show widget
+            widget.style.display = 'block';
+        }
+
+        function showVertexInfo(vertexIndex, circumcenter) {
+            const widget = document.getElementById('cellInfoWidget');
+            const cellIdSpan = document.getElementById('cellId');
+            const cellPositionSpan = document.getElementById('cellPosition');
+            const cellNeighborsSpan = document.getElementById('cellNeighbors');
+            const infoTypeSpan = document.getElementById('infoType');
+            const vertexInfoDiv = document.getElementById('vertexInfo');
+            const connectedCellsSpan = document.getElementById('connectedCells');
+
+            // Update widget content for vertex
+            cellIdSpan.textContent = `Vertex ${vertexIndex}`;
+
+            const x = circumcenter.x.toFixed(1);
+            const y = circumcenter.z.toFixed(1);    
+            cellPositionSpan.textContent = `(${x}, ${y})`;
+
+            // Find connected cells (cells that share this vertex)
+            const triangulationData = voronoiGenerator.delaunatorWrapper;
+            const connectedCells = [...triangulationData.voronoiCellVertexMap[vertexIndex]];
+            cellNeighborsSpan.textContent = `[${connectedCells.join(', ')}]`;
+
+            // Set type to Vertex and show connected cells info
+            infoTypeSpan.textContent = 'Vertex';
+            const connectedVertices = [...triangulationData.voronoiVertexVertexMap[vertexIndex]];
+            connectedCellsSpan.textContent = `[${connectedVertices.join(', ')}]`;
+            vertexInfoDiv.style.display = 'block';
+
             // Show widget
             widget.style.display = 'block';
         }
@@ -669,25 +629,37 @@
             selectedCellId = null;
         }
 
+        function clearVertexHighlights() {
+            // Remove highlight class from all previously highlighted vertex elements
+            const vertexContainer = document.getElementById('vertexHoverElements');
+            const highlightedElements = vertexContainer.querySelectorAll('.vertex-highlight');
+            highlightedElements.forEach(element => {
+                element.classList.remove('vertex-highlight');
+            });
+            highlightedVertices.clear();
+            selectedVertexIndex = null;
+        }
+
         function highlightNeighbors(cellId, cell) {
             // Clear previous highlights
             clearNeighborHighlights();
-            
+            clearVertexHighlights();
+
             // Set new selection
             selectedCellId = cellId;
-            
+
             if (!cell.neighbors || cell.neighbors.length === 0) {
                 return;
             }
-            
+
             // Get hover container for finding neighbor elements
             const hoverContainer = document.getElementById('cellHoverElements');
             const hoverElements = hoverContainer.children;
-            
+
             // Highlight each neighbor
             cell.neighbors.forEach(neighborId => {
                 highlightedNeighbors.add(neighborId);
-                
+
                 // Find the corresponding hover element
                 // Elements are created in the same order as cells.forEach()
                 for (let i = 0; i < hoverElements.length; i++) {
@@ -700,40 +672,53 @@
             });
         }
 
+        function highlightConnectedVertices(vertexIndex, circumcenter) {
+            // Clear previous highlights
+            clearNeighborHighlights();
+            clearVertexHighlights();
+
+            // Set new selection
+            selectedVertexIndex = vertexIndex;
+
+            const connectedVertices = voronoiGenerator.delaunatorWrapper.voronoiVertexVertexMap[vertexIndex];
+
+            // Get vertex container for finding vertex elements
+            const vertexContainer = document.getElementById('vertexHoverElements');
+            const vertexElements = vertexContainer.children;
+
+            // Highlight each connected vertex
+            connectedVertices.forEach(connectedVertexIndex => {
+                highlightedVertices.add(connectedVertexIndex);
+
+                // Find the corresponding vertex element
+                for (let i = 0; i < vertexElements.length; i++) {
+                    const element = vertexElements[i];
+                    if (element.dataset.vertexIndex == connectedVertexIndex) {
+                        element.classList.add('vertex-highlight');
+                        break;
+                    }
+                }
+            });
+        }
+
         function drawDiagram() {
             if (!voronoiGenerator || !imageExporter) return;
 
             try {
                 // Store reference for image exporter
                 imageExporter.voronoiGenerator = voronoiGenerator;
-                
-                // Set coastline generator reference if available
-                if (coastlineGenerator) {
-                    imageExporter.setCoastlineGenerator(coastlineGenerator);
-                }
-                
-                // Set hills generator reference if available
-                if (hillsGenerator) {
-                    imageExporter.setHillsGenerator(hillsGenerator);
-                }
-                
-                // Set lakes generator reference if available
-                if (lakesGenerator) {
-                    imageExporter.setLakesGenerator(lakesGenerator);
-                }
 
                 if (riversGenerator) {
                     imageExporter.setRiversGenerator(riversGenerator);
                 }
-                
-                // Set marsh generator reference if available
-                if (marshGenerator) {
-                    imageExporter.setMarshGenerator(marshGenerator);
-                }
-                
+
+                // Get triangulation data once
+                const triangulationData = voronoiGenerator.delaunatorWrapper;
+
                 const canvas = imageExporter.generateDiagramImage(
                     voronoiGenerator.getCells(),
                     voronoiGenerator.sites,
+                    triangulationData,
                     {
                         width: 800,
                         height: 600,
@@ -748,6 +733,7 @@
                         showCellBorders: true,
                         showTriangulation: showTriangulation,
                         showVoronoiEdges: showVoronoi,
+                        showVertices: showVertices,
                         showCoastalCells: true,
                         showHeightGradient: showHeightGradient,
                         showLakes: showLakes,
@@ -774,26 +760,56 @@
         }
 
         // Event handlers
-        document.getElementById('generateVoronoiBtn').addEventListener('click', function() {
+        document.getElementById('generateVoronoiBtn').addEventListener('click', function () {
             try {
                 updateStatus('Generating Voronoi diagram...');
                 log('Starting Voronoi generation');
 
                 const settings = getSettings();
-                voronoiGenerator = new VoronoiGenerator(mockTerrainData, settings);
-                imageExporter = new VoronoiImageExporter(voronoiGenerator, settings);
-                coastlineGenerator = new CoastlineGenerator(voronoiGenerator, settings);
-                hillsGenerator = new HillsGenerator(voronoiGenerator, settings);
-                lakesGenerator = new LakesGenerator(voronoiGenerator, settings);
-                marshGenerator = new MarshGenerator(voronoiGenerator, settings);
-                riversGenerator = new RiversGenerator(voronoiGenerator, settings);
-
-                voronoiGenerator.generateVoronoi();
                 
+                // Create global seeded random number generator
+                seededRandom = new Math.seedrandom(settings.voronoi.seed);
+                
+                voronoiGenerator = new VoronoiGenerator(mockTerrainData, settings);
+                voronoiGenerator.setSeededRandom(seededRandom);
+                voronoiGenerator.generateVoronoi();
+                imageExporter = new VoronoiImageExporter(voronoiGenerator, settings);
+                // coastlineGenerator = new CoastlineGenerator(voronoiGenerator, settings);
+                // hillsGenerator = new HillsGenerator(voronoiGenerator, settings);
+                // lakesGenerator = new LakesGenerator(voronoiGenerator, settings);
+                // marshGenerator = new MarshGenerator(voronoiGenerator, settings);
+                riversGenerator = new RiversGenerator(voronoiGenerator, settings);
+                riversGenerator.setSeededRandom(seededRandom);
+                const tributarySettings = getTributarySettings();
+                tributarySettings.seed = settings.voronoi.seed;
+                tributariesGenerator = new TributariesGenerator(voronoiGenerator, tributarySettings);
+                tributariesGenerator.setSeededRandom(seededRandom);
+                
+                // Initialize FeatureDrawer with the canvas and grid size
+                const canvas = document.getElementById('canvas');
+                featureDrawer = new FeatureDrawer(canvas, settings.gridSize);
+                
+                // Initialize GraphState for debugging
+                initializeGraphState();
+                graphState.initialize(voronoiGenerator.delaunatorWrapper, settings);
+                
+                // Enable debugging buttons
+                document.getElementById('refreshGraphStateBtn').disabled = false;
+                document.getElementById('clearGraphHighlightBtn').disabled = false;
+                document.getElementById('showGraphStatsBtn').disabled = false;
+                
+                // Test the drawing mechanism
+                setTimeout(() => {
+                    featureDrawer.drawTestLine();
+                    log('Drew test line for debugging');
+                }, 1000);
+
+               
+
                 updateStats();
                 drawDiagram();
                 enableDependentButtons(true);
-                
+
                 updateStatus('Voronoi diagram generated successfully');
                 log(`Generated ${voronoiGenerator.sites.length} sites and ${voronoiGenerator.cells.size} cells`);
 
@@ -804,55 +820,210 @@
             }
         });
 
-        document.getElementById('generateCoastBtn').addEventListener('click', function() {
-            if (!coastlineGenerator) return;
+        document.getElementById('importDataBtn').addEventListener('click', function () {
+            document.getElementById('jsonFileInput').click();
+        });
 
-            try {
-                const direction = document.getElementById('coastDirection').value;
-                const budget = parseInt(document.getElementById('coastBudget').value);
-                updateStatus(`Generating ${direction} coastline with budget ${budget}...`);
-                
-                const coastalCells = coastlineGenerator.generateCoastline(direction, budget);
-                
-                updateStats();
-                drawDiagram();
-                
-                updateStatus(`Generated coastline with ${coastalCells.length} coastal cells (budget: ${budget})`);
-                log(`Generated ${direction} coastline: ${coastalCells.length} cells with budget ${budget}`);
+        document.getElementById('jsonFileInput').addEventListener('change', function (event) {
+            const file = event.target.files[0];
+            if (!file) return;
 
-            } catch (error) {
-                updateStatus(`Error: ${error.message}`);
-                log(`Error generating coastline: ${error.message}`);
-                console.error(error);
+            if (!file.name.endsWith('.json')) {
+                updateStatus('Error: Please select a JSON file');
+                log('Error: Invalid file type. Please select a JSON file.');
+                return;
             }
+
+            updateStatus('Loading JSON file...');
+            log(`Loading file: ${file.name} (${Math.round(file.size / 1024)} KB)`);
+
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                try {
+                    const importedData = JSON.parse(e.target.result);
+
+                    // Validate the imported data structure
+                    if (!importedData.metadata || !importedData.points || !importedData.triangles) {
+                        throw new Error('Invalid JSON structure. Missing required fields.');
+                    }
+
+                    if (importedData.metadata.version !== '1.0') {
+                        log(`Warning: Version mismatch. Expected 1.0, got ${importedData.metadata.version}`);
+                    }
+
+                    updateStatus('Reconstructing Voronoi diagram from imported data...');
+                    log('Validating imported data structure...');
+
+                    // Create new generators with imported settings
+                    const settings = importedData.metadata.settings || getSettings();
+                    
+                    // Create global seeded random number generator
+                    seededRandom = new Math.seedrandom(settings.voronoi.seed);
+                    
+                    voronoiGenerator = new VoronoiGenerator(mockTerrainData, settings);
+                    voronoiGenerator.setSeededRandom(seededRandom);
+                    imageExporter = new VoronoiImageExporter(voronoiGenerator, settings); 
+                    riversGenerator = new RiversGenerator(voronoiGenerator, settings);
+                    riversGenerator.setSeededRandom(seededRandom);
+                    const tributarySettings = getTributarySettings();
+                    tributarySettings.seed = settings.voronoi.seed;
+                    tributariesGenerator = new TributariesGenerator(voronoiGenerator, tributarySettings);
+                    tributariesGenerator.setSeededRandom(seededRandom);
+
+                    voronoiGenerator.generateVoronoi();
+                    updateStats();
+                    drawDiagram();
+                    enableDependentButtons(true);
+
+                    updateStatus(`Imported data successfully: ${importedData.points.length} points, ${importedData.triangles.length} triangles`);
+                    log(`Successfully imported: ${importedData.points.length} points, ${importedData.triangles.length} triangles, ${importedData.edges.length} edges, ${importedData.voronoiCells.length} cells`);
+                    log(`Original export: ${importedData.metadata.exportTimestamp}`);
+
+                    // Clear the file input
+                    event.target.value = '';
+
+                } catch (error) {
+                    updateStatus(`Error loading JSON: ${error.message}`);
+                    log(`Error loading JSON file: ${error.message}`);
+                    console.error('JSON Import Error:', error);
+
+                    // Clear the file input on error
+                    event.target.value = '';
+                }
+            };
+
+            reader.onerror = function () {
+                updateStatus('Error reading file');
+                log('Error: Failed to read the selected file');
+                event.target.value = '';
+            };
+
+            reader.readAsText(file);
         });
 
-        document.getElementById('clearCoastBtn').addEventListener('click', function() {
-            if (!coastlineGenerator) return;
+        function reconstructDelaunatorWrapper(importedData) {
+            log('Reconstructing DelaunatorWrapper...');
 
-            coastlineGenerator.clearCoastline();
-            updateStats();
-            drawDiagram();
-            updateStatus('Coastlines cleared');
-            log('Cleared all coastlines');
+            // Reconstruct points array
+            const points = importedData.points.map(pointData => ({
+                x: pointData.x,
+                z: pointData.z,
+                isBoundary: pointData.isBoundary
+            }));
+
+            // Create new DelaunatorWrapper instance
+            voronoiGenerator.delaunatorWrapper = new DelaunatorWrapper(points);
+            voronoiGenerator.delaunatorWrapper.triangulate()
+
+            log('DelaunatorWrapper reconstruction complete');
+        }
+
+        function reconstructVoronoiCells(importedData) {
+            log('Reconstructing VoronoiGenerator cells...');
+
+            // Clear existing cells
+            voronoiGenerator.cells.clear();
+
+            // Reconstruct sites array (filter out boundary points)
+            voronoiGenerator.sites = importedData.points
+                .filter(pointData => !pointData.isBoundary)
+                .map(pointData => ({
+                    x: pointData.x,
+                    z: pointData.z
+                }));
+
+            // Reconstruct VoronoiCell instances
+            importedData.voronoiCells.forEach(cellData => {
+                // Skip boundary cells if they exist
+                const correspondingPoint = importedData.points[cellData.site.index];
+                if (correspondingPoint && correspondingPoint.isBoundary) {
+                    return;
+                }
+
+                const cell = new (voronoiGenerator.cells.get(0)?.constructor || class {
+                    constructor(site, id) {
+                        this.site = site;
+                        this.id = id;
+                        this.vertices = [];
+                        this.neighbors = [];
+                        this.area = 0;
+                        this.perimeter = 0;
+                        this.affectedTiles = [];
+                        this.metadata = {};
+                    }
+                    addVertex(vertex) { this.vertices.push(vertex); return this; }
+                    addNeighbor(id) { if (!this.neighbors.includes(id)) this.neighbors.push(id); return this; }
+                    calculateArea() { return 0; }
+                    calculatePerimeter() { return 0; }
+                    setMetadata(key, value) { this.metadata[key] = value; return this; }
+                    getMetadata(key) { return this.metadata[key]; }
+                })(cellData.site, cellData.index);
+
+                // Reconstruct vertices
+                cellData.vertices.forEach(vertex => {
+                    cell.addVertex(vertex);
+                });
+
+                // Reconstruct neighbors
+                cellData.neighbors.forEach(neighborId => {
+                    cell.addNeighbor(neighborId);
+                });
+
+                voronoiGenerator.cells.set(cellData.index, cell);
+            });
+
+            log('VoronoiGenerator cells reconstruction complete');
+        }
+
+        document.getElementById('generateCoastBtn').addEventListener('click', function () {
+            // if (!coastlineGenerator) return;
+
+            // try {
+            //     const direction = document.getElementById('coastDirection').value;
+            //     const budget = parseInt(document.getElementById('coastBudget').value);
+            //     updateStatus(`Generating ${direction} coastline with budget ${budget}...`);
+
+            //     const coastalCells = coastlineGenerator.generateCoastline(direction, budget);
+
+            //     updateStats();
+            //     drawDiagram();
+
+            //     updateStatus(`Generated coastline with ${coastalCells.length} coastal cells (budget: ${budget})`);
+            //     log(`Generated ${direction} coastline: ${coastalCells.length} cells with budget ${budget}`);
+
+            // } catch (error) {
+            //     updateStatus(`Error: ${error.message}`);
+            //     log(`Error generating coastline: ${error.message}`);
+            //     console.error(error);
+            // }
         });
 
-        document.getElementById('generateHillsBtn').addEventListener('click', function() {
+        document.getElementById('clearCoastBtn').addEventListener('click', function () {
+            // if (!coastlineGenerator) return;
+
+            // coastlineGenerator.clearCoastline();
+            // updateStats();
+            // drawDiagram();
+            // updateStatus('Coastlines cleared');
+            // log('Cleared all coastlines');
+        });
+
+        document.getElementById('generateHillsBtn').addEventListener('click', function () {
             if (!hillsGenerator) return;
 
             try {
                 const budget = parseInt(document.getElementById('hillsBudget').value);
                 const numOrigins = parseInt(document.getElementById('hillsOrigins').value);
                 const gradientEnabled = document.getElementById('hillsGradient').value === 'true';
-                
+
                 updateStatus(`Generating hills with budget ${budget}, ${numOrigins} origins...`);
-                
+
                 const hillCells = hillsGenerator.generateHills(budget, numOrigins, gradientEnabled);
                 const heightStats = hillsGenerator.getHeightStats();
-                
+
                 updateStats();
                 drawDiagram();
-                
+
                 updateStatus(`Generated ${hillCells.length} hill cells (max height: ${Math.round(heightStats.maxHeight)})`);
                 log(`Generated hills: ${hillCells.length} cells, ${numOrigins} origins, gradient: ${gradientEnabled}`);
                 if (heightStats.gradientEdges.length > 0) {
@@ -866,7 +1037,7 @@
             }
         });
 
-        document.getElementById('clearHillsBtn').addEventListener('click', function() {
+        document.getElementById('clearHillsBtn').addEventListener('click', function () {
             if (!hillsGenerator) return;
 
             hillsGenerator.clearHills();
@@ -876,71 +1047,56 @@
             log('Cleared all hills');
         });
 
-        document.getElementById('generateLakesBtn').addEventListener('click', function() {
-            if (!lakesGenerator) return;
+        document.getElementById('generateLakesBtn').addEventListener('click', function () {
+                // if (!lakesGenerator) return;
 
-            try {
-                const budget = parseInt(document.getElementById('lakesBudget').value);
-                const numOrigins = parseInt(document.getElementById('lakesOrigins').value);
-                
-                // Set references to other generators to avoid overlaps
-                lakesGenerator.setCoastlineGenerator(coastlineGenerator);
-                lakesGenerator.setHillsGenerator(hillsGenerator);
-                
-                updateStatus(`Generating lakes with budget ${budget}, ${numOrigins} origins...`);
-                
-                const lakeCells = lakesGenerator.generateLakes(budget, numOrigins);
-                const depthStats = lakesGenerator.getDepthStats();
-                
-                updateStats();
-                drawDiagram();
-                
-                updateStatus(`Generated ${lakeCells.length} lake cells (max depth: ${Math.round(depthStats.maxDepth)})`);
-                log(`Generated lakes: ${lakeCells.length} cells, ${numOrigins} origins`);
-                log(`Depth range: ${Math.round(depthStats.minDepth)} - ${Math.round(depthStats.maxDepth)}`);
+                // try {
+                //     const budget = parseInt(document.getElementById('lakesBudget').value);
+                //     const numOrigins = parseInt(document.getElementById('lakesOrigins').value);
 
-            } catch (error) {
-                updateStatus(`Error: ${error.message}`);
-                log(`Error generating lakes: ${error.message}`);
-                console.error(error);
-            }
+                //     // Set references to other generators to avoid overlaps
+                //     lakesGenerator.setCoastlineGenerator(coastlineGenerator);
+                //     lakesGenerator.setHillsGenerator(hillsGenerator);
+
+                //     updateStatus(`Generating lakes with budget ${budget}, ${numOrigins} origins...`);
+
+                //     const lakeCells = lakesGenerator.generateLakes(budget, numOrigins);
+                //     const depthStats = lakesGenerator.getDepthStats();
+
+                //     updateStats();
+                //     drawDiagram();
+
+                //     updateStatus(`Generated ${lakeCells.length} lake cells (max depth: ${Math.round(depthStats.maxDepth)})`);
+                //     log(`Generated lakes: ${lakeCells.length} cells, ${numOrigins} origins`);
+                //     log(`Depth range: ${Math.round(depthStats.minDepth)} - ${Math.round(depthStats.maxDepth)}`);
+
+                // } catch (error) {
+                //     updateStatus(`Error: ${error.message}`);
+                //     log(`Error generating lakes: ${error.message}`);
+                //     console.error(error);
+                // }
         });
 
-        document.getElementById('clearLakesBtn').addEventListener('click', function() {
-            if (!lakesGenerator) return;
+        document.getElementById('clearLakesBtn').addEventListener('click', function () {
+            // if (!lakesGenerator) return;
 
-            lakesGenerator.clearLakes();
-            updateStats();
-            drawDiagram();
-            updateStatus('Lakes cleared');
-            log('Cleared all lakes');
+            // lakesGenerator.clearLakes();
+            // updateStats();
+            // drawDiagram();
+            // updateStatus('Lakes cleared');
+            // log('Cleared all lakes');
         });
 
-        document.getElementById('generateRiversBtn').addEventListener('click', function() {
-            if (!riversGenerator) return;
+        document.getElementById('generateRiversBtn').addEventListener('click', function () {
+            if (!riversGenerator || !featureDrawer) return;
 
             try {
                 const numRivers = parseInt(document.getElementById('riversCount').value);
-                
-                // Set references to other generators for pathfinding
-                riversGenerator.setCoastlineGenerator(coastlineGenerator);
-                riversGenerator.setLakesGenerator(lakesGenerator);
-                riversGenerator.setMarshGenerator(marshGenerator);
-                riversGenerator.setHillsGenerator(hillsGenerator);
-                
+
                 updateStatus(`Generating ${numRivers} rivers...`);
-                
-                const riverPaths = riversGenerator.generateRivers(numRivers);
-                const riverStats = riversGenerator.getRiverStats();
-                
-                updateStats();
-                drawDiagram();
-                
-                updateStatus(`Generated ${riverPaths.length} rivers (avg length: ${Math.round(riverStats.averageRiverLength)})`);
-                log(`Generated rivers: ${riverPaths.length} paths, ${riverStats.totalRiverCells} total cells`);
-                if (riverStats.longestRiver > 0) {
-                    log(`Longest river: ${riverStats.longestRiver} cells`);
-                }
+
+                // Custom river generation with GraphState tracking
+                generateRiversWithTracking(numRivers);
 
             } catch (error) {
                 updateStatus(`Error: ${error.message}`);
@@ -949,43 +1105,209 @@
             }
         });
 
-        document.getElementById('clearRiversBtn').addEventListener('click', function() {
-            if (!riversGenerator) return;
+        async function generateRiversWithTracking(numRivers) {
+            if (!voronoiGenerator || !voronoiGenerator.cells || voronoiGenerator.cells.size === 0) {
+                console.error('RiversGenerator: No Voronoi diagram available');
+                return;
+            }
 
             riversGenerator.clearRivers();
+            console.log(`Generating ${numRivers} rivers using GraphState workflow...`);
+
+            // Initialize GraphState with initial graph
+            if (graphState) {
+                graphState.reset();
+                graphState.initialize(voronoiGenerator.delaunatorWrapper, getSettings());
+            }
+
+            const riverPaths = [];
+
+            for (let i = 0; i < numRivers; i++) {
+                // Get the largest available partition from GraphState
+                const largestPartition = graphState.getLargestPartition();
+                if (!largestPartition) {
+                    console.log(`No more available partitions for river ${i + 1}. Stopping generation.`);
+                    break;
+                }
+                
+                console.log(`River ${i + 1}: Using partition ${largestPartition.id} with ${largestPartition.graph.circumcenters.filter(v => v !== null).length} vertices`);
+
+                // Generate river path on the selected partition
+                const river = riversGenerator.generateSingleRiver(i, largestPartition.graph);
+                if (river.length > 0) {
+                    riverPaths.push(river);
+                    console.log(`Generated river ${i + 1} with ${river.length} vertices`);
+
+                    // Split the partition using GraphState
+                    const splitMetadata = {
+                        featureType: 'river',
+                        featureIndex: i,
+                        description: `River ${i + 1}`,
+                        additionalData: {
+                            riverLength: river.length,
+                            startVertex: river[0],
+                            endVertex: river[river.length - 1]
+                        }
+                    };
+                    
+                    const newPartitions = graphState.splitGraphByPath(largestPartition.id, river, splitMetadata);
+                    
+                    console.log(`After river ${i + 1}: Split into ${newPartitions.length} new partitions`);
+                    newPartitions.forEach((partition, idx) => {
+                        console.log(`  Partition ${partition.id}: ${partition.graph.circumcenters.filter(v => v !== null).length} vertices`);
+                    });
+                }
+            }
+
+            // Store results in riversGenerator for compatibility
+            riversGenerator.riverPaths = riverPaths;
+
+            const riverStats = riversGenerator.getRiverStats();
+
             updateStats();
             drawDiagram();
-            updateStatus('Rivers cleared');
-            log('Cleared all rivers');
-        });
 
-        document.getElementById('generateMarshesBtn').addEventListener('click', function() {
-            if (!marshGenerator) return;
+            // Draw blue rivers using FeatureDrawer (after drawDiagram to ensure they appear on top)
+            if (riverPaths && riverPaths.length > 0) {
+                riverPaths.forEach((path, index) => {
+                    if (path && path.length > 1) {
+                        // Convert vertex indices to coordinates
+                        const coordinates = path.map(vertexIndex => {
+                            const vertex = voronoiGenerator.delaunatorWrapper.circumcenters[vertexIndex];
+                            return vertex ? { x: vertex.x, z: vertex.z || vertex.y || 0 } : null;
+                        }).filter(coord => coord !== null);
+                        
+                        if (coordinates.length > 1) {
+                            featureDrawer.drawPath(coordinates, {
+                                color: 'blue',
+                                width: 3
+                            });
+                            log(`Drew river ${index + 1} with ${coordinates.length} coordinate points`);
+                        }
+                    }
+                });
+                log(`Drew ${riverPaths.length} blue river paths on canvas`);
+            }
+
+            updateStatus(`Generated ${riverPaths.length} rivers (avg length: ${Math.round(riverStats.averageRiverLength)})`);
+            log(`Generated rivers: ${riverPaths.length} paths, ${riverStats.totalRiverCells} total cells`);
+            if (riverStats.longestRiver > 0) {
+                log(`Longest river: ${riverStats.longestRiver} cells`);
+            }
+
+            console.log(`Rivers generation complete. Total paths: ${riverPaths.length}`);
+            
+            // Enable tributaries button if rivers were generated
+            if (riverPaths.length > 0) {
+                document.getElementById('generateTributariesBtn').disabled = false;
+                log('Tributaries button enabled - rivers ready for tributary generation');
+            }
+        }
+
+        document.getElementById('generateTributariesBtn').addEventListener('click', function () {
+            if (!tributariesGenerator || !riversGenerator || !featureDrawer) {
+                updateStatus('Error: Rivers must be generated first');
+                return;
+            }
 
             try {
-                // Set references to other generators for proximity detection
-                marshGenerator.setCoastlineGenerator(coastlineGenerator);
-                marshGenerator.setLakesGenerator(lakesGenerator);
+                const riverPaths = riversGenerator.getRiverPaths();
+                if (riverPaths.length === 0) {
+                    updateStatus('Error: No rivers found. Generate rivers first.');
+                    log('Error: No rivers found for tributary generation');
+                    return;
+                }
+
+                updateStatus(`Generating tributaries for ${riverPaths.length} rivers...`);
+                log(`Starting tributary generation for ${riverPaths.length} main rivers...`);
+
+                // Get the original graph for tributary generation
+                const originalGraph = GraphUtils.createDeepCopyOfGraph(voronoiGenerator.delaunatorWrapper);
                 
-                updateStatus('Generating marshes...');
+                // Generate tributaries
+                const tributaryPaths = tributariesGenerator.generateTributaries(riverPaths, originalGraph);
                 
-                const marshCells = marshGenerator.generateMarshes();
-                const marshStats = marshGenerator.getMarshStats();
-                
-                updateStats();
-                drawDiagram();
-                
-                updateStatus(`Generated ${marshCells.length} marsh cells`);
-                log(`Generated marshes: ${marshCells.length} cells between lakes and coasts`);
+                // Draw tributaries on canvas (in lighter blue)
+                if (tributaryPaths && tributaryPaths.length > 0) {
+                    tributaryPaths.forEach((path, index) => {
+                        if (path && path.length > 1) {
+                            // Convert vertex indices to coordinates
+                            const coordinates = path.map(vertexIndex => {
+                                const vertex = voronoiGenerator.delaunatorWrapper.circumcenters[vertexIndex];
+                                return vertex ? { x: vertex.x, z: vertex.z || vertex.y || 0 } : null;
+                            }).filter(coord => coord !== null);
+                            
+                            if (coordinates.length > 1) {
+                                featureDrawer.drawPath(coordinates, {
+                                    color: '#00BFFF', // Bright deep sky blue for tributaries
+                                    width: 2
+                                });
+                                log(`Drew tributary ${index + 1} with ${coordinates.length} coordinate points`);
+                            }
+                        }
+                    });
+                    log(`Drew ${tributaryPaths.length} light blue tributary paths on canvas`);
+                }
+
+                const tributaryStats = tributariesGenerator.getTributaryStats();
+                updateStatus(`Generated ${tributaryStats.totalTributaries} tributaries (avg length: ${Math.round(tributaryStats.averageLength)})`);
+                log(`Generated tributaries: ${tributaryStats.totalTributaries} paths, ${tributaryStats.totalVertices} total vertices`);
+                if (tributaryStats.longestTributary > 0) {
+                    log(`Longest tributary: ${tributaryStats.longestTributary} vertices`);
+                }
+
+                console.log(`Tributaries generation complete. Total paths: ${tributaryStats.totalTributaries}`);
 
             } catch (error) {
                 updateStatus(`Error: ${error.message}`);
-                log(`Error generating marshes: ${error.message}`);
+                log(`Error generating tributaries: ${error.message}`);
                 console.error(error);
             }
         });
 
-        document.getElementById('clearMarshesBtn').addEventListener('click', function() {
+        document.getElementById('clearRiversBtn').addEventListener('click', function () {
+            if (!riversGenerator) return;
+
+            riversGenerator.clearRivers();
+            if (tributariesGenerator) {
+                tributariesGenerator.clearTributaries();
+            }
+            updateStats();
+            drawDiagram();
+            updateStatus('Rivers and tributaries cleared');
+            log('Cleared all rivers and tributaries');
+            
+            // Disable tributaries button when rivers are cleared
+            document.getElementById('generateTributariesBtn').disabled = true;
+        });
+
+        document.getElementById('generateMarshesBtn').addEventListener('click', function () {
+            // if (!marshGenerator) return;
+
+            // try {
+            //     // Set references to other generators for proximity detection
+            //     marshGenerator.setCoastlineGenerator(coastlineGenerator);
+            //     marshGenerator.setLakesGenerator(lakesGenerator);
+
+            //     updateStatus('Generating marshes...');
+
+            //     const marshCells = marshGenerator.generateMarshes();
+            //     const marshStats = marshGenerator.getMarshStats();
+
+            //     updateStats();
+            //     drawDiagram();
+
+            //     updateStatus(`Generated ${marshCells.length} marsh cells`);
+            //     log(`Generated marshes: ${marshCells.length} cells between lakes and coasts`);
+
+            // } catch (error) {
+            //     updateStatus(`Error: ${error.message}`);
+            //     log(`Error generating marshes: ${error.message}`);
+            //     console.error(error);
+            // }
+        });
+
+        document.getElementById('clearMarshesBtn').addEventListener('click', function () {
             if (!marshGenerator) return;
 
             marshGenerator.clearMarshes();
@@ -995,77 +1317,107 @@
             log('Cleared all marshes');
         });
 
-        document.getElementById('clearAllBtn').addEventListener('click', function() {
+        document.getElementById('clearAllBtn').addEventListener('click', function () {
             voronoiGenerator = null;
             imageExporter = null;
-            coastlineGenerator = null;
-            hillsGenerator = null;
-            lakesGenerator = null;
-            marshGenerator = null;
+            // coastlineGenerator = null;
+            // hillsGenerator = null;
+            // lakesGenerator = null;
+            // marshGenerator = null;
             riversGenerator = null;
+            featureDrawer = null;
             
+            // Reset graph state
+            if (graphState) {
+                graphState.reset();
+            }
+            
+            // Disable debugging buttons
+            document.getElementById('refreshGraphStateBtn').disabled = true;
+            document.getElementById('clearGraphHighlightBtn').disabled = true;
+            document.getElementById('showGraphStatsBtn').disabled = true;
+
             const canvas = document.getElementById('canvas');
             const ctx = canvas.getContext('2d');
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
+
             // Clear hover elements
             const hoverContainer = document.getElementById('cellHoverElements');
             hoverContainer.innerHTML = '';
-            
+
+            // Clear vertex hover elements
+            const vertexContainer = document.getElementById('vertexHoverElements');
+            vertexContainer.innerHTML = '';
+
             // Hide info widget
             hideCellInfo();
-            
+
+            // Clear vertex highlight
+            clearVertexHighlight();
+
+            // Reset selection state
+            selectedCellId = null;
+            selectedVertexIndex = null;
+            highlightedNeighbors.clear();
+            highlightedVertices.clear();
+
             updateStats();
             enableDependentButtons(false);
             updateStatus('All data cleared');
             log('Cleared all data');
         });
 
-        document.getElementById('toggleTriangulationBtn').addEventListener('click', function() {
+        document.getElementById('toggleTriangulationBtn').addEventListener('click', function () {
             showTriangulation = !showTriangulation;
             drawDiagram();
             log(`Triangulation ${showTriangulation ? 'enabled' : 'disabled'}`);
         });
 
-        document.getElementById('toggleVoronoiBtn').addEventListener('click', function() {
+        document.getElementById('toggleVoronoiBtn').addEventListener('click', function () {
             showVoronoi = !showVoronoi;
             drawDiagram();
             log(`Voronoi edges ${showVoronoi ? 'enabled' : 'disabled'}`);
         });
 
-        document.getElementById('toggleSitesBtn').addEventListener('click', function() {
+        document.getElementById('toggleSitesBtn').addEventListener('click', function () {
             showSites = !showSites;
             drawDiagram();
             log(`Sites ${showSites ? 'enabled' : 'disabled'}`);
         });
 
-        document.getElementById('toggleHeightBtn').addEventListener('click', function() {
+        document.getElementById('toggleVerticesBtn').addEventListener('click', function () {
+            showVertices = !showVertices;
+            drawDiagram();
+            log(`Vertices ${showVertices ? 'enabled' : 'disabled'}`);
+        });
+
+        document.getElementById('toggleHeightBtn').addEventListener('click', function () {
             showHeightGradient = !showHeightGradient;
             drawDiagram();
             log(`Height gradient ${showHeightGradient ? 'enabled' : 'disabled'}`);
         });
 
-        document.getElementById('toggleLakesBtn').addEventListener('click', function() {
+        document.getElementById('toggleLakesBtn').addEventListener('click', function () {
             showLakes = !showLakes;
             drawDiagram();
             log(`Lakes ${showLakes ? 'enabled' : 'disabled'}`);
         });
 
-        document.getElementById('toggleMarshesBtn').addEventListener('click', function() {
+        document.getElementById('toggleMarshesBtn').addEventListener('click', function () {
             showMarshes = !showMarshes;
             drawDiagram();
             log(`Marshes ${showMarshes ? 'enabled' : 'disabled'}`);
         });
 
-        document.getElementById('toggleRiversBtn').addEventListener('click', function() {
+        document.getElementById('toggleRiversBtn').addEventListener('click', function () {
             showRivers = !showRivers;
             drawDiagram();
             log(`Rivers ${showRivers ? 'enabled' : 'disabled'}`);
         });
 
-        document.getElementById('exportImageBtn').addEventListener('click', function() {
+        document.getElementById('exportImageBtn').addEventListener('click', function () {
             if (!imageExporter) return;
-            
+
             try {
                 const dataURL = imageExporter.exportAsDataURL();
                 const link = document.createElement('a');
@@ -1074,20 +1426,429 @@
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
-                
+
                 log('Image exported successfully');
             } catch (error) {
                 log(`Error exporting image: ${error.message}`);
             }
         });
 
-        // Future feature buttons (placeholder) - Rivers now implemented above
+        document.getElementById('exportDataBtn').addEventListener('click', function () {
+            if (!voronoiGenerator || !voronoiGenerator.delaunatorWrapper) {
+                log('Error: No Voronoi data available to export');
+                return;
+            }
+
+            try {
+                updateStatus('Exporting DelaunatorWrapper data...');
+
+                const delaunatorWrapper = voronoiGenerator.delaunatorWrapper;
+
+                // Prepare export data object
+                const exportData = {
+                    metadata: {
+                        exportTimestamp: new Date().toISOString(),
+                        version: '1.0',
+                        description: 'Voronoi Delaunator data export',
+                        settings: voronoiGenerator.settings
+                    },
+                    points: delaunatorWrapper.points.map((point, index) => ({
+                        index: index,
+                        x: point.x,
+                        z: point.z || point.y || 0,
+                        isBoundary: point.isBoundary || false
+                    })),
+                    triangles: delaunatorWrapper.delaunay ? 
+                        Array.from(delaunatorWrapper.delaunay.triangles) : [],
+                    edges: delaunatorWrapper.edges.map((edge, index) => ({
+                        index: index,
+                        id: edge.id,
+                        pointA: { x: edge.a.x, z: edge.a.z || edge.a.y || 0 },
+                        pointB: { x: edge.b.x, z: edge.b.z || edge.b.y || 0 },
+                        length: edge.length ? edge.length() : null
+                    })),
+                    voronoiCells: Array.from(delaunatorWrapper.voronoiCells.entries()).map(([index, cell]) => ({
+                        index: index,
+                        site: {
+                            x: cell.site.x,
+                            z: cell.site.z || cell.site.y || 0,
+                            index: cell.siteIndex
+                        },
+                        vertices: cell.vertices.map(vertex => ({
+                            x: vertex.x,
+                            z: vertex.z,
+                            triangleIndex: vertex.triangleIndex
+                        })),
+                        neighbors: Array.from(cell.neighbors || [])
+                    })),
+                    delaunayCircumcenters: delaunatorWrapper.circumcenters ?
+                        delaunatorWrapper.circumcenters.map((center, index) => ({
+                            index: index,
+                            x: center ? center.x : null,
+                            z: center ? center.z : null
+                        })) : [],
+                    voronoiAdjacentCells: {}, // Simplified - not used in streamlined version
+                    indexMapping: {
+                        validCellIndices: delaunatorWrapper.validCellIndices ?
+                            Array.from(delaunatorWrapper.validCellIndices) : null,
+                        indexMapping: delaunatorWrapper.indexMapping ?
+                            Object.fromEntries(delaunatorWrapper.indexMapping) : null
+                    },
+                    delaunayRawData: delaunatorWrapper.delaunay ? {
+                        triangles: Array.from(delaunatorWrapper.delaunay.triangles),
+                        halfedges: Array.from(delaunatorWrapper.delaunay.halfedges),
+                        hull: Array.from(delaunatorWrapper.delaunay.hull)
+                    } : null
+                };
+
+                // Convert to JSON string
+                const jsonString = JSON.stringify(exportData, null, 2);
+
+                // Create and download file
+                const blob = new Blob([jsonString], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `voronoi_data_${Date.now()}.json`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+
+                updateStatus(`Data exported successfully (${Math.round(jsonString.length / 1024)} KB)`);
+                log(`Exported DelaunatorWrapper data: ${exportData.points.length} points, ${exportData.triangles.length} triangles, ${exportData.voronoiCells.length} cells`);
+
+            } catch (error) {
+                updateStatus(`Error: ${error.message}`);
+                log(`Error exporting data: ${error.message}`);
+                console.error(error);
+            }
+        });
 
         // Add document click listener to clear highlights when clicking outside
         document.addEventListener('click', (e) => {
             // Only clear if not clicking on a hover element
-            if (!e.target.classList.contains('voronoi-cell-hover')) {
+            if (!e.target.classList.contains('voronoi-cell-hover') &&
+                !e.target.classList.contains('voronoi-vertex-hover')) {
                 clearNeighborHighlights();
+                clearVertexHighlights();
+            }
+        });
+
+        // Vertex highlighting functionality
+        let highlightedVertexId = null;
+        let highlightedVertexElement = null;
+
+        document.getElementById('highlightVertexBtn').addEventListener('click', function () {
+            const vertexId = parseInt(document.getElementById('highlightVertexId').value);
+            
+            if (isNaN(vertexId) || vertexId < 0) {
+                log('Error: Please enter a valid vertex ID (non-negative integer)');
+                return;
+            }
+
+            highlightVertex(vertexId);
+        });
+
+        document.getElementById('clearHighlightBtn').addEventListener('click', function () {
+            clearVertexHighlight();
+        });
+
+        // Allow Enter key in the input field
+        document.getElementById('highlightVertexId').addEventListener('keypress', function (event) {
+            if (event.key === 'Enter') {
+                document.getElementById('highlightVertexBtn').click();
+            }
+        });
+
+        function highlightVertex(vertexId) {
+            // Clear any existing highlight
+            clearVertexHighlight();
+
+            if (!voronoiGenerator || !voronoiGenerator.delaunatorWrapper) {
+                log('Error: No Voronoi data available');
+                return;
+            }
+
+            const circumcenters = voronoiGenerator.delaunatorWrapper.circumcenters;
+            
+            if (vertexId >= circumcenters.length || !circumcenters[vertexId]) {
+                log(`Error: Vertex ${vertexId} not found or is null`);
+                return;
+            }
+
+            const vertex = circumcenters[vertexId];
+            const canvas = document.getElementById('canvas');
+            const scaleX = canvas.width / voronoiGenerator.settings.gridSize;
+            const scaleZ = canvas.height / voronoiGenerator.settings.gridSize;
+
+            // Create highlight element
+            const highlightElement = document.createElement('div');
+            highlightElement.className = 'vertex-highlight';
+            highlightElement.style.position = 'absolute';
+            highlightElement.style.left = `${(vertex.x * scaleX) - 8}px`;
+            highlightElement.style.top = `${((vertex.z || vertex.y || 0) * scaleZ) - 8}px`;
+            highlightElement.style.width = '16px';
+            highlightElement.style.height = '16px';
+            highlightElement.style.backgroundColor = 'yellow';
+            highlightElement.style.border = '2px solid red';
+            highlightElement.style.borderRadius = '50%';
+            highlightElement.style.pointerEvents = 'none';
+            highlightElement.style.zIndex = '1000';
+            highlightElement.style.boxShadow = '0 0 10px rgba(255, 255, 0, 0.8)';
+
+            // Add to canvas container
+            const canvasContainer = document.querySelector('.canvas-wrapper');
+            canvasContainer.appendChild(highlightElement);
+
+            highlightedVertexId = vertexId;
+            highlightedVertexElement = highlightElement;
+
+            log(`Highlighted vertex ${vertexId} at (${vertex.x.toFixed(1)}, ${(vertex.z || vertex.y || 0).toFixed(1)})`);
+            updateStatus(`Vertex ${vertexId} highlighted`);
+        }
+
+        function clearVertexHighlight() {
+            if (highlightedVertexElement) {
+                highlightedVertexElement.remove();
+                highlightedVertexElement = null;
+                
+                if (highlightedVertexId !== null) {
+                    log(`Cleared highlight for vertex ${highlightedVertexId}`);
+                    highlightedVertexId = null;
+                    updateStatus('Vertex highlight cleared');
+                }
+            }
+        }
+
+        // Graph debugging functionality
+        function initializeGraphState() {
+            if (!graphState) {
+                graphState = new GraphState();
+                graphState.settings = voronoiGenerator.settings;
+                
+                // Listen for graph state changes
+                graphState.addEventListener((eventType, data, state) => {
+                    console.log(`GraphState Event: ${eventType}`, data);
+                    updateGraphPartitionsList();
+                    
+                    if (eventType === 'partition_highlighted') {
+                        highlightGraphPartition(data.partition);
+                    } else if (eventType === 'highlight_cleared') {
+                        clearGraphPartitionHighlight();
+                    }
+                });
+                
+                log('Graph state initialized');
+            }
+        }
+
+        function updateGraphPartitionsList() {
+            const partitionsList = document.getElementById('graphPartitionsList');
+            
+            if (!graphState || graphState.getCurrentPartitions().length === 0) {
+                partitionsList.innerHTML = '<p class="no-partitions">No graph partitions available. Generate Voronoi diagram first.</p>';
+                return;
+            }
+
+            const partitions = graphState.getCurrentPartitions();
+            const stats = graphState.getStatistics();
+            
+            // Clear existing content
+            partitionsList.innerHTML = '';
+
+            // Create and add summary
+            const summaryDiv = document.createElement('div');
+            summaryDiv.className = 'partition-summary';
+            summaryDiv.innerHTML = `<small>Total: ${stats.totalPartitions} partitions, ${stats.totalVertices} vertices</small>`;
+            partitionsList.appendChild(summaryDiv);
+
+            partitions.forEach((partition, index) => {
+                const isHighlighted = graphState.highlightedPartition?.id === partition.id;
+                const centroid = partition.centroid;
+                
+                // Create partition item element
+                const partitionItem = document.createElement('div');
+                partitionItem.className = `partition-item ${isHighlighted ? 'highlighted' : ''}`;
+                partitionItem.dataset.partitionId = partition.id;
+
+                // Create partition info section
+                const partitionInfo = document.createElement('div');
+                partitionInfo.className = 'partition-info';
+
+                const partitionTitle = document.createElement('div');
+                partitionTitle.className = 'partition-title';
+                partitionTitle.textContent = partition.description;
+
+                const partitionDetails = document.createElement('div');
+                partitionDetails.className = 'partition-details';
+                partitionDetails.textContent = `ID: ${partition.id}`;
+
+                const partitionStats = document.createElement('div');
+                partitionStats.className = 'partition-stats';
+                const statsText = `${partition.stats.validVertices} vertices, ${partition.stats.totalEdges} edges`;
+                const centroidText = centroid ? ` | Centroid: (${centroid.x.toFixed(1)}, ${centroid.z.toFixed(1)})` : '';
+                partitionStats.textContent = statsText + centroidText;
+
+                partitionInfo.appendChild(partitionTitle);
+                partitionInfo.appendChild(partitionDetails);
+                partitionInfo.appendChild(partitionStats);
+
+                // Create partition actions section
+                const partitionActions = document.createElement('div');
+                partitionActions.className = 'partition-actions';
+
+                const highlightBtn = document.createElement('button');
+                highlightBtn.className = 'partition-btn highlight-btn';
+                highlightBtn.textContent = isHighlighted ? 'Clear' : 'Highlight';
+                highlightBtn.addEventListener('click', () => highlightPartition(partition.id));
+
+                const centroidBtn = document.createElement('button');
+                centroidBtn.className = 'partition-btn centroid-btn';
+                centroidBtn.textContent = 'Centroid';
+                centroidBtn.addEventListener('click', () => showPartitionCentroid(partition.id));
+
+                partitionActions.appendChild(highlightBtn);
+                partitionActions.appendChild(centroidBtn);
+
+                // Assemble the partition item
+                partitionItem.appendChild(partitionInfo);
+                partitionItem.appendChild(partitionActions);
+
+                // Add to container
+                partitionsList.appendChild(partitionItem);
+            });
+        }
+
+        function highlightPartition(partitionId) {
+            if (!graphState) return;
+            
+            if (graphState.highlightedPartition?.id === partitionId) {
+                graphState.clearHighlight();
+            } else {
+                graphState.highlightPartition(partitionId);
+            }
+        }
+
+        function showPartitionCentroid(partitionId) {
+            if (!graphState) return;
+            
+            const partition = graphState.getPartition(partitionId);
+            if (!partition) return;
+            
+            const centroid = GraphUtils.determineCentroid(partition.graph, 'geometric');
+            if (centroid) {
+                // Clear any existing vertex highlight first
+                clearVertexHighlight();
+                
+                // Create centroid highlight
+                const canvas = document.getElementById('canvas');
+                const scaleX = canvas.width / voronoiGenerator.settings.gridSize;
+                const scaleZ = canvas.height / voronoiGenerator.settings.gridSize;
+
+                const highlightElement = document.createElement('div');
+                highlightElement.className = 'centroid-highlight';
+                highlightElement.style.position = 'absolute';
+                highlightElement.style.left = `${(centroid.x * scaleX) - 10}px`;
+                highlightElement.style.top = `${(centroid.z * scaleZ) - 10}px`;
+                highlightElement.style.width = '20px';
+                highlightElement.style.height = '20px';
+                highlightElement.style.backgroundColor = 'orange';
+                highlightElement.style.border = '2px solid red';
+                highlightElement.style.borderRadius = '50%';
+                highlightElement.style.pointerEvents = 'none';
+                highlightElement.style.zIndex = '1001';
+                highlightElement.style.boxShadow = '0 0 15px rgba(255, 165, 0, 0.8)';
+
+                const canvasContainer = document.querySelector('.canvas-wrapper');
+                canvasContainer.appendChild(highlightElement);
+
+                // Remove after 3 seconds
+                setTimeout(() => {
+                    highlightElement.remove();
+                }, 3000);
+
+                log(`Showing centroid for partition ${partitionId} at (${centroid.x.toFixed(2)}, ${centroid.z.toFixed(2)})`);
+            }
+        }
+
+        function highlightGraphPartition(partition) {
+            clearGraphPartitionHighlight();
+            
+            if (!partition || !voronoiGenerator) return;
+            
+            const canvas = document.getElementById('canvas');
+            const scaleX = canvas.width / voronoiGenerator.settings.gridSize;
+            const scaleZ = canvas.height / voronoiGenerator.settings.gridSize;
+            const canvasContainer = document.querySelector('.canvas-wrapper');
+
+            // Highlight all vertices in this partition
+            partition.graph.circumcenters.forEach((vertex, index) => {
+                if (!vertex) return;
+                
+                const highlightElement = document.createElement('div');
+                highlightElement.className = 'partition-vertex-highlight';
+                highlightElement.style.position = 'absolute';
+                highlightElement.style.left = `${(vertex.x * scaleX) - 3}px`;
+                highlightElement.style.top = `${(vertex.z * scaleZ) - 3}px`;
+                highlightElement.style.width = '6px';
+                highlightElement.style.height = '6px';
+                highlightElement.style.backgroundColor = 'cyan';
+                highlightElement.style.border = '1px solid white';
+                highlightElement.style.borderRadius = '50%';
+                highlightElement.style.pointerEvents = 'none';
+                highlightElement.style.zIndex = '999';
+                highlightElement.style.boxShadow = '0 0 3px rgba(0, 255, 255, 0.8)';
+
+                canvasContainer.appendChild(highlightElement);
+                highlightedPartitionElements.push(highlightElement);
+            });
+
+            log(`Highlighted partition ${partition.id} with ${highlightedPartitionElements.length} vertices`);
+        }
+
+        function clearGraphPartitionHighlight() {
+            highlightedPartitionElements.forEach(element => {
+                element.remove();
+            });
+            highlightedPartitionElements = [];
+        }
+
+        // Graph debugging event listeners
+        document.getElementById('refreshGraphStateBtn').addEventListener('click', function () {
+            if (graphState) {
+                updateGraphPartitionsList();
+                log('Graph state refreshed');
+            }
+        });
+
+        document.getElementById('clearGraphHighlightBtn').addEventListener('click', function () {
+            if (graphState) {
+                graphState.clearHighlight();
+                log('Graph partition highlight cleared');
+            }
+        });
+
+        document.getElementById('showGraphStatsBtn').addEventListener('click', function () {
+            if (graphState) {
+                const stats = graphState.getStatistics();
+                const history = graphState.getOperationHistory();
+                
+                let message = `Graph Statistics:\n`;
+                message += `- Total Partitions: ${stats.totalPartitions}\n`;
+                message += `- Total Vertices: ${stats.totalVertices}\n`;
+                message += `- Largest Partition: ${stats.largestPartition} vertices\n`;
+                message += `- Smallest Partition: ${stats.smallestPartition} vertices\n`;
+                message += `- Average Size: ${stats.averagePartitionSize.toFixed(1)} vertices\n`;
+                message += `- Operations: ${stats.operationsCount}\n`;
+                message += `\nRecent Operations:\n`;
+                
+                history.slice(-3).forEach(op => {
+                    message += `- ${op.type}: ${op.details.description}\n`;
+                });
+                
+                alert(message);
+                log('Displayed graph statistics');
             }
         });
 
@@ -1096,4 +1857,5 @@
         updateStatus('Ready to generate terrain features');
     </script>
 </body>
+
 </html>

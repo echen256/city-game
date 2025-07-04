@@ -339,7 +339,7 @@
             try {
                 const modules = await Promise.all([
                     import('./VoronoiGenerator.js'),
-                    import('./VoronoiImageExporter.js')
+                    import('../../import-export/VoronoiImageExporter.js')
                 ]);
                 
                 VoronoiGenerator = modules[0].VoronoiGenerator;

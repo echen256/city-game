@@ -1,10 +1,34 @@
-import { BaseTerrainGenerator } from './BaseTerrainGenerator.js';
-import { RiverGenerator } from './rivers/RiverGenerator.js';
+import { BaseTerrainGenerator } from './terrain/BaseTerrainGenerator.js';
+import { RiversGenerator } from './rivers/RiversGenerator.js';
 
 export class TerrainGenerator extends BaseTerrainGenerator {
   constructor(settings) {
     super(settings);
-    this.riverGenerator = new RiverGenerator(this.terrainData, this.settings);
+    this.riverGenerator = new RiversGenerator(this.terrainData, this.settings);
+    this._seededRandom = null;
+  }
+
+  /**
+   * Set the seeded random number generator
+   * @param {Function} seededRandom - Seeded random function from seedrandom library
+   */
+  setSeededRandom(seededRandom) {
+    this._seededRandom = seededRandom;
+    // Pass to child generators too
+    if (this.riverGenerator && this.riverGenerator.setSeededRandom) {
+      this.riverGenerator.setSeededRandom(seededRandom);
+    }
+  }
+
+  /**
+   * Generate random number using seeded generator if available
+   * @returns {number} Random number between 0 and 1
+   */
+  random() {
+    if (this._seededRandom) {
+      return this._seededRandom();
+    }
+    return Math.random();
   }
 
   generateTerrain() {
@@ -49,7 +73,7 @@ export class TerrainGenerator extends BaseTerrainGenerator {
             );
             
             // Random chance to erode based on calculated probability
-            if (Math.random() < erosionProbability) {
+            if (this.random() < erosionProbability) {
               tilesToErode.push(tile);
             }
           }

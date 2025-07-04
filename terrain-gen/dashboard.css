@@ -1,0 +1,361 @@
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 20px;
+    background-color: #1a1a1a;
+    color: #ffffff;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.header {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+.header h1 {
+    color: #00ff88;
+    margin-bottom: 10px;
+}
+
+.controls {
+    background-color: #2a2a2a;
+    padding: 30px;
+    border-radius: 10px;
+    margin-bottom: 30px;
+    border: 1px solid #444;
+}
+
+.control-section {
+    margin-bottom: 25px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #444;
+}
+
+.control-section:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.control-section h3 {
+    color: #00ff88;
+    margin-top: 0;
+    margin-bottom: 15px;
+}
+
+.button-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+button {
+    background-color: #00ff88;
+    color: #000000;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 14px;
+    transition: background-color 0.3s;
+}
+
+button:hover {
+    background-color: #00cc66;
+}
+
+button:disabled {
+    background-color: #666666;
+    color: #999999;
+    cursor: not-allowed;
+}
+
+.settings {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-top: 15px;
+}
+
+.setting-item {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.setting-item label {
+    color: #cccccc;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.setting-item input, .setting-item select {
+    background-color: #1a1a1a;
+    border: 1px solid #666;
+    color: white;
+    padding: 8px;
+    border-radius: 3px;
+}
+
+.status {
+    background-color: #1a1a1a;
+    padding: 20px;
+    border-radius: 5px;
+    margin-bottom: 20px;
+    border: 1px solid #333;
+}
+
+.stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 15px;
+    margin-top: 15px;
+}
+
+.stat-item {
+    background-color: #2a2a2a;
+    padding: 15px;
+    border-radius: 5px;
+    text-align: center;
+}
+
+.stat-value {
+    font-size: 24px;
+    font-weight: bold;
+    color: #00ff88;
+}
+
+.stat-label {
+    font-size: 12px;
+    color: #cccccc;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.canvas-container {
+    background-color: #2a2a2a;
+    padding: 20px;
+    border-radius: 10px;
+    border: 1px solid #444;
+    text-align: center;
+}
+
+canvas {
+    border: 1px solid #666;
+    background-color: #0a0a0a;
+    max-width: 100%;
+    height: auto;
+}
+
+.log {
+    background-color: #0a0a0a;
+    padding: 15px;
+    border-radius: 5px;
+    font-family: monospace;
+    font-size: 12px;
+    max-height: 200px;
+    overflow-y: auto;
+    margin-top: 15px;
+    border: 1px solid #333;
+}
+
+.hidden {
+    display: none;
+}
+
+.coast-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+}
+
+.coast-controls select {
+    background-color: #1a1a1a;
+    border: 1px solid #666;
+    color: white;
+    padding: 8px;
+    border-radius: 3px;
+}
+
+.canvas-wrapper {
+    position: relative;
+    display: inline-block;
+}
+
+.voronoi-cell-hover {
+    position: absolute;
+    border-radius: 50%;
+    background-color: transparent;
+    cursor: pointer;
+    pointer-events: auto;
+}
+
+.voronoi-cell-hover:hover {
+    background-color: rgba(255, 255, 0, 0.3);
+}
+
+.voronoi-vertex-hover {
+    position: absolute;
+    border-radius: 50%;
+    background-color: rgba(255, 0, 0, 0.7);
+    cursor: pointer;
+    pointer-events: auto;
+    border: 2px solid #ff0000;
+}
+
+.voronoi-vertex-hover:hover {
+    background-color: rgba(255, 0, 0, 0.9);
+}
+
+.neighbor-highlight {
+    background-color: rgba(255, 0, 0, 0.5) !important;
+    pointer-events: none;
+}
+
+.vertex-highlight {
+    background-color: rgba(255, 255, 0, 0.8) !important;
+    border-color: #ffff00 !important;
+    pointer-events: none;
+}
+
+.cell-info-widget {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background-color: #2a2a2a;
+    border: 1px solid #666;
+    border-radius: 5px;
+    padding: 15px;
+    color: white;
+    font-family: monospace;
+    font-size: 12px;
+    display: none;
+    z-index: 1000;
+    min-width: 200px;
+}
+
+.cell-info-widget h4 {
+    margin: 0 0 10px 0;
+    color: #00ff88;
+}
+
+.cell-info-line {
+    margin: 5px 0;
+}
+
+/* Graph Debugging Styles */
+.graph-partitions-container {
+    margin-top: 15px;
+}
+
+.graph-partitions-container h4 {
+    color: #00ff88;
+    margin-bottom: 10px;
+    font-size: 14px;
+}
+
+.partitions-list {
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid #444;
+    border-radius: 5px;
+    background-color: #2a2a2a;
+    padding: 5px;
+}
+
+.no-partitions {
+    color: #888;
+    font-style: italic;
+    text-align: center;
+    padding: 10px;
+    margin: 0;
+}
+
+.partition-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 10px;
+    margin: 2px 0;
+    background-color: #333;
+    border-radius: 3px;
+    border-left: 3px solid #555;
+    transition: all 0.2s ease;
+}
+
+.partition-item:hover {
+    background-color: #444;
+    border-left-color: #00ff88;
+}
+
+.partition-item.highlighted {
+    background-color: #003311;
+    border-left-color: #00ff88;
+    box-shadow: 0 0 5px rgba(0, 255, 136, 0.3);
+}
+
+.partition-info {
+    flex-grow: 1;
+    margin-right: 10px;
+}
+
+.partition-title {
+    font-weight: bold;
+    color: #fff;
+    font-size: 12px;
+    margin-bottom: 2px;
+}
+
+.partition-details {
+    font-size: 10px;
+    color: #aaa;
+}
+
+.partition-stats {
+    font-size: 9px;
+    color: #888;
+    margin-top: 2px;
+}
+
+.partition-actions {
+    display: flex;
+    gap: 5px;
+}
+
+.partition-btn {
+    background-color: #555;
+    color: #fff;
+    border: none;
+    padding: 4px 8px;
+    border-radius: 3px;
+    font-size: 10px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.partition-btn:hover {
+    background-color: #666;
+}
+
+.partition-btn.highlight-btn {
+    background-color: #006644;
+}
+
+.partition-btn.highlight-btn:hover {
+    background-color: #008855;
+}
+
+.partition-btn.centroid-btn {
+    background-color: #664400;
+}
+
+.partition-btn.centroid-btn:hover {
+    background-color: #885500;
+}
