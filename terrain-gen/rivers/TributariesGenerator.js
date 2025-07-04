@@ -1,7 +1,7 @@
 /**
  * TributariesGenerator.js - Simplified tributary generation
  * 
- * Creates a single tributary per river using neighbor expansion
+ * Creates tributaries for rivers using neighbor expansion
  */
 
 import { PathFinder } from './Pathfinder.js';
@@ -11,15 +11,15 @@ import { GraphUtils } from '../geometry/graph/GraphUtils.js';
  * Simplified tributary generator
  */
 export class TributariesGenerator {
-  constructor(voronoiGenerator, settings = {},seededRandom) {
+  constructor(voronoiGenerator, settings = {}, seededRandom) {
     this.voronoiGenerator = voronoiGenerator;
     this.settings = settings;
     this.tributaryPaths = [];
     this.riverVertices = new Set();
-    this.mainRiverPaths = [];
     this.pathfinder = new PathFinder(voronoiGenerator.delaunatorWrapper);
     this.seededRandom = seededRandom;
   }
+
   /**
    * Generate a single tributary for a river
    * @param {Array<number>} riverPath - Single river path
@@ -39,7 +39,7 @@ export class TributariesGenerator {
 
     console.log(`Starting tributary from river vertex ${startVertex} (index ${randomIndex})`);
 
-    // Expand neighbors for 5 generations
+    // Expand neighbors for several generations
     let currentGeneration = new Set([startVertex]);
     const allVertices = new Set([startVertex]);
 
@@ -150,36 +150,35 @@ export class TributariesGenerator {
     return [...this.tributaryPaths];
   }
 
+  /**
+   * Generate tributaries for all rivers
+   * @param {Object} map - Map instance containing rivers
+   * @returns {Array<Array<number>>} Array of tributary paths
+   */
   generateTributaries(map) {
-
     try {
       const riverPaths = map.riversGenerator.getRiverPaths();
       if (riverPaths.length === 0) {
         console.error('Error: No rivers found. Generate rivers first.');
-        return;
+        return [];
       }
 
       console.log(`Generating tributaries for ${riverPaths.length} rivers...`);
-      console.log(`Starting tributary generation for ${riverPaths.length} main rivers...`);
 
       // Get the original graph for tributary generation
       const originalGraph = GraphUtils.createDeepCopyOfGraph(map.voronoiGenerator.delaunatorWrapper);
 
-      // Generate tributaries
-      console.log(`TributariesGenerator: Starting simplified generation for ${riverPaths.length} rivers`);
-
-      this.mainRiverPaths = riverPaths;
-      this.riverVertices.clear();
-      this.tributaryPaths = [];
-
       // Mark all river vertices
+      this.riverVertices.clear();
       for (const riverPath of riverPaths) {
         for (const vertex of riverPath) {
           this.riverVertices.add(vertex);
         }
       }
 
-      // Generate 5 tributaries per river
+      // Generate tributaries
+      this.tributaryPaths = [];
+
       for (let i = 0; i < riverPaths.length; i++) {
         console.log(`\n--- Generating tributaries for river ${i + 1} ---`);
 
@@ -199,9 +198,9 @@ export class TributariesGenerator {
       return this.tributaryPaths;
 
     } catch (error) {
-      console.error(`Error: ${error.message}`);
       console.error(`Error generating tributaries: ${error.message}`);
       console.error(error);
+      return [];
     }
   }
 }
