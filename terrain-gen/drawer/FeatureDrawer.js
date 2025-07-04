@@ -523,13 +523,6 @@ export class FeatureDrawer {
             }
           }
         });
-        
-        // Emit 'rivers-drawn' event
-        this.emit('rivers-drawn', { 
-          riverPaths, 
-          count: riverPaths.length,
-          timestamp: Date.now() 
-        });
       }
     }
   }
@@ -552,13 +545,6 @@ export class FeatureDrawer {
             });
           }
         }
-      });
-      
-      // Emit 'tributaries-drawn' event
-      this.emit('tributaries-drawn', { 
-        tributaryPaths, 
-        count: tributaryPaths.length,
-        timestamp: Date.now() 
       });
     }
   }

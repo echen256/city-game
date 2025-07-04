@@ -45,7 +45,10 @@ export class Map {
         this.drawDiagram();
     }
 
-    drawDiagram() {
+    drawDiagram(settings) {
+        if (settings) {
+            this.featureDrawer.settings = settings;
+        }
         this.featureDrawer.drawDiagram(this);
     }
 }

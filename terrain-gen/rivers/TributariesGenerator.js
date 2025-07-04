@@ -214,3 +214,20 @@ export class TributariesGenerator {
     }
   }
 }
+
+
+/*
+
+        function getTributarySettings() {
+            return {
+                maxDepth: parseInt(document.getElementById('tributaryDepth').value),
+                branchProbability: parseFloat(document.getElementById('branchProbability').value),
+                minTributaryDistance: parseInt(document.getElementById('minTributaryDistance').value),
+                maxTributaryDistance: parseInt(document.getElementById('maxTributaryDistance').value),
+                branchingSeparation: parseInt(document.getElementById('branchingSeparation').value),
+                riverEdgeWeight: 100,
+                baseEdgeWeight: 1,
+                maxDistanceInfluence: 50,
+                minTributaryLength: 4
+            };
+        }*/
