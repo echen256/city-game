@@ -72,12 +72,11 @@ export class RiversGenerator {
   generateRivers(numRivers = 2) {
     console.warn('RiversGenerator.generateRivers() is deprecated. Use GraphState workflow with generateSingleRiver() instead.');
     
-    if (!this.voronoiGenerator || !this.voronoiGenerator.cells || this.voronoiGenerator.cells.size === 0) {
+    if (!this.voronoiGenerator || !this.voronoiGenerator.delaunatorWrapper.voronoiCells || this.voronoiGenerator.delaunatorWrapper.voronoiCells.size === 0) {
       console.error('RiversGenerator: No Voronoi diagram available');
       return [];
     }
-    
-    this.clearRivers();
+     
     console.log(`Generating ${numRivers} rivers using legacy method...`);
 
     // Use the original graph for simple generation
@@ -157,7 +156,7 @@ export class RiversGenerator {
    */
   getCellElevation(cellId) {
     // Try to get gradient height from cell metadata
-    const cell = this.voronoiGenerator.cells.get(cellId);
+    const cell = this.voronoiGenerator.delaunatorWrapper.voronoiCells.get(cellId);
     if (cell) {
       const gradientHeight = cell.getMetadata('height');
       if (gradientHeight !== undefined && gradientHeight !== null) {
@@ -226,26 +225,6 @@ export class RiversGenerator {
   }
 
   /**
-   * Clear all river data
-   */
-  clearRivers() {
-    // Remove river metadata from all cells
-    this.voronoiGenerator.cells.forEach((cell) => {
-      cell.setMetadata('river', false);
-      cell.setMetadata('riverIndex', null);
-      cell.setMetadata('riverPosition', null);
-      cell.setMetadata('riverStartPoint', false);
-      cell.setMetadata('riverEndPoint', false);
-    });
-    
-    this.riverCells.clear();
-    this.riverPaths = [];
-    this.usedStartPoints.clear();
-    this.usedEndPoints.clear();
-  }
-
-
-  /**
    * Select parallel edge targets for rivers
    * @param {number} startCell - Starting cell ID
    * @returns {Array<number>} Array of target cell IDs
@@ -253,7 +232,7 @@ export class RiversGenerator {
   selectParallelEdgeTargets(startCell) {
     const gridSize = this.settings.gridSize;
     const edgeTolerance = 100; // Distance from edge to consider "edge cell"
-    const startSite = this.voronoiGenerator.cells.get(startCell)?.site;
+    const startSite = this.voronoiGenerator.delaunatorWrapper.voronoiCells.get(startCell)?.site;
     
     if (!startSite) {
       console.log('No start site found for parallel edge targeting');
@@ -293,7 +272,7 @@ export class RiversGenerator {
 
     // Find cells on the target edge
     const targetCells = [];
-    this.voronoiGenerator.cells.forEach((cell, cellId) => {
+    this.voronoiGenerator.delaunatorWrapper.voronoiCells.forEach((cell, cellId) => {
       const site = cell.site;
       if (!site) return;
 
@@ -332,8 +311,8 @@ export class RiversGenerator {
    * @returns {number} Distance between cells
    */
   getDistanceBetweenCells(cellId1, cellId2) {
-    const cell1 = this.voronoiGenerator.cells.get(cellId1);
-    const cell2 = this.voronoiGenerator.cells.get(cellId2);
+    const cell1 = this.voronoiGenerator.delaunatorWrapper.voronoiCells.get(cellId1);
+    const cell2 = this.voronoiGenerator.delaunatorWrapper.voronoiCells.get(cellId2);
     
     if (!cell1 || !cell2 || !cell1.site || !cell2.site) {
       return Infinity;
@@ -401,7 +380,7 @@ export class RiversGenerator {
       
       // Add river path as point distribution
       const riverSites = path.map(cellId => {
-        const cell = this.voronoiGenerator.cells.get(cellId);
+        const cell = this.voronoiGenerator.delaunatorWrapper.voronoiCells.get(cellId);
         return cell ? cell.site : null;
       }).filter(site => site !== null);
       

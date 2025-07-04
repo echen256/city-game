@@ -369,8 +369,8 @@
                 return;
             }
 
-            const sites = voronoiGenerator.sites ? voronoiGenerator.sites.length : 0;
-            const cells = voronoiGenerator.cells ? voronoiGenerator.cells.size : 0;
+            const sites = voronoiGenerator.delaunatorWrapper.points ? voronoiGenerator.delaunatorWrapper.points.length : 0;
+            const cells = voronoiGenerator.delaunatorWrapper.voronoiCells ? voronoiGenerator.delaunatorWrapper.voronoiCells.size : 0;
             const triangles = voronoiGenerator.delaunatorWrapper?.delaunay?.triangles?.length || 0;
 
             document.getElementById('sitesCount').textContent = sites;
@@ -426,7 +426,7 @@
             // Clear existing hover elements
             hoverContainer.innerHTML = '';
 
-            if (!voronoiGenerator || !voronoiGenerator.cells) {
+            if (!voronoiGenerator.delaunatorWrapper.voronoiCells) {
                 return;
             }
 
@@ -434,7 +434,7 @@
             const scaleZ = canvas.height / voronoiGenerator.settings.gridSize;
             const hoverRadius = 5; // 10px radius as requested
 
-            voronoiGenerator.cells.forEach((cell, cellId) => {
+            voronoiGenerator.delaunatorWrapper.voronoiCells.forEach((cell, cellId) => {
                 if (!cell.site) return;
 
                 const hoverElement = document.createElement('div');
@@ -695,8 +695,8 @@
 
                 // Prepare data for the complete diagram drawing
                 const diagramData = {
-                    cells: voronoiGenerator.getCells(),
-                    sites: voronoiGenerator.sites,
+                    cells: voronoiGenerator.delaunatorWrapper.voronoiCells,
+                    sites: voronoiGenerator.delaunatorWrapper.points,
                     triangulationData: triangulationData
                 };
 
@@ -793,7 +793,7 @@
                 enableDependentButtons(true);
 
                 updateStatus('Voronoi diagram generated successfully');
-                log(`Generated ${voronoiGenerator.sites.length} sites and ${voronoiGenerator.cells.size} cells`);
+                log(`Generated ${voronoiGenerator.delaunatorWrapper.points.length} sites and ${voronoiGenerator.delaunatorWrapper.voronoiCells.size} cells`);
 
             } catch (error) {
                 updateStatus(`Error: ${error.message}`);
@@ -821,12 +821,11 @@
         });
 
         async function generateRiversWithTracking(numRivers) {
-            if (!voronoiGenerator || !voronoiGenerator.cells || voronoiGenerator.cells.size === 0) {
+            if (!voronoiGenerator || !voronoiGenerator.delaunatorWrapper.voronoiCells || voronoiGenerator.delaunatorWrapper.voronoiCells.size === 0) {
                 console.error('RiversGenerator: No Voronoi diagram available');
                 return;
             }
 
-            riversGenerator.clearRivers();
             console.log(`Generating ${numRivers} rivers using GraphState workflow...`);
 
             // Initialize GraphState with initial graph
@@ -959,19 +958,7 @@
         });
 
         document.getElementById('clearRiversBtn').addEventListener('click', function () {
-            if (!riversGenerator) return;
-
-            riversGenerator.clearRivers();
-            if (tributariesGenerator) {
-                tributariesGenerator.clearTributaries();
-            }
-            updateStats();
-            drawDiagram();
-            updateStatus('Rivers and tributaries cleared');
-            log('Cleared all rivers and tributaries');
-            
-            // Disable tributaries button when rivers are cleared
-            document.getElementById('generateTributariesBtn').disabled = true;
+ 
         });
 
         document.getElementById('clearAllBtn').addEventListener('click', function () {

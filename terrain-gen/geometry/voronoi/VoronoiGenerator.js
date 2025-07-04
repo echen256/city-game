@@ -1,5 +1,5 @@
 import { DelaunatorWrapper } from './DelaunatorWrapper.js';
-import { VoronoiCell ,BoundaryType} from '../GeometryTypes.js';
+import { VoronoiCell} from '../GeometryTypes.js';
 
 /**
  * Simplified Voronoi diagram generator
@@ -8,7 +8,6 @@ export class VoronoiGenerator {
   constructor(terrainData, settings) {
     this.terrainData = terrainData;
     this.settings = settings;
-    this.cells = new Map();
     this.sites = [];
     this.delaunatorWrapper = null;
     this._seed = undefined;
@@ -20,44 +19,20 @@ export class VoronoiGenerator {
   generateVoronoi() {
     const voronoiSettings = this.settings.voronoi;
     if (!voronoiSettings?.enabled) return;
-
-    // Generate seed points
     this.generateSeedPoints(voronoiSettings);
-
-    // Triangulate and create Voronoi cells
     this.createVoronoiDiagram();
-
-    // Create terrain features
-   // this.createCellFeatures();
-
-    // Assign tiles to cells
-   // this.assignTilesToCells();
-
-    return this.cells;
   }
 
   /**
    * Generate seed points based on distribution settings
    */
   generateSeedPoints(settings) {
-    const { distribution, numSites, minDistance, seed, poissonRadius, gridSpacing } = settings;
+    const {  minDistance, seed, poissonRadius } = settings;
 
     this.sites = [];
     if (seed !== undefined) this.seedRandom(seed);
 
-    switch (distribution) {
-      case 'poisson':
-        this.generatePoissonSites(poissonRadius || minDistance);
-        break;
-      case 'grid':
-        this.generateGridSites(gridSpacing);
-        break;
-      case 'hexagonal':
-        this.generateHexagonalSites(gridSpacing);
-        break;
-      default:
-        this.generateRandomSites(numSites, minDistance);
-    }
+    this.generatePoissonSites(poissonRadius || minDistance);
 
     // Add boundary points if needed
     if (settings.addBoundaryPoints !== false) {
@@ -182,10 +157,7 @@ export class VoronoiGenerator {
     
     this.sites.push(...boundaryPoints);
   }
-
-  /**
-   * Create Voronoi diagram using simplified wrapper
-   */
+ 
   createVoronoiDiagram() {
     try {
       this.delaunatorWrapper = new DelaunatorWrapper(this.sites, this.settings);
@@ -237,112 +209,11 @@ export class VoronoiGenerator {
         
         this.cells.set(cellId++, cell);
       });
-      
-      // Remove boundary sites from sites array
-      this.sites = this.sites.filter(site => !site.isBoundary);
-      
       console.log(`Generated ${this.cells.size} Voronoi cells`);
       
     } catch (error) {
       console.error('Error during triangulation:', error);
     }
   }
-
-  /**
-   * Create terrain features for cells
-   */
-  // createCellFeatures() {
-  //   this.cells.forEach((cell, cellId) => {
-  //     const feature = this.terrainData.createFeature('voronoi_cell');
-      
-  //     feature.setCentroid(cell.site.x, cell.site.z);
-      
-  //     if (cell.vertices.length > 0) {
-  //       feature.addPointDistribution(cell.vertices);
-  //     }
-      
-  //     feature.setMetadata('cellId', cellId);
-  //     feature.setMetadata('area', cell.area);
-  //     feature.setMetadata('perimeter', cell.perimeter);
-  //     feature.setMetadata('neighbors', cell.neighbors);
-  //   });
-  // }
-
-  /**
-   * Public API methods
-   */
-  getCells() {
-    return this.cells;
-  }
-
-  getCell(id) {
-    return this.cells.get(id);
-  }
-
-  getCellAt(x, z) {
-    let minDist = Infinity;
-    let closestCell = null;
-    
-    this.cells.forEach(cell => {
-      const dx = x - cell.site.x;
-      const dz = z - cell.site.z;
-      const dist = dx * dx + dz * dz;
-      
-      if (dist < minDist) {
-        minDist = dist;
-        closestCell = cell;
-      }
-    });
-    
-    return closestCell;
-  }
-
-  getDelaunator() {
-    return this.delaunatorWrapper?.delaunay;
-  }
-
-  /**
-   * Get triangulation data (for compatibility with dashboard/exporter)
-   * @returns {Object} Triangulation data object
-   */
-  getTriangulation() {
-    return this.delaunatorWrapper;
-  }
-
-  /**
-   * Get Voronoi diagram data (for compatibility with exporter)
-   * @returns {Object} DelaunatorWrapper instance
-   */
-  getVoronoiDiagram() {
-    return this.delaunatorWrapper;
-  }
-
-  /**
-   * Find connected vertices for a given vertex (for dashboard compatibility)
-   * @param {number} vertexIndex - Vertex index
-   * @returns {Array<number>} Array of connected vertex indices
-   */
-  findConnectedVertices(vertexIndex) {
-    if (!this.delaunatorWrapper || !this.delaunatorWrapper.delaunay) {
-      return [];
-    }
-
-    const { halfedges } = this.delaunatorWrapper.delaunay;
-    const connected = new Set();
-    
-    // Find all halfedges that share circumcenters with this vertex
-    for (let e = 0; e < halfedges.length; e++) {
-      const triangleIndex = Math.floor(e / 3);
-      if (triangleIndex === vertexIndex) {
-        // Find adjacent triangles through halfedges
-        const opposite = halfedges[e];
-        if (opposite !== -1) {
-          const oppositeTriangle = Math.floor(opposite / 3);
-          connected.add(oppositeTriangle);
-        }
-      }
-    }
-    
-    return Array.from(connected);
-  }
+ 
 }
