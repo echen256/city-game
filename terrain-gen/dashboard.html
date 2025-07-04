@@ -679,16 +679,16 @@
         }
 
         function drawDiagram() {
-     
-            try {
-                featureDrawer.drawDiagram();
-                // Create hover elements for cell interaction
-                createCellHoverElements();
-
-            } catch (error) {
-                log(`Error drawing diagram: ${error.message}`);
-                console.error(error);
-            }
+            // try {
+            //     // The createCellHoverElements() will be called automatically
+            //     // via the FeatureDrawer 'draw' event listener
+            //     if (map && featureDrawer) {
+            //         featureDrawer.drawDiagram(map);
+            //     }
+            // } catch (error) {
+            //     log(`Error drawing diagram: ${error.message}`);
+            //     console.error(error);
+            // }
         }
 
         // Event handlers
@@ -697,24 +697,33 @@
                 updateStatus('Generating Voronoi diagram...');
                 log('Starting Voronoi generation');
 
-                map = new Map(getSettings());
-                map.generateVoronoi();
-    
                 // Initialize FeatureDrawer with the canvas and grid size
                 const canvas = document.getElementById('canvas');
-                featureDrawer = new FeatureDrawer(map, canvas, getSettings());
+                featureDrawer = new FeatureDrawer(canvas, getSettings()); 
                 
-                // Initialize GraphState for debugging
-                // initializeGraphState();
-                // graphState.initialize(voronoiGenerator.delaunatorWrapper, settings);
+                // Set up event listeners for FeatureDrawer events
+                featureDrawer.on('draw', function(data) {
+                    console.log('FeatureDrawer draw event triggered', data);
+                    createCellHoverElements();
+                });
+                
+                featureDrawer.on('rivers-drawn', function(data) {
+                    console.log('Rivers drawn event triggered', data);
+                    log(`Drew ${data.count} rivers`);
+                });
+                
+                featureDrawer.on('tributaries-drawn', function(data) {
+                    console.log('Tributaries drawn event triggered', data);
+                    log(`Drew ${data.count} tributaries`);
+                });
+
+                map = new Map(featureDrawer, getSettings());
+                map.generateVoronoi();
                 
                 // Enable debugging buttons
                 document.getElementById('refreshGraphStateBtn').disabled = false;
                 document.getElementById('clearGraphHighlightBtn').disabled = false;
-                document.getElementById('showGraphStatsBtn').disabled = false;
-                
-                updateStats();
-                drawDiagram();
+                document.getElementById('showGraphStatsBtn').disabled = false; 
                 enableDependentButtons(true);
 
                 updateStatus('Voronoi diagram generated successfully');
@@ -729,9 +738,7 @@
 
         document.getElementById('generateRiversBtn').addEventListener('click', function () {
             try {
-                map.generateRivers();
-                updateStats();
-                drawDiagram();
+                map.generateRivers(); 
             } catch (error) {
                 updateStatus(`Error: ${error.message}`);
                 log(`Error generating rivers: ${error.message}`);
@@ -741,9 +748,7 @@
  
         document.getElementById('generateTributariesBtn').addEventListener('click', function () {
             try {
-                map.generateTributaries();
-                updateStats();
-                drawDiagram();
+                map.generateTributaries(); 
             } catch (error) {
                 updateStatus(`Error: ${error.message}`);
                 log(`Error generating tributaries: ${error.message}`);

@@ -6,7 +6,8 @@ import { GraphState } from './geometry/graph/GraphState.js';
 import { GraphUtils } from './geometry/graph/GraphUtils.js';
 
 export class Map {
-    constructor(settings) {
+    constructor(featureDrawer,settings) {
+        this.featureDrawer = featureDrawer;
         this.settings = settings;   
         this.graphState = new GraphState();
         this.voronoiGenerator = new VoronoiGenerator(this.graphState,this.settings);
@@ -31,13 +32,20 @@ export class Map {
 
     generateVoronoi() {
         this.voronoiGenerator.generateVoronoi();
+        this.drawDiagram();
     }
 
     generateRivers() {
         this.riversGenerator.generateRivers(this,this.graphState,this.settings.rivers.numRivers);
-    }
+        this.drawDiagram();
+            }
 
     generateTributaries() {
         this.tributariesGenerator.generateTributaries(this);
+        this.drawDiagram();
+    }
+
+    drawDiagram() {
+        this.featureDrawer.drawDiagram(this);
     }
 }

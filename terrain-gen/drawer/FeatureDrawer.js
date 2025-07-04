@@ -2,13 +2,59 @@
  * FeatureDrawer.js - Draws terrain features on the map canvas
  */
 export class FeatureDrawer {
-  constructor(map, canvas, settings) {
+  constructor(canvas, settings) {
     this.settings = settings;
-    this.map = map;
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
     this.gridSize = settings.gridSize || 600;
-    this.voronoiGenerator = map.voronoiGenerator;
+    
+    // Event system
+    this.eventListeners = new Map();
+  }
+
+  /**
+   * Add event listener
+   * @param {string} eventName - Name of the event
+   * @param {Function} callback - Function to call when event occurs
+   */
+  on(eventName, callback) {
+    if (!this.eventListeners.has(eventName)) {
+      this.eventListeners.set(eventName, []);
+    }
+    this.eventListeners.get(eventName).push(callback);
+  }
+
+  /**
+   * Remove event listener
+   * @param {string} eventName - Name of the event
+   * @param {Function} callback - Function to remove
+   */
+  off(eventName, callback) {
+    if (this.eventListeners.has(eventName)) {
+      const listeners = this.eventListeners.get(eventName);
+      const index = listeners.indexOf(callback);
+      if (index > -1) {
+        listeners.splice(index, 1);
+      }
+    }
+  }
+
+  /**
+   * Emit event to all listeners
+   * @param {string} eventName - Name of the event
+   * @param {*} data - Data to pass to listeners
+   */
+  emit(eventName, data) {
+    if (this.eventListeners.has(eventName)) {
+      const listeners = this.eventListeners.get(eventName);
+      listeners.forEach(callback => {
+        try {
+          callback(data);
+        } catch (error) {
+          console.error(`Error in event listener for ${eventName}:`, error);
+        }
+      });
+    }
   }
 
   /**
@@ -152,19 +198,12 @@ export class FeatureDrawer {
    * @param {string} options.color - Edge color (default: '#00ff88')
    * @param {number} options.width - Line width (default: 1)
    */
-  drawVoronoiEdges(options = {}) {
-    if (!this.voronoiGenerator || !this.voronoiGenerator.delaunatorWrapper) {
-      console.warn('VoronoiGenerator not set or no delaunatorWrapper available');
-      return;
-    }
+  drawVoronoiEdges( voronoiEdges, options = {}) { 
 
     const {
       color = '#00ff88',
       width = 1
     } = options;
-
-    const delaunatorWrapper = this.voronoiGenerator.delaunatorWrapper;
-    const voronoiEdges = delaunatorWrapper.voronoiEdges;
 
     if (!voronoiEdges || voronoiEdges.length === 0) {
       console.warn('No Voronoi edges available to draw');
@@ -383,10 +422,28 @@ export class FeatureDrawer {
 
   /**
    * Draw complete Voronoi diagram with all elements
-   * @param {Object} data - Complete diagram data
+   * @param {Object} map - Map object containing voronoiGenerator
    * @param {Object} options - Drawing options
    */
-  drawCompleteDiagram(data, options = {}) {
+  drawCompleteDiagram(map, options = {
+    backgroundColor: '#0a0a0a',
+    showTriangulation: this.settings.showTriangulation,
+    showVoronoiEdges: this.settings.showVoronoi,
+    showCells: this.settings.showCells,
+    showSites: this.settings.showSites,
+    showVertices: this.settings.showVertices,
+    triangulationColor: '#888888',
+    voronoiColor: '#00ff88',
+    siteColor: '#ffff00',
+    vertexColor: '#ff0000'
+  }) {
+    const triangulationData = map.voronoiGenerator.delaunatorWrapper;
+    // Prepare data for the complete diagram drawing
+    const data = {
+      cells: map.voronoiGenerator.delaunatorWrapper.voronoiCells,
+      sites: map.voronoiGenerator.delaunatorWrapper.points,
+      triangulationData: triangulationData
+    };
     const {
       backgroundColor = '#0a0a0a',
       showTriangulation = true,
@@ -415,7 +472,7 @@ export class FeatureDrawer {
 
     // Draw Voronoi edges
     if (showVoronoiEdges) {
-      this.drawVoronoiEdges({
+      this.drawVoronoiEdges(map.voronoiGenerator.delaunatorWrapper.voronoiEdges, {
         color: voronoiColor,
         width: 1
       });
@@ -446,15 +503,15 @@ export class FeatureDrawer {
     }
   }
 
-  drawRivers() {
-    if (this.map.riversGenerator && this.settings.rivers.showRivers) {
-      const riverPaths = this.map.riversGenerator.getRiverPaths(); 
+  drawRivers(map) {
+    if (map.riversGenerator && this.settings.rivers.showRivers) {
+      const riverPaths = map.riversGenerator.getRiverPaths();
       if (riverPaths && riverPaths.length > 0) {
         riverPaths.forEach((path, index) => {
           if (path && path.length > 1) {
             // Convert vertex indices to coordinates
             const coordinates = path.map(vertexIndex => {
-              const vertex = this.voronoiGenerator.delaunatorWrapper.circumcenters[vertexIndex];
+              const vertex = map.voronoiGenerator.delaunatorWrapper.circumcenters[vertexIndex];
               return vertex ? { x: vertex.x, z: vertex.z || vertex.y || 0 } : null;
             }).filter(coord => coord !== null);
 
@@ -466,60 +523,58 @@ export class FeatureDrawer {
             }
           }
         });
+        
+        // Emit 'rivers-drawn' event
+        this.emit('rivers-drawn', { 
+          riverPaths, 
+          count: riverPaths.length,
+          timestamp: Date.now() 
+        });
       }
     }
   }
 
- 
-  drawTributaries() {
-    if (this.map?.tributariesGenerator && this.settings?.tributaries?.showTributaries) {
-      const tributaryPaths = this.map.tributariesGenerator.getTributaryPaths();
+
+  drawTributaries(map) {
+    if (map?.tributariesGenerator && this.settings?.tributaries?.showTributaries) {
+      const tributaryPaths = map.tributariesGenerator.getTributaryPaths();
       tributaryPaths.forEach((path, index) => {
-          if (path && path.length > 1) { 
-              const coordinates = path.map(vertexIndex => {
-                  const vertex = this.map.voronoiGenerator.delaunatorWrapper.circumcenters[vertexIndex];
-                  return vertex ? { x: vertex.x, z: vertex.z || vertex.y || 0 } : null;
-              }).filter(coord => coord !== null);
-              console.log(coordinates);
-              if (coordinates.length > 1) {
-                  this.drawPath(coordinates, {
-                      color: '#00BFFF', // Bright deep sky blue for tributaries
-                      width: 2
-                  });
-              }
+        if (path && path.length > 1) {
+          const coordinates = path.map(vertexIndex => {
+            const vertex = map.voronoiGenerator.delaunatorWrapper.circumcenters[vertexIndex];
+            return vertex ? { x: vertex.x, z: vertex.z || vertex.y || 0 } : null;
+          }).filter(coord => coord !== null);
+          console.log(coordinates);
+          if (coordinates.length > 1) {
+            this.drawPath(coordinates, {
+              color: '#00BFFF', // Bright deep sky blue for tributaries
+              width: 2
+            });
           }
+        }
       });
-    } 
+      
+      // Emit 'tributaries-drawn' event
+      this.emit('tributaries-drawn', { 
+        tributaryPaths, 
+        count: tributaryPaths.length,
+        timestamp: Date.now() 
+      });
+    }
   }
 
-  drawDiagram() {
-
+  drawDiagram(map) {
+    console.log('FeatureDrawer: Drawing diagram');
     try {
       // Get triangulation data once
-      const triangulationData = this.voronoiGenerator.delaunatorWrapper;
-
-      // Prepare data for the complete diagram drawing
-      const diagramData = {
-        cells: this.voronoiGenerator.delaunatorWrapper.voronoiCells,
-        sites: this.voronoiGenerator.delaunatorWrapper.points,
-        triangulationData: triangulationData
-      };
 
       // Draw complete diagram using FeatureDrawer
-      this.drawCompleteDiagram(diagramData, {
-        backgroundColor: '#0a0a0a',
-        showTriangulation: this.settings.showTriangulation,
-        showVoronoiEdges: this.settings.showVoronoi,
-        showCells: this.settings.showCells,
-        showSites: this.settings.showSites,
-        showVertices: this.settings.showVertices,
-        triangulationColor: '#888888',
-        voronoiColor: '#00ff88',
-        siteColor: '#ffff00',
-        vertexColor: '#ff0000'
-      });
-      this.drawRivers();
-      this.drawTributaries();
+      this.drawCompleteDiagram(map);
+      this.drawRivers(map);
+      this.drawTributaries(map);
+      
+      // Emit 'draw' event after diagram is drawn
+      this.emit('draw', { map, timestamp: Date.now() });
     } catch (error) {
       console.error(error);
     }
