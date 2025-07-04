@@ -280,7 +280,6 @@
 
     <script type="module">
         import { VoronoiGenerator } from './geometry/voronoi/VoronoiGenerator.js';
-        import { VoronoiImageExporter } from './import-export/VoronoiImageExporter.js';
         import { RiversGenerator } from './rivers/RiversGenerator.js';
         import { TributariesGenerator } from './rivers/TributariesGenerator.js';
         import { FeatureDrawer } from './drawer/FeatureDrawer.js';
@@ -289,7 +288,6 @@
 
         // State
         let voronoiGenerator = null;
-        let imageExporter = null;
         // let coastlineGenerator = null;
         // let hillsGenerator = null;
         // let lakesGenerator = null;
@@ -374,26 +372,10 @@
             const sites = voronoiGenerator.sites ? voronoiGenerator.sites.length : 0;
             const cells = voronoiGenerator.cells ? voronoiGenerator.cells.size : 0;
             const triangles = voronoiGenerator.delaunatorWrapper?.delaunay?.triangles?.length || 0;
-            // const coastalCells = coastlineGenerator ? coastlineGenerator.getCoastalCells().length : 0;
-            // const hillCells = hillsGenerator ? hillsGenerator.getHillCells().length : 0;
-            // const heightStats = hillsGenerator ? hillsGenerator.getHeightStats() : null;
-            // const maxHeight = heightStats ? Math.round(heightStats.maxHeight) : 0;
-            // const lakeCells = lakesGenerator ? lakesGenerator.getLakeCells().length : 0;
-            // const depthStats = lakesGenerator ? lakesGenerator.getDepthStats() : null;
-            // const maxDepth = depthStats ? Math.round(depthStats.maxDepth) : 0;
-            // const marshCells = marshGenerator ? marshGenerator.getMarshCells().length : 0;
-            // const riversCount = riversGenerator ? riversGenerator.getRiverPaths().length : 0;
 
             document.getElementById('sitesCount').textContent = sites;
             document.getElementById('cellsCount').textContent = cells;
             document.getElementById('trianglesCount').textContent = triangles;
-            // document.getElementById('coastalCellsCount').textContent = coastalCells;
-            // document.getElementById('hillCellsCount').textContent = hillCells;
-            // document.getElementById('maxHeight').textContent = maxHeight;
-            // document.getElementById('lakeCellsCount').textContent = lakeCells;
-            // document.getElementById('maxDepth').textContent = maxDepth;
-            // document.getElementById('marshCellsCount').textContent = marshCells;
-            // document.getElementById('riversCount').textContent = riversCount;
         }
 
         function getSettings() {
@@ -702,53 +684,58 @@
         }
 
         function drawDiagram() {
-            if (!voronoiGenerator || !imageExporter) return;
+            if (!voronoiGenerator || !featureDrawer) return;
 
             try {
-                // Store reference for image exporter
-                imageExporter.voronoiGenerator = voronoiGenerator;
-
-                if (riversGenerator) {
-                    imageExporter.setRiversGenerator(riversGenerator);
-                }
+                // Set voronoi generator reference in feature drawer
+                featureDrawer.setVoronoiGenerator(voronoiGenerator);
 
                 // Get triangulation data once
                 const triangulationData = voronoiGenerator.delaunatorWrapper;
 
-                const canvas = imageExporter.generateDiagramImage(
-                    voronoiGenerator.getCells(),
-                    voronoiGenerator.sites,
-                    triangulationData,
-                    {
-                        width: 800,
-                        height: 600,
-                        backgroundColor: '#0a0a0a',
-                        cellFillColors: ['#1a3a1a', '#2a4a2a', '#3a5a3a', '#4a6a4a'],
-                        cellStrokeColor: '#cccccc',
-                        siteColor: '#ffff00',
-                        triangulationColor: '#ffffff',
-                        voronoiColor: '#00ff88',
-                        coastalColor: '#0088ff',
-                        showSites: showSites,
-                        showCellBorders: true,
-                        showTriangulation: showTriangulation,
-                        showVoronoiEdges: showVoronoi,
-                        showVertices: showVertices,
-                        showCoastalCells: true,
-                        showHeightGradient: showHeightGradient,
-                        showLakes: showLakes,
-                        showMarshes: showMarshes,
-                        showRivers: showRivers,
-                        lineWidth: 1,
-                        siteRadius: 3
-                    }
-                );
+                // Prepare data for the complete diagram drawing
+                const diagramData = {
+                    cells: voronoiGenerator.getCells(),
+                    sites: voronoiGenerator.sites,
+                    triangulationData: triangulationData
+                };
 
-                // Copy to display canvas
-                const displayCanvas = document.getElementById('canvas');
-                const ctx = displayCanvas.getContext('2d');
-                ctx.clearRect(0, 0, displayCanvas.width, displayCanvas.height);
-                ctx.drawImage(canvas, 0, 0);
+                // Draw complete diagram using FeatureDrawer
+                featureDrawer.drawCompleteDiagram(diagramData, {
+                    backgroundColor: '#0a0a0a',
+                    showTriangulation: showTriangulation,
+                    showVoronoiEdges: showVoronoi,
+                    showCells: true,
+                    showSites: showSites,
+                    showVertices: showVertices,
+                    triangulationColor: '#888888',
+                    voronoiColor: '#00ff88',
+                    siteColor: '#ffff00',
+                    vertexColor: '#ff0000'
+                });
+
+                // Draw rivers if they exist (on top of diagram)
+                if (riversGenerator && showRivers) {
+                    const riverPaths = riversGenerator.getRiverPaths();
+                    if (riverPaths && riverPaths.length > 0) {
+                        riverPaths.forEach((path, index) => {
+                            if (path && path.length > 1) {
+                                // Convert vertex indices to coordinates
+                                const coordinates = path.map(vertexIndex => {
+                                    const vertex = voronoiGenerator.delaunatorWrapper.circumcenters[vertexIndex];
+                                    return vertex ? { x: vertex.x, z: vertex.z || vertex.y || 0 } : null;
+                                }).filter(coord => coord !== null);
+                                
+                                if (coordinates.length > 1) {
+                                    featureDrawer.drawPath(coordinates, {
+                                        color: 'blue',
+                                        width: 3
+                                    });
+                                }
+                            }
+                        });
+                    }
+                }
 
                 // Create hover elements for cell interaction
                 createCellHoverElements();
@@ -773,11 +760,6 @@
                 voronoiGenerator = new VoronoiGenerator(mockTerrainData, settings);
                 voronoiGenerator.setSeededRandom(seededRandom);
                 voronoiGenerator.generateVoronoi();
-                imageExporter = new VoronoiImageExporter(voronoiGenerator, settings);
-                // coastlineGenerator = new CoastlineGenerator(voronoiGenerator, settings);
-                // hillsGenerator = new HillsGenerator(voronoiGenerator, settings);
-                // lakesGenerator = new LakesGenerator(voronoiGenerator, settings);
-                // marshGenerator = new MarshGenerator(voronoiGenerator, settings);
                 riversGenerator = new RiversGenerator(voronoiGenerator, settings);
                 riversGenerator.setSeededRandom(seededRandom);
                 const tributarySettings = getTributarySettings();
@@ -818,273 +800,6 @@
                 log(`Error generating Voronoi: ${error.message}`);
                 console.error(error);
             }
-        });
-
-        document.getElementById('importDataBtn').addEventListener('click', function () {
-            document.getElementById('jsonFileInput').click();
-        });
-
-        document.getElementById('jsonFileInput').addEventListener('change', function (event) {
-            const file = event.target.files[0];
-            if (!file) return;
-
-            if (!file.name.endsWith('.json')) {
-                updateStatus('Error: Please select a JSON file');
-                log('Error: Invalid file type. Please select a JSON file.');
-                return;
-            }
-
-            updateStatus('Loading JSON file...');
-            log(`Loading file: ${file.name} (${Math.round(file.size / 1024)} KB)`);
-
-            const reader = new FileReader();
-            reader.onload = function (e) {
-                try {
-                    const importedData = JSON.parse(e.target.result);
-
-                    // Validate the imported data structure
-                    if (!importedData.metadata || !importedData.points || !importedData.triangles) {
-                        throw new Error('Invalid JSON structure. Missing required fields.');
-                    }
-
-                    if (importedData.metadata.version !== '1.0') {
-                        log(`Warning: Version mismatch. Expected 1.0, got ${importedData.metadata.version}`);
-                    }
-
-                    updateStatus('Reconstructing Voronoi diagram from imported data...');
-                    log('Validating imported data structure...');
-
-                    // Create new generators with imported settings
-                    const settings = importedData.metadata.settings || getSettings();
-                    
-                    // Create global seeded random number generator
-                    seededRandom = new Math.seedrandom(settings.voronoi.seed);
-                    
-                    voronoiGenerator = new VoronoiGenerator(mockTerrainData, settings);
-                    voronoiGenerator.setSeededRandom(seededRandom);
-                    imageExporter = new VoronoiImageExporter(voronoiGenerator, settings); 
-                    riversGenerator = new RiversGenerator(voronoiGenerator, settings);
-                    riversGenerator.setSeededRandom(seededRandom);
-                    const tributarySettings = getTributarySettings();
-                    tributarySettings.seed = settings.voronoi.seed;
-                    tributariesGenerator = new TributariesGenerator(voronoiGenerator, tributarySettings);
-                    tributariesGenerator.setSeededRandom(seededRandom);
-
-                    voronoiGenerator.generateVoronoi();
-                    updateStats();
-                    drawDiagram();
-                    enableDependentButtons(true);
-
-                    updateStatus(`Imported data successfully: ${importedData.points.length} points, ${importedData.triangles.length} triangles`);
-                    log(`Successfully imported: ${importedData.points.length} points, ${importedData.triangles.length} triangles, ${importedData.edges.length} edges, ${importedData.voronoiCells.length} cells`);
-                    log(`Original export: ${importedData.metadata.exportTimestamp}`);
-
-                    // Clear the file input
-                    event.target.value = '';
-
-                } catch (error) {
-                    updateStatus(`Error loading JSON: ${error.message}`);
-                    log(`Error loading JSON file: ${error.message}`);
-                    console.error('JSON Import Error:', error);
-
-                    // Clear the file input on error
-                    event.target.value = '';
-                }
-            };
-
-            reader.onerror = function () {
-                updateStatus('Error reading file');
-                log('Error: Failed to read the selected file');
-                event.target.value = '';
-            };
-
-            reader.readAsText(file);
-        });
-
-        function reconstructDelaunatorWrapper(importedData) {
-            log('Reconstructing DelaunatorWrapper...');
-
-            // Reconstruct points array
-            const points = importedData.points.map(pointData => ({
-                x: pointData.x,
-                z: pointData.z,
-                isBoundary: pointData.isBoundary
-            }));
-
-            // Create new DelaunatorWrapper instance
-            voronoiGenerator.delaunatorWrapper = new DelaunatorWrapper(points);
-            voronoiGenerator.delaunatorWrapper.triangulate()
-
-            log('DelaunatorWrapper reconstruction complete');
-        }
-
-        function reconstructVoronoiCells(importedData) {
-            log('Reconstructing VoronoiGenerator cells...');
-
-            // Clear existing cells
-            voronoiGenerator.cells.clear();
-
-            // Reconstruct sites array (filter out boundary points)
-            voronoiGenerator.sites = importedData.points
-                .filter(pointData => !pointData.isBoundary)
-                .map(pointData => ({
-                    x: pointData.x,
-                    z: pointData.z
-                }));
-
-            // Reconstruct VoronoiCell instances
-            importedData.voronoiCells.forEach(cellData => {
-                // Skip boundary cells if they exist
-                const correspondingPoint = importedData.points[cellData.site.index];
-                if (correspondingPoint && correspondingPoint.isBoundary) {
-                    return;
-                }
-
-                const cell = new (voronoiGenerator.cells.get(0)?.constructor || class {
-                    constructor(site, id) {
-                        this.site = site;
-                        this.id = id;
-                        this.vertices = [];
-                        this.neighbors = [];
-                        this.area = 0;
-                        this.perimeter = 0;
-                        this.affectedTiles = [];
-                        this.metadata = {};
-                    }
-                    addVertex(vertex) { this.vertices.push(vertex); return this; }
-                    addNeighbor(id) { if (!this.neighbors.includes(id)) this.neighbors.push(id); return this; }
-                    calculateArea() { return 0; }
-                    calculatePerimeter() { return 0; }
-                    setMetadata(key, value) { this.metadata[key] = value; return this; }
-                    getMetadata(key) { return this.metadata[key]; }
-                })(cellData.site, cellData.index);
-
-                // Reconstruct vertices
-                cellData.vertices.forEach(vertex => {
-                    cell.addVertex(vertex);
-                });
-
-                // Reconstruct neighbors
-                cellData.neighbors.forEach(neighborId => {
-                    cell.addNeighbor(neighborId);
-                });
-
-                voronoiGenerator.cells.set(cellData.index, cell);
-            });
-
-            log('VoronoiGenerator cells reconstruction complete');
-        }
-
-        document.getElementById('generateCoastBtn').addEventListener('click', function () {
-            // if (!coastlineGenerator) return;
-
-            // try {
-            //     const direction = document.getElementById('coastDirection').value;
-            //     const budget = parseInt(document.getElementById('coastBudget').value);
-            //     updateStatus(`Generating ${direction} coastline with budget ${budget}...`);
-
-            //     const coastalCells = coastlineGenerator.generateCoastline(direction, budget);
-
-            //     updateStats();
-            //     drawDiagram();
-
-            //     updateStatus(`Generated coastline with ${coastalCells.length} coastal cells (budget: ${budget})`);
-            //     log(`Generated ${direction} coastline: ${coastalCells.length} cells with budget ${budget}`);
-
-            // } catch (error) {
-            //     updateStatus(`Error: ${error.message}`);
-            //     log(`Error generating coastline: ${error.message}`);
-            //     console.error(error);
-            // }
-        });
-
-        document.getElementById('clearCoastBtn').addEventListener('click', function () {
-            // if (!coastlineGenerator) return;
-
-            // coastlineGenerator.clearCoastline();
-            // updateStats();
-            // drawDiagram();
-            // updateStatus('Coastlines cleared');
-            // log('Cleared all coastlines');
-        });
-
-        document.getElementById('generateHillsBtn').addEventListener('click', function () {
-            if (!hillsGenerator) return;
-
-            try {
-                const budget = parseInt(document.getElementById('hillsBudget').value);
-                const numOrigins = parseInt(document.getElementById('hillsOrigins').value);
-                const gradientEnabled = document.getElementById('hillsGradient').value === 'true';
-
-                updateStatus(`Generating hills with budget ${budget}, ${numOrigins} origins...`);
-
-                const hillCells = hillsGenerator.generateHills(budget, numOrigins, gradientEnabled);
-                const heightStats = hillsGenerator.getHeightStats();
-
-                updateStats();
-                drawDiagram();
-
-                updateStatus(`Generated ${hillCells.length} hill cells (max height: ${Math.round(heightStats.maxHeight)})`);
-                log(`Generated hills: ${hillCells.length} cells, ${numOrigins} origins, gradient: ${gradientEnabled}`);
-                if (heightStats.gradientEdges.length > 0) {
-                    log(`Gradient edges: ${heightStats.gradientEdges.join(', ')}`);
-                }
-
-            } catch (error) {
-                updateStatus(`Error: ${error.message}`);
-                log(`Error generating hills: ${error.message}`);
-                console.error(error);
-            }
-        });
-
-        document.getElementById('clearHillsBtn').addEventListener('click', function () {
-            if (!hillsGenerator) return;
-
-            hillsGenerator.clearHills();
-            updateStats();
-            drawDiagram();
-            updateStatus('Hills cleared');
-            log('Cleared all hills');
-        });
-
-        document.getElementById('generateLakesBtn').addEventListener('click', function () {
-                // if (!lakesGenerator) return;
-
-                // try {
-                //     const budget = parseInt(document.getElementById('lakesBudget').value);
-                //     const numOrigins = parseInt(document.getElementById('lakesOrigins').value);
-
-                //     // Set references to other generators to avoid overlaps
-                //     lakesGenerator.setCoastlineGenerator(coastlineGenerator);
-                //     lakesGenerator.setHillsGenerator(hillsGenerator);
-
-                //     updateStatus(`Generating lakes with budget ${budget}, ${numOrigins} origins...`);
-
-                //     const lakeCells = lakesGenerator.generateLakes(budget, numOrigins);
-                //     const depthStats = lakesGenerator.getDepthStats();
-
-                //     updateStats();
-                //     drawDiagram();
-
-                //     updateStatus(`Generated ${lakeCells.length} lake cells (max depth: ${Math.round(depthStats.maxDepth)})`);
-                //     log(`Generated lakes: ${lakeCells.length} cells, ${numOrigins} origins`);
-                //     log(`Depth range: ${Math.round(depthStats.minDepth)} - ${Math.round(depthStats.maxDepth)}`);
-
-                // } catch (error) {
-                //     updateStatus(`Error: ${error.message}`);
-                //     log(`Error generating lakes: ${error.message}`);
-                //     console.error(error);
-                // }
-        });
-
-        document.getElementById('clearLakesBtn').addEventListener('click', function () {
-            // if (!lakesGenerator) return;
-
-            // lakesGenerator.clearLakes();
-            // updateStats();
-            // drawDiagram();
-            // updateStatus('Lakes cleared');
-            // log('Cleared all lakes');
         });
 
         document.getElementById('generateRiversBtn').addEventListener('click', function () {
@@ -1166,28 +881,6 @@
 
             updateStats();
             drawDiagram();
-
-            // Draw blue rivers using FeatureDrawer (after drawDiagram to ensure they appear on top)
-            if (riverPaths && riverPaths.length > 0) {
-                riverPaths.forEach((path, index) => {
-                    if (path && path.length > 1) {
-                        // Convert vertex indices to coordinates
-                        const coordinates = path.map(vertexIndex => {
-                            const vertex = voronoiGenerator.delaunatorWrapper.circumcenters[vertexIndex];
-                            return vertex ? { x: vertex.x, z: vertex.z || vertex.y || 0 } : null;
-                        }).filter(coord => coord !== null);
-                        
-                        if (coordinates.length > 1) {
-                            featureDrawer.drawPath(coordinates, {
-                                color: 'blue',
-                                width: 3
-                            });
-                            log(`Drew river ${index + 1} with ${coordinates.length} coordinate points`);
-                        }
-                    }
-                });
-                log(`Drew ${riverPaths.length} blue river paths on canvas`);
-            }
 
             updateStatus(`Generated ${riverPaths.length} rivers (avg length: ${Math.round(riverStats.averageRiverLength)})`);
             log(`Generated rivers: ${riverPaths.length} paths, ${riverStats.totalRiverCells} total cells`);
@@ -1281,45 +974,8 @@
             document.getElementById('generateTributariesBtn').disabled = true;
         });
 
-        document.getElementById('generateMarshesBtn').addEventListener('click', function () {
-            // if (!marshGenerator) return;
-
-            // try {
-            //     // Set references to other generators for proximity detection
-            //     marshGenerator.setCoastlineGenerator(coastlineGenerator);
-            //     marshGenerator.setLakesGenerator(lakesGenerator);
-
-            //     updateStatus('Generating marshes...');
-
-            //     const marshCells = marshGenerator.generateMarshes();
-            //     const marshStats = marshGenerator.getMarshStats();
-
-            //     updateStats();
-            //     drawDiagram();
-
-            //     updateStatus(`Generated ${marshCells.length} marsh cells`);
-            //     log(`Generated marshes: ${marshCells.length} cells between lakes and coasts`);
-
-            // } catch (error) {
-            //     updateStatus(`Error: ${error.message}`);
-            //     log(`Error generating marshes: ${error.message}`);
-            //     console.error(error);
-            // }
-        });
-
-        document.getElementById('clearMarshesBtn').addEventListener('click', function () {
-            if (!marshGenerator) return;
-
-            marshGenerator.clearMarshes();
-            updateStats();
-            drawDiagram();
-            updateStatus('Marshes cleared');
-            log('Cleared all marshes');
-        });
-
         document.getElementById('clearAllBtn').addEventListener('click', function () {
             voronoiGenerator = null;
-            imageExporter = null;
             // coastlineGenerator = null;
             // hillsGenerator = null;
             // lakesGenerator = null;
@@ -1416,10 +1072,11 @@
         });
 
         document.getElementById('exportImageBtn').addEventListener('click', function () {
-            if (!imageExporter) return;
+            if (!featureDrawer) return;
 
             try {
-                const dataURL = imageExporter.exportAsDataURL();
+                const canvas = document.getElementById('canvas');
+                const dataURL = canvas.toDataURL('image/png');
                 const link = document.createElement('a');
                 link.href = dataURL;
                 link.download = `terrain_${Date.now()}.png`;

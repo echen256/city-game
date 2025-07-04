@@ -28,10 +28,10 @@ export class VoronoiGenerator {
     this.createVoronoiDiagram();
 
     // Create terrain features
-    this.createCellFeatures();
+   // this.createCellFeatures();
 
     // Assign tiles to cells
-    this.assignTilesToCells();
+   // this.assignTilesToCells();
 
     return this.cells;
   }
@@ -89,32 +89,6 @@ export class VoronoiGenerator {
       return this._seed / 233280;
     }
     return Math.random();
-  }
-
-  /**
-   * Generate random sites with minimum distance
-   */
-  generateRandomSites(numSites, minDistance) {
-    const { gridSize } = this.settings;
-    const maxAttempts = numSites * 10;
-    let attempts = 0;
-
-    while (this.sites.length < numSites && attempts < maxAttempts) {
-      const candidate = {
-        x: this.random() * gridSize,
-        z: this.random() * gridSize
-      };
-
-      // Check minimum distance
-      const valid = this.sites.every(site => {
-        const dx = candidate.x - site.x;
-        const dz = candidate.z - site.z;
-        return Math.sqrt(dx * dx + dz * dz) >= minDistance;
-      });
-
-      if (valid) this.sites.push(candidate);
-      attempts++;
-    }
   }
 
   /**
@@ -191,45 +165,6 @@ export class VoronoiGenerator {
     }
   }
 
-  /**
-   * Generate grid sites
-   */
-  generateGridSites(spacing) {
-    const { gridSize } = this.settings;
-    
-    for (let x = spacing / 2; x < gridSize; x += spacing) {
-      for (let z = spacing / 2; z < gridSize; z += spacing) {
-        this.sites.push({
-          x: x + (this.random() - 0.5) * spacing * 0.2,
-          z: z + (this.random() - 0.5) * spacing * 0.2
-        });
-      }
-    }
-  }
-
-  /**
-   * Generate hexagonal sites
-   */
-  generateHexagonalSites(spacing) {
-    const { gridSize } = this.settings;
-    const hexHeight = spacing * Math.sqrt(3) / 2;
-    
-    let row = 0;
-    for (let z = hexHeight / 2; z < gridSize; z += hexHeight) {
-      const offset = (row % 2) * spacing / 2;
-      for (let x = spacing / 2 + offset; x < gridSize; x += spacing) {
-        this.sites.push({
-          x: x + (this.random() - 0.5) * spacing * 0.1,
-          z: z + (this.random() - 0.5) * spacing * 0.1
-        });
-      }
-      row++;
-    }
-  }
-
-  /**
-   * Add boundary points for proper edge cells
-   */
   addBoundaryPoints() {
     const { gridSize } = this.settings;
     const margin = gridSize * 0.1;
@@ -316,53 +251,22 @@ export class VoronoiGenerator {
   /**
    * Create terrain features for cells
    */
-  createCellFeatures() {
-    this.cells.forEach((cell, cellId) => {
-      const feature = this.terrainData.createFeature('voronoi_cell');
+  // createCellFeatures() {
+  //   this.cells.forEach((cell, cellId) => {
+  //     const feature = this.terrainData.createFeature('voronoi_cell');
       
-      feature.setCentroid(cell.site.x, cell.site.z);
+  //     feature.setCentroid(cell.site.x, cell.site.z);
       
-      if (cell.vertices.length > 0) {
-        feature.addPointDistribution(cell.vertices);
-      }
+  //     if (cell.vertices.length > 0) {
+  //       feature.addPointDistribution(cell.vertices);
+  //     }
       
-      feature.setMetadata('cellId', cellId);
-      feature.setMetadata('area', cell.area);
-      feature.setMetadata('perimeter', cell.perimeter);
-      feature.setMetadata('neighbors', cell.neighbors);
-    });
-  }
-
-  /**
-   * Assign tiles to cells efficiently
-   */
-  assignTilesToCells() {
-    const { gridSize } = this.settings;
-    
-    // Pre-calculate which cell each tile belongs to
-    for (let x = 0; x < gridSize; x++) {
-      for (let z = 0; z < gridSize; z++) {
-        let minDist = Infinity;
-        let closestCell = null;
-        
-        // Find closest cell
-        // this.delaunatorWrapper.voronoiCells.forEach(cell => {
-        //   const dx = x - cell.site.x;
-        //   const dz = z - cell.site.z;
-        //   const dist = dx * dx + dz * dz; // No need for sqrt
-          
-        //   if (dist < minDist) {
-        //     minDist = dist;
-        //     closestCell = cell;
-        //   }
-        // });
-        
-        // if (closestCell) {
-        //   closestCell.affectedTiles.push({ x, z });
-        // }
-      }
-    }
-  }
+  //     feature.setMetadata('cellId', cellId);
+  //     feature.setMetadata('area', cell.area);
+  //     feature.setMetadata('perimeter', cell.perimeter);
+  //     feature.setMetadata('neighbors', cell.neighbors);
+  //   });
+  // }
 
   /**
    * Public API methods
