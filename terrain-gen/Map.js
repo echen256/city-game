@@ -4,18 +4,18 @@ import { TributariesGenerator } from './rivers/TributariesGenerator.js';
 import { FeatureDrawer } from './drawer/FeatureDrawer.js';
 import { GraphState } from './geometry/graph/GraphState.js';
 import { GraphUtils } from './geometry/graph/GraphUtils.js';
+import seedrandom from "seedrandom";
 
 export class Map {
-    constructor(featureDrawer,settings) {
+    constructor(featureDrawer, settings) {
         this.featureDrawer = featureDrawer;
         this.settings = settings;   
         this.graphState = new GraphState();
-        this.seededRandom = new Math.seedrandom(this.settings.seed);
-        this.voronoiGenerator = new VoronoiGenerator(this.graphState,this.settings,this.seededRandom);
+        this.seededRandom = seedrandom(this.settings.seed);
+        this.voronoiGenerator = new VoronoiGenerator(this.graphState, this.settings, this.seededRandom);
         this.graphState.settings = this.voronoiGenerator.settings; 
-        this.riversGenerator = new RiversGenerator(this.voronoiGenerator, this.settings,this.seededRandom);  
-        this.tributariesGenerator = new TributariesGenerator(this.voronoiGenerator, this.settings,this.seededRandom);
-       
+        this.riversGenerator = new RiversGenerator(this.voronoiGenerator, this.settings, this.seededRandom);  
+        this.tributariesGenerator = new TributariesGenerator(this.voronoiGenerator, this.settings, this.seededRandom);
     }
 
     updateSettings(settings) {
@@ -44,7 +44,7 @@ export class Map {
     generateRivers() {
         this.riversGenerator.generateRivers(this);
         this.drawDiagram();
-            }
+    }
 
     generateTributaries() {
         this.tributariesGenerator.generateTributaries(this);

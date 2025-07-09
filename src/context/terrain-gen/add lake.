@@ -1,0 +1,16 @@
+add lake.
+
+enhance the river curve.
+
+add creeks.
+    modify the branch algorim to add more branches without the need to 
+    add a point at the edge of the map. auto taper
+
+add beach smoothing.
+
+add coast edges.
+
+use sigmoidal smoothing for hills
+
+change terrain colors
+

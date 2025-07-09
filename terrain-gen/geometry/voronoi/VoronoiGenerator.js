@@ -33,7 +33,8 @@ export class VoronoiGenerator {
     const {  minDistance, seed, poissonRadius } = settings;
 
     this.sites = [];
-    if (seed !== undefined) this.seedRandom(seed);
+    // Seed is already used in the seededRandom function passed in constructor
+    // if (seed !== undefined) this.seedRandom(seed);
 
     this.generatePoissonSites(poissonRadius || minDistance);
  
