@@ -817,8 +817,12 @@ function initializeEventHandlers() {
         try {
             updateStatus('Exporting DelaunatorWrapper data...');
 
+            const riverPaths = map?.riversGenerator?.getRiverPaths ?
+                map.riversGenerator.getRiverPaths() : [];
+
             const exportData = buildVoronoiExport(map.voronoiGenerator.delaunatorWrapper, {
-                settings: map.voronoiGenerator.settings
+                settings: map.voronoiGenerator.settings,
+                riverPaths
             });
 
             // Convert to JSON string
@@ -836,7 +840,9 @@ function initializeEventHandlers() {
             URL.revokeObjectURL(url);
 
             updateStatus(`Data exported successfully (${Math.round(jsonString.length / 1024)} KB)`);
-            log(`Exported DelaunatorWrapper data: ${exportData.points.length} points, ${exportData.triangles.length} triangles, ${exportData.voronoiCells.length} cells`);
+            const riverMessage = exportData.rivers?.length ?
+                `, ${exportData.rivers.length} rivers` : '';
+            log(`Exported DelaunatorWrapper data: ${exportData.points.length} points, ${exportData.triangles.length} triangles, ${exportData.voronoiCells.length} cells${riverMessage}`);
 
         } catch (error) {
             updateStatus(`Error: ${error.message}`);
