@@ -8,7 +8,8 @@ export function buildVoronoiExport(delaunatorWrapper, options = {}) {
     description = 'Voronoi Delaunator data export',
     version = '1.0',
     exportTimestamp = new Date().toISOString(),
-    riverPaths = []
+    riverPaths = [],
+    coastlines = []
   } = options;
 
   const serializePoint = (point) => ({
@@ -75,6 +76,13 @@ export function buildVoronoiExport(delaunatorWrapper, options = {}) {
     };
   });
 
+  const exportedCoastlines = coastlines.map((coastline, index) => ({
+    index,
+    id: coastline.id ?? `coastline_${index + 1}`,
+    direction: coastline.direction ?? null,
+    cells: Array.from(coastline.cells || [])
+  }));
+
   const indexMapping = {
     validCellIndices: delaunatorWrapper.validCellIndices ?
       Array.from(delaunatorWrapper.validCellIndices) : null,
@@ -101,6 +109,7 @@ export function buildVoronoiExport(delaunatorWrapper, options = {}) {
     voronoiCells,
     delaunayCircumcenters,
     rivers,
+    coastlines: exportedCoastlines,
     voronoiAdjacentCells: {},
     indexMapping,
     delaunayRawData

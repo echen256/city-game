@@ -72,6 +72,8 @@ async function runGenerationTest() {
   // The voronoi snapshot predates river exports, so ignore river data here
   delete normalizedRegenerated.rivers;
   delete normalizedReference.rivers;
+  delete normalizedRegenerated.coastlines;
+  delete normalizedReference.coastlines;
 
   const regeneratedString = JSON.stringify(normalizedRegenerated);
   const referenceString = JSON.stringify(normalizedReference);

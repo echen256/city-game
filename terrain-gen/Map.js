@@ -2,6 +2,7 @@ import { VoronoiGenerator } from './geometry/voronoi/VoronoiGenerator.js';
 import { RiversGenerator } from './rivers/RiversGenerator.js';
 import { TributariesGenerator } from './rivers/TributariesGenerator.js';
 import { LakesGenerator } from './lakes/LakesGenerator.js';
+import { CoastlineGenerator } from './coastlines/CoastlineGenerator.js';
 import { FeatureDrawer } from './drawer/FeatureDrawer.js';
 import { GraphState } from './geometry/graph/GraphState.js';
 import { GraphUtils } from './geometry/graph/GraphUtils.js';
@@ -17,6 +18,7 @@ export class Map {
         this.riversGenerator = new RiversGenerator(this.voronoiGenerator, this.settings,this.seededRandom);  
         this.tributariesGenerator = new TributariesGenerator(this.voronoiGenerator, this.settings,this.seededRandom);
         this.lakesGenerator = new LakesGenerator(this.voronoiGenerator, this.settings, this.seededRandom);
+        this.coastlineGenerator = new CoastlineGenerator(this.voronoiGenerator, this.settings, this.seededRandom);
        
     }
 
@@ -32,6 +34,11 @@ export class Map {
             this.lakesGenerator.voronoiGenerator = this.voronoiGenerator;
             this.lakesGenerator.setSeededRandom(this.seededRandom);
         }
+        if (this.coastlineGenerator) {
+            this.coastlineGenerator.settings = settings;
+            this.coastlineGenerator.voronoiGenerator = this.voronoiGenerator;
+            this.coastlineGenerator.setSeededRandom(this.seededRandom);
+        }
     }
 
     generateMap(settings) {
@@ -42,6 +49,7 @@ export class Map {
         this.riversGenerator.generateRivers();
         this.tributariesGenerator.generateTributaries();
         this.lakesGenerator.generateLakes(this);
+        this.coastlineGenerator.generateCoastlines(this);
     }
 
     generateVoronoi() {
@@ -52,6 +60,21 @@ export class Map {
     generateRivers() {
         this.riversGenerator.generateRivers(this);
         this.drawDiagram();
+    }
+
+    generateCoastlines() {
+        if (!this.coastlineGenerator) {
+            throw new Error('Coastline generator is not initialized');
+        }
+        this.coastlineGenerator.generateCoastlines(this);
+        this.drawDiagram();
+    }
+
+    clearCoastlines() {
+        if (this.coastlineGenerator) {
+            this.coastlineGenerator.clearCoastlines();
+            this.drawDiagram();
+        }
     }
 
     generateLakes() {

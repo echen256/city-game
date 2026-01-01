@@ -503,6 +503,62 @@ export class FeatureDrawer {
     }
   }
 
+  drawCoastlines(map) {
+    const showCoastlines = this.settings?.coastlines?.showCoastlines !== false;
+    if (!showCoastlines) {
+      return;
+    }
+
+    const coastlineGenerator = map?.coastlineGenerator;
+    const voronoiCells = map?.voronoiGenerator?.delaunatorWrapper?.voronoiCells;
+    if (!coastlineGenerator || !voronoiCells) {
+      return;
+    }
+
+    const coastlines = coastlineGenerator.getCoastlines();
+    if (!coastlines || coastlines.length === 0) {
+      return;
+    }
+
+    const {
+      fillColor = 'rgba(0, 136, 255, 0.35)',
+      strokeColor = '#0088ff',
+      strokeWidth = 1
+    } = this.settings.coastlines.graphics || {};
+
+    const scaleX = this.canvas.width / this.gridSize;
+    const scaleZ = this.canvas.height / this.gridSize;
+
+    this.ctx.save();
+    this.ctx.lineWidth = strokeWidth;
+
+    coastlines.forEach((coastline) => {
+      coastline.cells.forEach((cellId) => {
+        const cell = voronoiCells.get(cellId);
+        if (!cell || !cell.vertices || cell.vertices.length < 3) {
+          return;
+        }
+
+        this.ctx.beginPath();
+        const firstVertex = cell.vertices[0];
+        this.ctx.moveTo(firstVertex.x * scaleX, (firstVertex.z || firstVertex.y || 0) * scaleZ);
+
+        for (let i = 1; i < cell.vertices.length; i++) {
+          const vertex = cell.vertices[i];
+          this.ctx.lineTo(vertex.x * scaleX, (vertex.z || vertex.y || 0) * scaleZ);
+        }
+
+        this.ctx.closePath();
+        this.ctx.fillStyle = fillColor;
+        this.ctx.strokeStyle = strokeColor;
+        this.ctx.fill();
+        this.ctx.stroke();
+      });
+    });
+
+    this.ctx.restore();
+  }
+
   drawLakes(map) {
     const showLakes = this.settings?.lakes?.showLakes !== false;
     if (!showLakes) {
@@ -612,6 +668,7 @@ export class FeatureDrawer {
 
       // Draw complete diagram using FeatureDrawer
       this.drawCompleteDiagram(map);
+      this.drawCoastlines(map);
       this.drawLakes(map);
       this.drawRivers(map);
       this.drawTributaries(map);

@@ -53,6 +53,7 @@ function updateStats() {
     const sitesEl = document.getElementById('sitesCount');
     const cellsEl = document.getElementById('cellsCount');
     const trianglesEl = document.getElementById('trianglesCount');
+    const coastalCellsEl = document.getElementById('coastalCellsCount');
     const lakeCellsEl = document.getElementById('lakeCellsCount');
 
     const hasVoronoi = map && map.voronoiGenerator && map.voronoiGenerator.delaunatorWrapper;
@@ -65,6 +66,7 @@ function updateStats() {
             const el = document.getElementById(id);
             if (el) el.textContent = '0';
         });
+        if (coastalCellsEl) coastalCellsEl.textContent = '0';
         if (lakeCellsEl) lakeCellsEl.textContent = '0';
         return;
     }
@@ -77,6 +79,10 @@ function updateStats() {
     if (sitesEl) sitesEl.textContent = sites;
     if (cellsEl) cellsEl.textContent = cells;
     if (trianglesEl) trianglesEl.textContent = triangles;
+
+    if (coastalCellsEl && map.coastlineGenerator?.getCoastlineCellCount) {
+        coastalCellsEl.textContent = map.coastlineGenerator.getCoastlineCellCount().toString();
+    }
 
     if (lakeCellsEl && map.lakesGenerator?.getLakeCellCount) {
         lakeCellsEl.textContent = map.lakesGenerator.getLakeCellCount().toString();
@@ -95,6 +101,16 @@ function getSettings() {
             poissonRadius: parseInt(document.getElementById('poissonRadius').value),
             graphics: {
                
+            }
+        },
+        coastlines: {
+            showCoastlines: true,
+            direction: document.getElementById('coastDirection').value,
+            budget: parseInt(document.getElementById('coastBudget').value, 10) || 0,
+            graphics: {
+                fillColor: 'rgba(0, 136, 255, 0.35)',
+                strokeColor: '#0088ff',
+                strokeWidth: 1
             }
         },
         rivers: {
@@ -700,6 +716,41 @@ function initializeEventHandlers() {
         }
     });
 
+    document.getElementById('generateCoastBtn').addEventListener('click', function () {
+        if (!map) {
+            log('Error: Generate the Voronoi diagram first');
+            return;
+        }
+        try {
+            map.generateCoastlines();
+            const coastCount = map.coastlineGenerator?.getCoastlineCellCount?.() || 0;
+            updateStatus(`Generated coastline covering ${coastCount} cells`);
+            log(`Generated coastline covering ${coastCount} cells`);
+            updateStats();
+        } catch (error) {
+            updateStatus(`Error: ${error.message}`);
+            log(`Error generating coastline: ${error.message}`);
+            console.error(error);
+        }
+    });
+
+    document.getElementById('clearCoastBtn').addEventListener('click', function () {
+        if (!map?.coastlineGenerator) {
+            log('No coastlines to clear');
+            return;
+        }
+        try {
+            map.clearCoastlines();
+            updateStats();
+            updateStatus('Cleared coastlines');
+            log('Cleared all coastlines');
+        } catch (error) {
+            updateStatus(`Error: ${error.message}`);
+            log(`Error clearing coastlines: ${error.message}`);
+            console.error(error);
+        }
+    });
+
     document.getElementById('generateLakesBtn').addEventListener('click', function () {
         if (!map) {
             log('Error: Generate the Voronoi diagram first');
@@ -751,6 +802,12 @@ function initializeEventHandlers() {
     });
 
     document.getElementById('clearAllBtn').addEventListener('click', function () {
+        if (map?.coastlineGenerator) {
+            map.clearCoastlines();
+        }
+        if (map?.lakesGenerator) {
+            map.clearLakes();
+        }
         map = null;
         voronoiGenerator = null;
         // coastlineGenerator = null;
@@ -878,10 +935,13 @@ function initializeEventHandlers() {
 
             const riverPaths = map?.riversGenerator?.getRiverPaths ?
                 map.riversGenerator.getRiverPaths() : [];
+            const coastlines = map?.coastlineGenerator?.getCoastlines ?
+                map.coastlineGenerator.getCoastlines() : [];
 
             const exportData = buildVoronoiExport(map.voronoiGenerator.delaunatorWrapper, {
                 settings: map.voronoiGenerator.settings,
-                riverPaths
+                riverPaths,
+                coastlines
             });
 
             // Convert to JSON string
@@ -901,7 +961,9 @@ function initializeEventHandlers() {
             updateStatus(`Data exported successfully (${Math.round(jsonString.length / 1024)} KB)`);
             const riverMessage = exportData.rivers?.length ?
                 `, ${exportData.rivers.length} rivers` : '';
-            log(`Exported DelaunatorWrapper data: ${exportData.points.length} points, ${exportData.triangles.length} triangles, ${exportData.voronoiCells.length} cells${riverMessage}`);
+            const coastMessage = exportData.coastlines?.length ?
+                `, ${exportData.coastlines.length} coastlines` : '';
+            log(`Exported DelaunatorWrapper data: ${exportData.points.length} points, ${exportData.triangles.length} triangles, ${exportData.voronoiCells.length} cells${riverMessage}${coastMessage}`);
 
         } catch (error) {
             updateStatus(`Error: ${error.message}`);
