@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "node tests/run-all-tests.js",
-    "test:generation": "node tests/generation/voronoi-generation.test.js && node tests/generation/rivers/river-generation.test.js"
+    "test:generation": "node tests/generation/voronoi-generation.test.js && node tests/generation/rivers/river-generation.test.js && node tests/generation/lakes/lake-generation.test.js"
   },
   "devDependencies": {
     "vite": "^7.0.0"

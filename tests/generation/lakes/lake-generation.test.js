@@ -6,7 +6,7 @@ import seedrandom from 'seedrandom';
 
 import { GraphState } from '../../../terrain-gen/geometry/graph/GraphState.js';
 import { VoronoiGenerator } from '../../../terrain-gen/geometry/voronoi/VoronoiGenerator.js';
-import { RiversGenerator } from '../../../terrain-gen/rivers/RiversGenerator.js';
+import { LakesGenerator } from '../../../terrain-gen/lakes/LakesGenerator.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -18,13 +18,20 @@ async function loadReferenceSnapshot() {
   return JSON.parse(file);
 }
 
-async function runRiverGenerationTest() {
+function normalizeLake(lake) {
+  return {
+    id: lake.id,
+    cells: [...lake.cells].map(Number).sort((a, b) => a - b)
+  };
+}
+
+async function runLakeGenerationTest() {
   const referenceData = await loadReferenceSnapshot();
   const metadata = referenceData.metadata || {};
   const settings = metadata.settings;
 
   assert.ok(settings, 'Reference snapshot is missing settings metadata');
-  assert.ok(Array.isArray(referenceData.rivers), 'Reference snapshot is missing river data');
+  assert.ok(Array.isArray(referenceData.lakes), 'Reference snapshot is missing lake data');
 
   const seededRandom = seedrandom(settings.seed);
   const graphState = new GraphState();
@@ -32,40 +39,34 @@ async function runRiverGenerationTest() {
 
   voronoiGenerator.generateVoronoi({ settings });
 
-  const riversGenerator = new RiversGenerator(voronoiGenerator, settings, seededRandom);
-  const mapContext = {
-    settings,
-    graphState
-  };
+  const lakesGenerator = new LakesGenerator(voronoiGenerator, settings, seededRandom);
+  const generatedLakes = lakesGenerator.generateLakes({ settings });
 
-  const generatedRivers = riversGenerator.generateRivers(mapContext);
-  const referenceRivers = referenceData.rivers.map(river => river.vertexIndices);
+  const normalizedGenerated = generatedLakes.map(normalizeLake);
+  const normalizedReference = referenceData.lakes.map(normalizeLake);
 
   assert.strictEqual(
-    generatedRivers.length,
-    referenceRivers.length,
-    'Generated rivers count does not match reference data'
+    normalizedGenerated.length,
+    normalizedReference.length,
+    'Generated lake count does not match reference data'
   );
 
-  generatedRivers.forEach((riverPath, index) => {
-    const normalizedPath = riverPath.map(Number);
-    const referencePath = referenceRivers[index].map(Number);
-
+  normalizedGenerated.forEach((lake, index) => {
     assert.deepStrictEqual(
-      normalizedPath,
-      referencePath,
-      `River path ${index} does not match reference data`
+      lake,
+      normalizedReference[index],
+      `Lake ${index} does not match reference data`
     );
   });
 
   console.log('**************************************************');
-  console.log('Success: River generation matches reference data.');
+  console.log('Success: Lake generation matches reference data.');
   console.log('**************************************************');
 }
 
-runRiverGenerationTest().catch((error) => {
+runLakeGenerationTest().catch((error) => {
   console.log('**************************************************');
-  console.log('Error: River generation does not match reference data.');
+  console.log('Error: Lake generation does not match reference data.');
   console.error(error);
   console.log('**************************************************');
   process.exitCode = 1;
