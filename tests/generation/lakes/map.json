@@ -1,0 +1,87 @@
+{
+  "metadata": {
+    "description": "Lake generation snapshot",
+    "version": "1.0",
+    "settings": {
+      "gridSize": 600,
+      "margin": 60,
+      "seed": 12345,
+      "voronoi": {
+        "enabled": true,
+        "numSites": 50,
+        "distribution": "poisson",
+        "poissonRadius": 25,
+        "graphics": {}
+      },
+      "rivers": {
+        "showRivers": true,
+        "numRivers": 2,
+        "graphics": {
+          "color": "blue",
+          "width": 3
+        }
+      },
+      "lakes": {
+        "showLakes": true,
+        "budget": 30,
+        "numLakes": 2,
+        "graphics": {
+          "fillColor": "rgba(77, 166, 255, 0.45)",
+          "strokeColor": "#4da6ff",
+          "strokeWidth": 1.5
+        }
+      },
+      "tributaries": {
+        "showTributaries": true,
+        "numTributaries": 5,
+        "maxTributaryLength": 5,
+        "graphics": {
+          "color": "#00BFFF",
+          "width": 2
+        }
+      }
+    }
+  },
+  "lakes": [
+    {
+      "id": "lake_1",
+      "cells": [
+        273,
+        296,
+        299,
+        300,
+        301,
+        303,
+        304,
+        305,
+        308,
+        309,
+        310,
+        311,
+        312,
+        314,
+        315
+      ]
+    },
+    {
+      "id": "lake_2",
+      "cells": [
+        77,
+        121,
+        123,
+        126,
+        131,
+        133,
+        136,
+        142,
+        149,
+        150,
+        151,
+        153,
+        176,
+        178,
+        209
+      ]
+    }
+  ]
+}

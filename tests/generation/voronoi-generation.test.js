@@ -10,7 +10,7 @@ import { buildVoronoiExport } from '../../terrain-gen/utils/exportVoronoiData.js
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const SNAPSHOT_FILENAME = 'voronoi_data_1767305915623.json';
+const SNAPSHOT_FILENAME = 'map.json';
 const FLOAT_TOLERANCE_DIGITS = 9;
 
 function normalizeNumericValues(value) {

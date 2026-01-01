@@ -503,6 +503,62 @@ export class FeatureDrawer {
     }
   }
 
+  drawLakes(map) {
+    const showLakes = this.settings?.lakes?.showLakes !== false;
+    if (!showLakes) {
+      return;
+    }
+
+    const lakesGenerator = map?.lakesGenerator;
+    const voronoiCells = map?.voronoiGenerator?.delaunatorWrapper?.voronoiCells;
+    if (!lakesGenerator || !voronoiCells) {
+      return;
+    }
+
+    const lakes = lakesGenerator.getLakes();
+    if (!lakes || lakes.length === 0) {
+      return;
+    }
+
+    const {
+      fillColor = 'rgba(77, 166, 255, 0.45)',
+      strokeColor = '#4da6ff',
+      strokeWidth = 1.5
+    } = this.settings.lakes.graphics || {};
+
+    const scaleX = this.canvas.width / this.gridSize;
+    const scaleZ = this.canvas.height / this.gridSize;
+
+    this.ctx.save();
+    this.ctx.lineWidth = strokeWidth;
+
+    lakes.forEach((lake) => {
+      lake.cells.forEach((cellId) => {
+        const cell = voronoiCells.get(cellId);
+        if (!cell || !cell.vertices || cell.vertices.length < 3) {
+          return;
+        }
+
+        this.ctx.beginPath();
+        const firstVertex = cell.vertices[0];
+        this.ctx.moveTo(firstVertex.x * scaleX, (firstVertex.z || firstVertex.y || 0) * scaleZ);
+
+        for (let i = 1; i < cell.vertices.length; i++) {
+          const vertex = cell.vertices[i];
+          this.ctx.lineTo(vertex.x * scaleX, (vertex.z || vertex.y || 0) * scaleZ);
+        }
+
+        this.ctx.closePath();
+        this.ctx.fillStyle = fillColor;
+        this.ctx.strokeStyle = strokeColor;
+        this.ctx.fill();
+        this.ctx.stroke();
+      });
+    });
+
+    this.ctx.restore();
+  }
+
   drawRivers(map) {
     if (map.riversGenerator && this.settings.rivers.showRivers) {
       const riverPaths = map.riversGenerator.getRiverPaths();
@@ -556,6 +612,7 @@ export class FeatureDrawer {
 
       // Draw complete diagram using FeatureDrawer
       this.drawCompleteDiagram(map);
+      this.drawLakes(map);
       this.drawRivers(map);
       this.drawTributaries(map);
       

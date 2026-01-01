@@ -1,6 +1,7 @@
 import { VoronoiGenerator } from './geometry/voronoi/VoronoiGenerator.js';
 import { RiversGenerator } from './rivers/RiversGenerator.js';
 import { TributariesGenerator } from './rivers/TributariesGenerator.js';
+import { LakesGenerator } from './lakes/LakesGenerator.js';
 import { FeatureDrawer } from './drawer/FeatureDrawer.js';
 import { GraphState } from './geometry/graph/GraphState.js';
 import { GraphUtils } from './geometry/graph/GraphUtils.js';
@@ -15,6 +16,7 @@ export class Map {
         this.graphState.settings = this.voronoiGenerator.settings; 
         this.riversGenerator = new RiversGenerator(this.voronoiGenerator, this.settings,this.seededRandom);  
         this.tributariesGenerator = new TributariesGenerator(this.voronoiGenerator, this.settings,this.seededRandom);
+        this.lakesGenerator = new LakesGenerator(this.voronoiGenerator, this.settings, this.seededRandom);
        
     }
 
@@ -25,6 +27,11 @@ export class Map {
         this.voronoiGenerator.settings = settings;
         this.riversGenerator.settings = settings;
         this.tributariesGenerator.settings = settings; 
+        if (this.lakesGenerator) {
+            this.lakesGenerator.settings = settings;
+            this.lakesGenerator.voronoiGenerator = this.voronoiGenerator;
+            this.lakesGenerator.setSeededRandom(this.seededRandom);
+        }
     }
 
     generateMap(settings) {
@@ -34,6 +41,7 @@ export class Map {
         this.voronoiGenerator.generateVoronoi();
         this.riversGenerator.generateRivers();
         this.tributariesGenerator.generateTributaries();
+        this.lakesGenerator.generateLakes(this);
     }
 
     generateVoronoi() {
@@ -44,7 +52,22 @@ export class Map {
     generateRivers() {
         this.riversGenerator.generateRivers(this);
         this.drawDiagram();
-            }
+    }
+
+    generateLakes() {
+        if (!this.lakesGenerator) {
+            throw new Error('Lakes generator is not initialized');
+        }
+        this.lakesGenerator.generateLakes(this);
+        this.drawDiagram();
+    }
+
+    clearLakes() {
+        if (this.lakesGenerator) {
+            this.lakesGenerator.clearLakes();
+            this.drawDiagram();
+        }
+    }
 
     generateTributaries() {
         this.tributariesGenerator.generateTributaries(this);

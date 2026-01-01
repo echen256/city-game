@@ -50,27 +50,37 @@ function updateStatus(message) {
 }
 
 function updateStats() {
-    if (!voronoiGenerator) {
-        document.getElementById('sitesCount').textContent = '0';
-        document.getElementById('cellsCount').textContent = '0';
-        document.getElementById('trianglesCount').textContent = '0';
-        document.getElementById('coastalCellsCount').textContent = '0';
-        document.getElementById('hillCellsCount').textContent = '0';
-        document.getElementById('maxHeight').textContent = '0';
-        document.getElementById('lakeCellsCount').textContent = '0';
-        document.getElementById('maxDepth').textContent = '0';
-        document.getElementById('marshCellsCount').textContent = '0';
-        document.getElementById('riversCount').textContent = '0';
+    const sitesEl = document.getElementById('sitesCount');
+    const cellsEl = document.getElementById('cellsCount');
+    const trianglesEl = document.getElementById('trianglesCount');
+    const lakeCellsEl = document.getElementById('lakeCellsCount');
+
+    const hasVoronoi = map && map.voronoiGenerator && map.voronoiGenerator.delaunatorWrapper;
+    if (!hasVoronoi) {
+        if (sitesEl) sitesEl.textContent = '0';
+        if (cellsEl) cellsEl.textContent = '0';
+        if (trianglesEl) trianglesEl.textContent = '0';
+        const zeroIds = ['coastalCellsCount', 'hillCellsCount', 'maxHeight', 'maxDepth', 'marshCellsCount', 'riversCount'];
+        zeroIds.forEach((id) => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = '0';
+        });
+        if (lakeCellsEl) lakeCellsEl.textContent = '0';
         return;
     }
 
-    const sites = voronoiGenerator.delaunatorWrapper.points ? voronoiGenerator.delaunatorWrapper.points.length : 0;
-    const cells = voronoiGenerator.delaunatorWrapper.voronoiCells ? voronoiGenerator.delaunatorWrapper.voronoiCells.size : 0;
-    const triangles = voronoiGenerator.delaunatorWrapper?.delaunay?.triangles?.length || 0;
+    const delaunatorWrapper = map.voronoiGenerator.delaunatorWrapper;
+    const sites = delaunatorWrapper.points ? delaunatorWrapper.points.length : 0;
+    const cells = delaunatorWrapper.voronoiCells ? delaunatorWrapper.voronoiCells.size : 0;
+    const triangles = delaunatorWrapper?.delaunay?.triangles?.length || 0;
 
-    document.getElementById('sitesCount').textContent = sites;
-    document.getElementById('cellsCount').textContent = cells;
-    document.getElementById('trianglesCount').textContent = triangles;
+    if (sitesEl) sitesEl.textContent = sites;
+    if (cellsEl) cellsEl.textContent = cells;
+    if (trianglesEl) trianglesEl.textContent = triangles;
+
+    if (lakeCellsEl && map.lakesGenerator?.getLakeCellCount) {
+        lakeCellsEl.textContent = map.lakesGenerator.getLakeCellCount().toString();
+    }
 }
 
 function getSettings() {
@@ -88,11 +98,21 @@ function getSettings() {
             }
         },
         rivers: {
-            showRivers: true,
+            showRivers,
             numRivers: parseInt(document.getElementById('riversCount').value), 
             graphics: {
                color: 'blue',
                width: 3
+            }
+        },
+        lakes: {
+            showLakes,
+            budget: parseInt(document.getElementById('lakesBudget').value, 10) || 0,
+            numLakes: parseInt(document.getElementById('lakesOrigins').value, 10) || 1,
+            graphics: {
+                fillColor: 'rgba(77, 166, 255, 0.45)',
+                strokeColor: '#4da6ff',
+                strokeWidth: 1.5
             }
         },
         tributaries: {
@@ -651,6 +671,7 @@ function initializeEventHandlers() {
 
             map = new Map(featureDrawer, getSettings());
             map.generateVoronoi();
+            voronoiGenerator = map.voronoiGenerator;
             
             // Enable debugging buttons
             document.getElementById('refreshGraphStateBtn').disabled = false;
@@ -660,6 +681,7 @@ function initializeEventHandlers() {
 
             updateStatus('Voronoi diagram generated successfully');
             log(`Generated ${map.voronoiGenerator.delaunatorWrapper.points.length} sites and ${map.voronoiGenerator.delaunatorWrapper.voronoiCells.size} cells`);
+            updateStats();
 
         } catch (error) {
             updateStatus(`Error: ${error.message}`);
@@ -674,6 +696,42 @@ function initializeEventHandlers() {
         } catch (error) {
             updateStatus(`Error: ${error.message}`);
             log(`Error generating rivers: ${error.message}`);
+            console.error(error);
+        }
+    });
+
+    document.getElementById('generateLakesBtn').addEventListener('click', function () {
+        if (!map) {
+            log('Error: Generate the Voronoi diagram first');
+            return;
+        }
+        try {
+            map.generateLakes();
+            const lakeCount = map.lakesGenerator?.getLakes()?.length || 0;
+            const lakeCells = map.lakesGenerator?.getLakeCellCount?.() || 0;
+            updateStatus(`Generated ${lakeCount} lakes covering ${lakeCells} cells`);
+            log(`Generated ${lakeCount} lakes covering ${lakeCells} cells`);
+            updateStats();
+        } catch (error) {
+            updateStatus(`Error: ${error.message}`);
+            log(`Error generating lakes: ${error.message}`);
+            console.error(error);
+        }
+    });
+
+    document.getElementById('clearLakesBtn').addEventListener('click', function () {
+        if (!map?.lakesGenerator) {
+            log('No lakes to clear');
+            return;
+        }
+        try {
+            map.clearLakes();
+            updateStats();
+            updateStatus('Cleared lakes');
+            log('Cleared all lakes');
+        } catch (error) {
+            updateStatus(`Error: ${error.message}`);
+            log(`Error clearing lakes: ${error.message}`);
             console.error(error);
         }
     });
@@ -694,6 +752,7 @@ function initializeEventHandlers() {
 
     document.getElementById('clearAllBtn').addEventListener('click', function () {
         map = null;
+        voronoiGenerator = null;
         // coastlineGenerator = null;
         // hillsGenerator = null;
         // lakesGenerator = null;

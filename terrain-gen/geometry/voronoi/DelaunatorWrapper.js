@@ -162,8 +162,7 @@ export class DelaunatorWrapper {
       const cell = this.voronoiCells.get(p);
       
       if (circum.length > 0) {
-        // Sort vertices counterclockwise
-        cell.vertices = this.sortCounterclockwise(cell.site, circum);
+        cell.vertices = this.orderVerticesCyclically(circum);
       }
       
       // Find neighbors using edges
@@ -231,12 +230,30 @@ export class DelaunatorWrapper {
     }
   }
 
-  sortCounterclockwise(center, vertices) {
-    return vertices.sort((a, b) => {
-      const angleA = Math.atan2(a.z - center.z, a.x - center.x);
-      const angleB = Math.atan2(b.z - center.z, b.x - center.x);
-      return angleA - angleB;
-    });
+  orderVerticesCyclically(vertices) {
+    if (!vertices || vertices.length <= 2) {
+      return vertices || [];
+    }
+
+    const centroid = vertices.reduce((acc, vertex) => {
+      const vz = vertex.z !== undefined ? vertex.z : (vertex.y || 0);
+      acc.x += vertex.x;
+      acc.z += vz;
+      return acc;
+    }, { x: 0, z: 0 });
+
+    centroid.x /= vertices.length;
+    centroid.z /= vertices.length;
+
+    return vertices
+      .slice()
+      .sort((a, b) => {
+        const az = a.z !== undefined ? a.z : (a.y || 0);
+        const bz = b.z !== undefined ? b.z : (b.y || 0);
+        const angleA = Math.atan2(az - centroid.z, a.x - centroid.x);
+        const angleB = Math.atan2(bz - centroid.z, b.x - centroid.x);
+        return angleA - angleB;
+      });
   }
 
   // Get Voronoi edges more efficiently using halfedges

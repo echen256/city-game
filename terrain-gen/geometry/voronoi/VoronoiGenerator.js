@@ -188,7 +188,7 @@ export class VoronoiGenerator {
         // Add vertices (clip to bounds)
         cellData.vertices.forEach(v => {
           // Check original coordinates for boundary detection
-          
+         
  
           // Add clipped vertex to cell
           cell.addVertex({
@@ -196,6 +196,9 @@ export class VoronoiGenerator {
             z: Math.max(0, Math.min(this.settings.gridSize, v.z)),
           });
         });
+        if (cell.vertices.length > 2 && this.delaunatorWrapper?.orderVerticesCyclically) {
+          cell.vertices = this.delaunatorWrapper.orderVerticesCyclically(cell.vertices);
+        }
         
         // Set boundary type based on which boundaries the cell touches
    
