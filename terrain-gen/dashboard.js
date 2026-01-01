@@ -5,6 +5,7 @@ import { FeatureDrawer } from './drawer/FeatureDrawer.js';
 import { GraphState } from './geometry/graph/GraphState.js';
 import { GraphUtils } from './geometry/graph/GraphUtils.js';
 import { Map } from './Map.js';
+import { buildVoronoiExport } from './utils/exportVoronoiData.js';
 
 // State
 let voronoiGenerator = null;
@@ -816,64 +817,13 @@ function initializeEventHandlers() {
         try {
             updateStatus('Exporting DelaunatorWrapper data...');
 
-            const delaunatorWrapper = map.voronoiGenerator.delaunatorWrapper;
+            const riverPaths = map?.riversGenerator?.getRiverPaths ?
+                map.riversGenerator.getRiverPaths() : [];
 
-            // Prepare export data object
-            const exportData = {
-                metadata: {
-                    exportTimestamp: new Date().toISOString(),
-                    version: '1.0',
-                    description: 'Voronoi Delaunator data export',
-                    settings: map.voronoiGenerator.settings
-                },
-                points: delaunatorWrapper.points.map((point, index) => ({
-                    index: index,
-                    x: point.x,
-                    z: point.z || point.y || 0,
-                    isBoundary: point.isBoundary || false
-                })),
-                triangles: delaunatorWrapper.delaunay ? 
-                    Array.from(delaunatorWrapper.delaunay.triangles) : [],
-                edges: delaunatorWrapper.edges.map((edge, index) => ({
-                    index: index,
-                    id: edge.id,
-                    pointA: { x: edge.a.x, z: edge.a.z || edge.a.y || 0 },
-                    pointB: { x: edge.b.x, z: edge.b.z || edge.b.y || 0 },
-                    length: edge.length ? edge.length() : null
-                })),
-                voronoiCells: Array.from(delaunatorWrapper.voronoiCells.entries()).map(([index, cell]) => ({
-                    index: index,
-                    site: {
-                        x: cell.site.x,
-                        z: cell.site.z || cell.site.y || 0,
-                        index: cell.siteIndex
-                    },
-                    vertices: cell.vertices.map(vertex => ({
-                        x: vertex.x,
-                        z: vertex.z,
-                        triangleIndex: vertex.triangleIndex
-                    })),
-                    neighbors: Array.from(cell.neighbors || [])
-                })),
-                delaunayCircumcenters: delaunatorWrapper.circumcenters ?
-                    delaunatorWrapper.circumcenters.map((center, index) => ({
-                        index: index,
-                        x: center ? center.x : null,
-                        z: center ? center.z : null
-                    })) : [],
-                voronoiAdjacentCells: {}, // Simplified - not used in streamlined version
-                indexMapping: {
-                    validCellIndices: delaunatorWrapper.validCellIndices ?
-                        Array.from(delaunatorWrapper.validCellIndices) : null,
-                    indexMapping: delaunatorWrapper.indexMapping ?
-                        Object.fromEntries(delaunatorWrapper.indexMapping) : null
-                },
-                delaunayRawData: delaunatorWrapper.delaunay ? {
-                    triangles: Array.from(delaunatorWrapper.delaunay.triangles),
-                    halfedges: Array.from(delaunatorWrapper.delaunay.halfedges),
-                    hull: Array.from(delaunatorWrapper.delaunay.hull)
-                } : null
-            };
+            const exportData = buildVoronoiExport(map.voronoiGenerator.delaunatorWrapper, {
+                settings: map.voronoiGenerator.settings,
+                riverPaths
+            });
 
             // Convert to JSON string
             const jsonString = JSON.stringify(exportData, null, 2);
@@ -890,7 +840,9 @@ function initializeEventHandlers() {
             URL.revokeObjectURL(url);
 
             updateStatus(`Data exported successfully (${Math.round(jsonString.length / 1024)} KB)`);
-            log(`Exported DelaunatorWrapper data: ${exportData.points.length} points, ${exportData.triangles.length} triangles, ${exportData.voronoiCells.length} cells`);
+            const riverMessage = exportData.rivers?.length ?
+                `, ${exportData.rivers.length} rivers` : '';
+            log(`Exported DelaunatorWrapper data: ${exportData.points.length} points, ${exportData.triangles.length} triangles, ${exportData.voronoiCells.length} cells${riverMessage}`);
 
         } catch (error) {
             updateStatus(`Error: ${error.message}`);
