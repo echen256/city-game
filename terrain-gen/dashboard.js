@@ -938,11 +938,14 @@ function initializeEventHandlers() {
                 map.riversGenerator.getRiverPaths() : [];
             const coastlines = map?.coastlineGenerator?.getCoastlines ?
                 map.coastlineGenerator.getCoastlines() : [];
+            const lakes = map?.lakesGenerator?.getLakes ?
+                map.lakesGenerator.getLakes() : [];
 
             const exportData = buildVoronoiExport(map.voronoiGenerator.delaunatorWrapper, {
                 settings: map.voronoiGenerator.settings,
                 riverPaths,
-                coastlines
+                coastlines,
+                lakes
             });
 
             // Convert to JSON string
@@ -964,7 +967,9 @@ function initializeEventHandlers() {
                 `, ${exportData.rivers.length} rivers` : '';
             const coastMessage = exportData.coastlines?.length ?
                 `, ${exportData.coastlines.length} coastlines` : '';
-            log(`Exported DelaunatorWrapper data: ${exportData.points.length} points, ${exportData.triangles.length} triangles, ${exportData.voronoiCells.length} cells${riverMessage}${coastMessage}`);
+            const lakeMessage = exportData.lakes?.length ?
+                `, ${exportData.lakes.length} lakes` : '';
+            log(`Exported DelaunatorWrapper data: ${exportData.points.length} points, ${exportData.triangles.length} triangles, ${exportData.voronoiCells.length} cells${riverMessage}${coastMessage}${lakeMessage}`);
 
         } catch (error) {
             updateStatus(`Error: ${error.message}`);
