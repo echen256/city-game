@@ -1,4 +1,5 @@
 import { PathFinder } from './Pathfinder.js';
+import { isVertexOutOfBounds } from '../utils/edgeDetection.js';
 
 /**
  * Rivers generator using pathfinding
@@ -103,23 +104,20 @@ export class RiversGenerator {
   selectNorthEdgePoint(graphData) {
     console.log('=== SELECTING NORTH EDGE START POINT ===');
     const gridSize = this.voronoiGenerator.settings.gridSize;
-    const edgeTolerance = 30; // Distance from edge to consider "edge vertex"
     const northEdgeVertices = [];
 
     console.log(`Graph data has ${graphData.circumcenters.length} total circumcenters`);
 
     // Check circumcenters (Voronoi vertices) for those near the north edge
     graphData.circumcenters.forEach((vertex, index) => {
-      if (!vertex) return;
+      if (!vertex || !graphData.voronoiVertexVertexMap[index]) return;
 
-      const x = vertex.x;
-      const z = vertex.z || vertex.y || 0;
+      const z = vertex.z ?? vertex.y ?? 0;
+      const outsideNorth = isVertexOutOfBounds(vertex, gridSize) && z < 0;
 
-      // Check if vertex is near north edge (z coordinate close to 0) and available in graph
-      if (z < edgeTolerance && z >= 0 && x >= 0 && x <= (gridSize) &&
-        graphData.voronoiVertexVertexMap[index]) {
+      if (outsideNorth && this.hasInBoundsConnection(index, graphData, gridSize)) {
         northEdgeVertices.push(index);
-        console.log(`Found north edge vertex ${index} at (${x.toFixed(1)}, ${z.toFixed(1)})`);
+        console.log(`Found north edge vertex ${index} at (${vertex.x.toFixed(1)}, ${z.toFixed(1)})`);
       }
     });
 
@@ -144,23 +142,20 @@ export class RiversGenerator {
   selectSouthEdgePoint(graphData) {
     console.log('=== SELECTING SOUTH EDGE END POINT ===');
     const gridSize = this.voronoiGenerator.settings.gridSize;
-    const edgeTolerance = 10; // Distance from edge to consider "edge vertex"
     const southEdgeVertices = [];
 
     console.log(`Graph data has ${graphData.circumcenters.length} total circumcenters`);
 
     // Check circumcenters (Voronoi vertices) for those near the south edge
     graphData.circumcenters.forEach((vertex, index) => {
-      if (!vertex) return;
+      if (!vertex || !graphData.voronoiVertexVertexMap[index]) return;
 
-      const x = vertex.x;
-      const z = vertex.z || vertex.y || 0;
+      const z = vertex.z ?? vertex.y ?? 0;
+      const outsideSouth = isVertexOutOfBounds(vertex, gridSize) && z > gridSize;
 
-      // Check if vertex is near south edge (z coordinate close to gridSize) and available in graph
-      if (z <= gridSize && z >= (gridSize - edgeTolerance) && x >= 0 && x <= (gridSize) &&
-        graphData.voronoiVertexVertexMap[index]) {
+      if (outsideSouth && this.hasInBoundsConnection(index, graphData, gridSize)) {
         southEdgeVertices.push(index);
-        console.log(`Found south edge vertex ${index} at (${x.toFixed(1)}, ${z.toFixed(1)})`);
+        console.log(`Found south edge vertex ${index} at (${vertex.x.toFixed(1)}, ${z.toFixed(1)})`);
       }
     });
 
@@ -183,17 +178,7 @@ export class RiversGenerator {
    */
   applyBoundaryWeighting(graphData) {
     const gridSize = this.voronoiGenerator.settings.gridSize;
-    const boundaryTolerance = 30; // Distance from boundary to consider "boundary edge"
     const boundaryWeight = 1000; // Very high weight to discourage boundary usage
-
-    // Check if a vertex is near any boundary
-    const isNearBoundary = (pos) => {
-      if (!pos) return false;
-      return pos.x <= boundaryTolerance ||                    // Near left edge
-        pos.x >= (gridSize - boundaryTolerance) ||       // Near right edge
-        pos.z <= boundaryTolerance ||                    // Near top edge
-        pos.z >= (gridSize - boundaryTolerance);         // Near bottom edge
-    };
 
     // Apply high weights to boundary edges
     for (const [edgeKey, edge] of graphData.voronoiEdges.entries()) {
@@ -201,7 +186,7 @@ export class RiversGenerator {
       const pos1 = graphData.circumcenters[vertex1];
       const pos2 = graphData.circumcenters[vertex2];
 
-      if (isNearBoundary(pos1) || isNearBoundary(pos2)) {
+      if (isVertexOutOfBounds(pos1, gridSize) || isVertexOutOfBounds(pos2, gridSize)) {
         edge.weight = boundaryWeight;
       }
     }
@@ -261,4 +246,12 @@ export class RiversGenerator {
     this.riverPaths = riverPaths;
     return riverPaths;
   }
+  hasInBoundsConnection(vertexIndex, graphData, gridSize) {
+    const neighbors = graphData.voronoiVertexVertexMap[vertexIndex] || [];
+    return neighbors.some((neighborIndex) => {
+      const neighbor = graphData.circumcenters[neighborIndex];
+      return neighbor && !isVertexOutOfBounds(neighbor, gridSize);
+    });
+  }
+
 }

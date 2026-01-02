@@ -6,6 +6,7 @@ import { GraphState } from './geometry/graph/GraphState.js';
 import { GraphUtils } from './geometry/graph/GraphUtils.js';
 import { Map } from './Map.js';
 import { buildVoronoiExport } from './utils/exportVoronoiData.js';
+import { isEdgeCell } from './utils/edgeDetection.js';
 
 // State
 let voronoiGenerator = null;
@@ -510,25 +511,11 @@ function highlightEdgeCells() {
     let highlightedCount = 0;
 
     voronoiCells.forEach((cell, cellId) => {
-        if (!cell || cell?.site?.isBoundary || !Array.isArray(cell.vertices)) {
+        if (!cell || cell?.site?.isBoundary) {
             return;
         }
 
-        const hasOutOfBoundsVertex = cell.vertices.some((vertex) => {
-            if (!vertex) {
-                return false;
-            }
-            const x = vertex.x;
-            const z = vertex.z ?? vertex.y ?? 0;
-
-            if (!Number.isFinite(x) || !Number.isFinite(z)) {
-                return true;
-            }
-
-            return x < 0 || x > gridSize || z < 0 || z > gridSize;
-        });
-
-        if (hasOutOfBoundsVertex) {
+        if (isEdgeCell(cell, gridSize)) {
             featureDrawer.highlightCell(cellId, highlightColor);
             highlightedCount++;
         }

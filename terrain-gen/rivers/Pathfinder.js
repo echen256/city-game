@@ -113,6 +113,9 @@ export class PathFinder {
       console.error(`ERROR: No path found - max iterations of ${maxIterations} reached`);
       return [];
     }
+
+    console.log('ERROR: No path found - open set exhausted');
+    return [];
   }
 
   /**

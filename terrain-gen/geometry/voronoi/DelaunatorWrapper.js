@@ -223,11 +223,11 @@ export class DelaunatorWrapper {
         for (let i = 0; i < 3; i++) {
           const neighbor = triangles[t + i];
           const circumcenter = this.circumcenters[neighbor];
-  
-          if (circumcenter.x < 0 || circumcenter.x > this.gridSize || circumcenter.z < 0 || circumcenter.z > this.gridSize) {
-            console.log(circumcenter);
+
+          if (!circumcenter) {
             continue;
           }
+
           if (neighbor !== pointIndex) {
             cell.neighbors.add(neighbor);
           }
@@ -358,10 +358,7 @@ export class DelaunatorWrapper {
       if (!this.circumcenters[vertexIndex]) {
         continue;
       }
-      
-      const currentVertex = this.circumcenters[vertexIndex];
-      const isCurrentBoundary = this.isBoundaryPoint(currentVertex);
-      
+
       const { halfedges } = this.delaunay;
       const connected = new Set();
       
@@ -373,20 +370,9 @@ export class DelaunatorWrapper {
           const opposite = halfedges[e];
           if (opposite !== -1) {
             const oppositeTriangle = Math.floor(opposite / 3);
-            // Only add connection if the connected vertex is also valid
-            const circumcenter = this.circumcenters[oppositeTriangle];
-            if (circumcenter.x < 0 || circumcenter.x > this.settings.gridSize || circumcenter.z < 0 || circumcenter.z > this.settings.gridSize) {
-              continue;
-            }
-            
-            if (this.circumcenters[oppositeTriangle]) {
-              const isNeighborBoundary = this.isBoundaryPoint(circumcenter);
-              
-              // Skip connection if both vertices are boundary points
-              if (isCurrentBoundary && isNeighborBoundary) {
-                continue;
-              }
-              
+            const neighborCircumcenter = this.circumcenters[oppositeTriangle];
+
+            if (neighborCircumcenter) {
               connected.add(oppositeTriangle);
             }
           }
