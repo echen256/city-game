@@ -14,6 +14,8 @@ export class DelaunatorWrapper {
     this.voronoiVertexVertexMap = new Map();
     // Map of vertex index to array of connected edges
     this.voronoiVertexEdgeMap = new Map();
+    // Track one incoming half-edge for every site so we can walk its star
+    this.inedges = null;
   }
 
   triangulate() {
@@ -39,7 +41,7 @@ export class DelaunatorWrapper {
         this.calculateCircumcenters();
     
     // Clamp out-of-bounds circumcenters to grid bounds before generating edges
-    this.clampVerticesToBounds();
+ //   this.clampVerticesToBounds();
     
     // Generate Voronoi cells
     this.generateVoronoiCells();
@@ -145,7 +147,17 @@ export class DelaunatorWrapper {
 
   generateVoronoiCells() {
     const {triangles, halfedges} = this.delaunay;
-    
+
+    // Cache an incoming halfedge for every site (prefer hull edges)
+    this.inedges = new Int32Array(this.points.length).fill(-1);
+    for (let e = 0; e < halfedges.length; e++) {
+      const endpoint = triangles[this._nextHalfedge(e)];
+      if (endpoint === undefined) continue;
+      if (this.inedges[endpoint] === -1 || halfedges[e] === -1) {
+        this.inedges[endpoint] = e;
+      }
+    }
+
     // Initialize cells
     for (let i = 0; i < this.points.length; i++) {
       this.voronoiCells.set(i, {
@@ -171,35 +183,33 @@ export class DelaunatorWrapper {
   }
 
   getVoronoiCellVertices(pointIndex) {
-    const {triangles, halfedges} = this.delaunay;
+    const {halfedges} = this.delaunay;
     const vertices = [];
     const seen = new Set();
 
-    // Find a triangle that has this point
-    let incoming = -1;
-    for (let e = 0; e < triangles.length; e++) {
-      if (triangles[e] === pointIndex) {
-        incoming = e;
-        break;
-      }
+    if (!this.inedges || this.inedges[pointIndex] === -1) {
+      return vertices;
     }
 
-    if (incoming === -1) return vertices;
-
-    // Walk around the point to find all triangles
+    let incoming = this.inedges[pointIndex];
     const start = incoming;
+
     do {
-      const t = Math.floor(incoming / 3);
-      if (!seen.has(t)) {
-        seen.add(t);
-        vertices.push(this.circumcenters[t]);
+      const triangleIndex = Math.floor(incoming / 3);
+      if (!seen.has(triangleIndex)) {
+        seen.add(triangleIndex);
+        vertices.push(this.circumcenters[triangleIndex]);
       }
 
-      const outgoing = incoming % 3 === 2 ? incoming - 2 : incoming + 1;
+      const outgoing = this._nextHalfedge(incoming);
       incoming = halfedges[outgoing];
     } while (incoming !== -1 && incoming !== start);
 
     return vertices;
+  }
+
+  _nextHalfedge(e) {
+    return e % 3 === 2 ? e - 2 : e + 1;
   }
 
   findNeighborsForPoint(pointIndex, cell) {
@@ -214,10 +224,6 @@ export class DelaunatorWrapper {
           const neighbor = triangles[t + i];
           const circumcenter = this.circumcenters[neighbor];
   
-          if (neighbor === 505) {
-            console.log('--------------------------------');
-            console.log(circumcenter);
-          }
           if (circumcenter.x < 0 || circumcenter.x > this.gridSize || circumcenter.z < 0 || circumcenter.z > this.gridSize) {
             console.log(circumcenter);
             continue;

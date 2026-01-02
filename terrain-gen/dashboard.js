@@ -172,7 +172,7 @@ function createCellHoverElements() {
     const hoverRadius = 5; // 10px radius as requested
 
     map.voronoiGenerator.delaunatorWrapper.voronoiCells.forEach((cell, cellId) => {
-        if (!cell.site) return;
+        if (!cell.site || cell.site.isBoundary) return;
 
         const hoverElement = document.createElement('div');
         hoverElement.className = 'voronoi-cell-hover';
@@ -282,7 +282,8 @@ function showCellInfo(cellId, cell) {
     const boundaryTypeSpan = document.getElementById('boundaryType');
 
     // Update widget content
-    cellIdSpan.textContent = cellId;
+    const siteIndex = cell.site?.index ?? cell.siteIndex ?? 'N/A';
+    cellIdSpan.textContent = `${cellId} (site ${siteIndex})`;
 
 
     const x = cell.site.x.toFixed(1);

@@ -258,6 +258,9 @@ export class FeatureDrawer {
     this.ctx.save();
 
     cells.forEach((cell, cellId) => {
+      if (cell?.site?.isBoundary) {
+        return;
+      }
       if (cell.vertices.length > 2) {
         // Fill cell
         this.ctx.beginPath();
@@ -597,6 +600,9 @@ export class FeatureDrawer {
     this.highlightedCells.forEach((color, cellId) => {
       const cell = voronoiCells.get(cellId);
       if (!cell || !cell.vertices || cell.vertices.length < 3) {
+        return;
+      }
+      if (cell.site?.isBoundary) {
         return;
       }
 
