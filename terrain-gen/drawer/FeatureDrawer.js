@@ -10,6 +10,7 @@ export class FeatureDrawer {
     
     // Event system
     this.eventListeners = new Map();
+    this.highlightedCells = new Map();
   }
 
   /**
@@ -528,7 +529,8 @@ export class FeatureDrawer {
 
     const scaleX = this.canvas.width / this.gridSize;
     const scaleZ = this.canvas.height / this.gridSize;
-
+    this.ctx.strokeStyle = 'red';
+    this.ctx.stroke();
     this.ctx.save();
     this.ctx.lineWidth = strokeWidth;
 
@@ -536,13 +538,21 @@ export class FeatureDrawer {
       coastline.cells.forEach((cellId) => {
         const cell = voronoiCells.get(cellId);
         if (!cell || !cell.vertices || cell.vertices.length < 3) {
+          console.warn(`CoastlineGenerator: Invalid cell ${cellId} for coastline`);
           return;
         }
 
+        if (cellId === 36) {
+          console.log('--------------------------------');
+          console.log(cell);
+        }
         this.ctx.beginPath();
         const firstVertex = cell.vertices[0];
         this.ctx.moveTo(firstVertex.x * scaleX, (firstVertex.z || firstVertex.y || 0) * scaleZ);
-
+        if (cellId === 36) {
+          console.log('--------------------------------');
+          console.log(firstVertex.x * scaleX, (firstVertex.z || firstVertex.y || 0) * scaleZ);
+        }
         for (let i = 1; i < cell.vertices.length; i++) {
           const vertex = cell.vertices[i];
           this.ctx.lineTo(vertex.x * scaleX, (vertex.z || vertex.y || 0) * scaleZ);
@@ -556,6 +566,56 @@ export class FeatureDrawer {
       });
     });
 
+    this.ctx.restore();
+  }
+
+  highlightCell(cellId, color = 'rgba(255, 255, 0, 0.6)') {
+    if (cellId === undefined || cellId === null || Number.isNaN(Number(cellId))) {
+      return;
+    }
+    this.highlightedCells.set(Number(cellId), color);
+  }
+
+  clearHighlightedCells() {
+    this.highlightedCells.clear();
+  }
+
+  drawHighlightedCells(map) {
+    if (!this.highlightedCells.size) {
+      return;
+    }
+
+    const voronoiCells = map?.voronoiGenerator?.delaunatorWrapper?.voronoiCells;
+    if (!voronoiCells) {
+      return;
+    }
+
+    const scaleX = this.canvas.width / this.gridSize;
+    const scaleZ = this.canvas.height / this.gridSize;
+
+    this.ctx.save();
+    this.highlightedCells.forEach((color, cellId) => {
+      const cell = voronoiCells.get(cellId);
+      if (!cell || !cell.vertices || cell.vertices.length < 3) {
+        return;
+      }
+
+      this.ctx.beginPath();
+      const firstVertex = cell.vertices[0];
+      this.ctx.moveTo(firstVertex.x * scaleX, (firstVertex.z || firstVertex.y || 0) * scaleZ);
+
+      for (let i = 1; i < cell.vertices.length; i++) {
+        const vertex = cell.vertices[i];
+        this.ctx.lineTo(vertex.x * scaleX, (vertex.z || vertex.y || 0) * scaleZ);
+      }
+
+      this.ctx.closePath();
+      this.ctx.fillStyle = color;
+      this.ctx.fill();
+      this.ctx.lineWidth = 2;
+      this.ctx.strokeStyle = '#ffff00';
+      this.ctx.stroke();
+    });
     this.ctx.restore();
   }
 
@@ -672,6 +732,7 @@ export class FeatureDrawer {
       this.drawLakes(map);
       this.drawRivers(map);
       this.drawTributaries(map);
+      this.drawHighlightedCells(map);
       
       // Emit 'draw' event after diagram is drawn
       this.emit('draw', { map, timestamp: Date.now() });

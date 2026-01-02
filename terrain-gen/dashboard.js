@@ -997,6 +997,38 @@ function initializeEventHandlers() {
         clearVertexHighlight();
     });
 
+    document.getElementById('highlightCellBtn').addEventListener('click', function () {
+        if (!map || !featureDrawer || !map.voronoiGenerator) {
+            log('Error: Generate the Voronoi diagram first');
+            return;
+        }
+
+        const cellId = parseInt(document.getElementById('highlightCellId').value, 10);
+        if (Number.isNaN(cellId)) {
+            log('Error: Enter a valid cell ID');
+            return;
+        }
+
+        const cellExists = map.voronoiGenerator.delaunatorWrapper?.voronoiCells?.get(cellId);
+        if (!cellExists) {
+            log(`Error: Cell ${cellId} not found`);
+            return;
+        }
+
+        const color = document.getElementById('highlightCellColor').value || '#ffff00';
+        featureDrawer.highlightCell(cellId, color);
+        map.drawDiagram();
+        log(`Highlighted cell ${cellId}`);
+    });
+
+    document.getElementById('clearCellHighlightBtn').addEventListener('click', function () {
+        if (featureDrawer) {
+            featureDrawer.clearHighlightedCells();
+            map?.drawDiagram();
+        }
+        log('Cleared highlighted cells');
+    });
+
     // Allow Enter key in the input field
     document.getElementById('highlightVertexId').addEventListener('keypress', function (event) {
         if (event.key === 'Enter') {
