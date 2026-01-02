@@ -488,6 +488,62 @@ function clearVertexHighlight() {
     }
 }
 
+function highlightEdgeCells() {
+    if (!map || !featureDrawer || !map.voronoiGenerator?.delaunatorWrapper) {
+        log('Error: Generate the Voronoi diagram first');
+        return;
+    }
+
+    const voronoiCells = map.voronoiGenerator.delaunatorWrapper.voronoiCells;
+    if (!voronoiCells || voronoiCells.size === 0) {
+        log('Error: No Voronoi cells available');
+        return;
+    }
+
+    const gridSize = map.settings?.gridSize ?? map.voronoiGenerator.settings?.gridSize ?? featureDrawer.gridSize;
+    if (!Number.isFinite(gridSize)) {
+        log('Error: Unable to determine grid size for edge detection');
+        return;
+    }
+
+    const highlightColor = 'rgba(255, 94, 0, 0.55)';
+    let highlightedCount = 0;
+
+    voronoiCells.forEach((cell, cellId) => {
+        if (!cell || cell?.site?.isBoundary || !Array.isArray(cell.vertices)) {
+            return;
+        }
+
+        const hasOutOfBoundsVertex = cell.vertices.some((vertex) => {
+            if (!vertex) {
+                return false;
+            }
+            const x = vertex.x;
+            const z = vertex.z ?? vertex.y ?? 0;
+
+            if (!Number.isFinite(x) || !Number.isFinite(z)) {
+                return true;
+            }
+
+            return x < 0 || x > gridSize || z < 0 || z > gridSize;
+        });
+
+        if (hasOutOfBoundsVertex) {
+            featureDrawer.highlightCell(cellId, highlightColor);
+            highlightedCount++;
+        }
+    });
+
+    if (highlightedCount === 0) {
+        log('No edge cells found to highlight');
+        return;
+    }
+
+    map.drawDiagram();
+    const plural = highlightedCount === 1 ? '' : 's';
+    log(`Highlighted ${highlightedCount} edge cell${plural}`);
+}
+
 function updateGraphPartitionsList() {
     const partitionsList = document.getElementById('graphPartitionsList');
     
@@ -1033,6 +1089,10 @@ function initializeEventHandlers() {
             map?.drawDiagram();
         }
         log('Cleared highlighted cells');
+    });
+
+    document.getElementById('highlightEdgeCellsBtn').addEventListener('click', function () {
+        highlightEdgeCells();
     });
 
     // Allow Enter key in the input field
