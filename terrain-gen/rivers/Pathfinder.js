@@ -44,7 +44,7 @@ export class PathFinder {
     fScore.set(startPointIndex, this.heuristic(startPointIndex, endPointIndex, realCoordinates));
 
     let iterationCount = 0;
-    const maxIterations = 1000;
+    const maxIterations = 10000;
 
     while (openSet.size > 0 && iterationCount < maxIterations) {
       iterationCount++;
@@ -109,8 +109,10 @@ export class PathFinder {
       }
     }
 
-    console.log('ERROR: No path found - open set exhausted');
-    return [];
+    if (iterationCount >= maxIterations) {
+      console.error(`ERROR: No path found - max iterations of ${maxIterations} reached`);
+      return [];
+    }
   }
 
   /**
